@@ -37,7 +37,7 @@ public class HttpFunc implements Library.DirectiveDef {
     public HttpFunc(HttpHost httpHost, HttpClient httpClient) {
         this.httpHost = httpHost;
         this.httpClient = httpClient;
-        fc.put("send", new SendFunc());
+        fc.put("request", new SendFunc());
         fc.put("proxyPass", new ProxyFunc());
     }
 

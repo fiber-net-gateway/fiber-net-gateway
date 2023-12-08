@@ -38,7 +38,7 @@ public class Server implements HttpServer {
                         .addLast(new ReqHandler(1024, engine));
             }
         });
-        ChannelFuture future = bootstrap.bind(18989).awaitUninterruptibly();
+        ChannelFuture future = bootstrap.bind(16688).awaitUninterruptibly();
         listenCh = future.channel();
         log.info("netty server({}) stopped", listenCh.localAddress());
     }

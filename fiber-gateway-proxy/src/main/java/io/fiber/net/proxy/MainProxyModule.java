@@ -4,6 +4,8 @@ import io.fiber.net.common.Engine;
 import io.fiber.net.common.ext.StartListener;
 import io.fiber.net.common.ioc.Binder;
 import io.fiber.net.common.ioc.Injector;
+import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.http.DefaultHttpClient;
 import io.fiber.net.http.HttpClient;
 import io.fiber.net.server.EngineModule;
@@ -13,7 +15,7 @@ import java.io.File;
 
 public class MainProxyModule implements ProxyModule {
 
-    public static void installProxy(Binder binder) {
+    public static void installProxy(Binder binder, File file) {
         binder.bindFactory(HttpClient.class, injector -> {
             EngineModule.EventLoopGroupHolder groupHolder = injector.getInstance(EngineModule.EventLoopGroupHolder.class);
             return new DefaultHttpClient(groupHolder.getGroup());
@@ -21,7 +23,7 @@ public class MainProxyModule implements ProxyModule {
         binder.bindMultiBean(ProxyModule.class, MainProxyModule.class);
         binder.bindFactory(MainProxyModule.class, MainProxyModule::new);
         binder.bindMultiBean(StartListener.class, ProxyStartListener.class);
-        binder.bind(ProxyStartListener.class, new ProxyStartListener());
+        binder.bind(ProxyStartListener.class, new ProxyStartListener(file));
     }
 
     private final Injector engineInjector;
@@ -37,7 +39,7 @@ public class MainProxyModule implements ProxyModule {
         binder.bindPrototype(ProjectRouterBuilder.class, ProjectRouterBuilder::new);
     }
 
-    public synchronized void create(String projectName,File file) throws Exception {
+    public synchronized void create(String projectName, File file) throws Exception {
         Injector injector;
         if (projectInjector != null) {
             injector = projectInjector.fork();
@@ -58,7 +60,15 @@ public class MainProxyModule implements ProxyModule {
 
 
     public static void main(String[] args) throws Exception {
-        Injector injector = Injector.getRoot().createChild(new EngineModule(), MainProxyModule::installProxy);
+        if (ArrayUtils.isEmpty(args) || StringUtils.isEmpty(args[0])) {
+            throw new IllegalArgumentException("config path is required");
+        }
+        String arg = args[0];
+        File file = new File(arg);
+        if (!file.exists() || !file.isDirectory()) {
+            throw new IllegalArgumentException("config path must be directory");
+        }
+        Injector injector = Injector.getRoot().createChild(new EngineModule(), binder -> installProxy(binder, file));
 
         try {
             Engine engine = injector.getInstance(Engine.class);

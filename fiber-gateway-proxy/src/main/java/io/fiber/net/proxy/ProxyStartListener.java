@@ -19,6 +19,11 @@ public class ProxyStartListener implements StartListener, Destroyable, Runnable 
     volatile boolean stop;
     Map<String, Long> lastUpdate = new HashMap<>();
 
+   private final File file;
+
+    public ProxyStartListener(File file) {
+        this.file = file;
+    }
 
     @Override
     public void onStart(Engine engine) {
@@ -50,7 +55,6 @@ public class ProxyStartListener implements StartListener, Destroyable, Runnable 
     }
 
     private void scanFile() {
-        File file = new File("confs");
         File[] files = file.listFiles();
         if (ArrayUtils.isEmpty(files)) {
             return;

@@ -54,7 +54,7 @@ public class Server implements HttpServer {
         }
         ChannelFuture future = bootstrap.bind().awaitUninterruptibly();
         listenCh = future.channel();
-        log.info("netty server({}) stopped", listenCh.localAddress());
+        log.info("netty server({}) started", listenCh.localAddress());
     }
 
     @Override

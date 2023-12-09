@@ -1,5 +1,5 @@
 # @no-redirect
-DELETE http://127.0.0.1:18989/
+DELETE http://127.0.0.1:16688/
 X-Fiber-Project: aa
 Accept: */*
 Host: fanyi.baidu.com

@@ -36,45 +36,4 @@
             <classifier>osx-x86_64</classifier>
         </dependency>
     </dependencies>
-    <build>
-        <plugins>
-            <!-- 插件jar相关配置 -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>3.2.0</version>
-                <configuration>
-                    <archive>
-                        <!-- 配置MANIFEST.MF文件 -->
-                        <manifest>
-                            <!-- 将依赖的jar包添加到classpath -->
-                            <addClasspath>true</addClasspath>
-                            <!-- 配置每个classpath的前缀，例如依赖为 hutool-all-5.7.16.jar，前缀为 lib/，最后classpath为 lib/hutool-all-5.7.16.jar-->
-                            <classpathPrefix>lib/</classpathPrefix>
-                            <!-- 配置入口类 -->
-                            <mainClass>io.fiber.net.proxy.MainProxyModule</mainClass>
-                        </manifest>
-                    </archive>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>copy-dependencies</id>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>copy-dependencies</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>
-                                ${project.build.directory}/lib
-                            </outputDirectory>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
 </project>

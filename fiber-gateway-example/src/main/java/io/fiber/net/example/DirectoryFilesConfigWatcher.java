@@ -1,10 +1,10 @@
-package io.fiber.net.proxy;
+package io.fiber.net.example;
 
 import io.fiber.net.common.Engine;
-import io.fiber.net.common.ext.StartListener;
 import io.fiber.net.common.ioc.Destroyable;
-import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.proxy.ConfigWatcher;
+import io.fiber.net.proxy.LibProxyMainModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,23 +14,21 @@ import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ProxyStartListener implements StartListener, Destroyable, Runnable {
-    private static final Logger log = LoggerFactory.getLogger(ProxyStartListener.class);
+public class DirectoryFilesConfigWatcher implements ConfigWatcher, Destroyable, Runnable {
+    private static final Logger log = LoggerFactory.getLogger(DirectoryFilesConfigWatcher.class);
 
-    MainProxyModule proxyModule;
     volatile boolean stop;
     Map<String, Long> lastUpdate = new HashMap<>();
-
     private final File file;
+    private Engine engine;
 
-    public ProxyStartListener(File file) {
+    public DirectoryFilesConfigWatcher(File file) {
         this.file = file;
     }
 
     @Override
-    public void onStart(Engine engine) {
-        Injector injector = engine.getInjector();
-        proxyModule = injector.getInstance(MainProxyModule.class);
+    public void startWatch(Engine engine) throws Exception {
+        this.engine = engine;
         scanFile();
         Thread thread = new Thread(this);
         thread.setDaemon(true);
@@ -71,7 +69,7 @@ public class ProxyStartListener implements StartListener, Destroyable, Runnable 
             if (lasted > l) {
                 try {
                     byte[] bytes = Files.readAllBytes(listFile.toPath());
-                    proxyModule.create(name, new String(bytes, StandardCharsets.UTF_8));
+                    LibProxyMainModule.createProject(engine, name, new String(bytes, StandardCharsets.UTF_8));
                 } catch (Exception e) {
                     log.error("error init project", e);
                 }
@@ -93,5 +91,4 @@ public class ProxyStartListener implements StartListener, Destroyable, Runnable 
         }
         return name.substring(s, e);
     }
-
 }

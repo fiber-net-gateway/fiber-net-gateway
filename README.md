@@ -9,7 +9,7 @@
 git clone https://github.com/fiber-net-gateway/fiber-net-gateway.git
 cd fiber-net-gateway
 mvn package -DskipTests
-cd fiber-gateway-proxy/target
+cd fiber-gateway-example/target
 ```
 
 - 创建配置文件
@@ -37,7 +37,7 @@ EOF
 
 - 运行
 ```bash
-java -jar fiber-gateway-proxy-1.0-SNAPSHOT.jar conf
+java -jar fiber-gateway-example-1.0-SNAPSHOT.jar conf
 ```
 
 - 测试

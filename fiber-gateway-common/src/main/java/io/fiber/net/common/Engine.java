@@ -55,8 +55,10 @@ public class Engine implements Destroyable {
             addInterceptors(interceptors);
         }
         StartListener[] startListeners = injector.getInstances(StartListener.class);
-        for (StartListener startListener : startListeners) {
-            startListener.onStart(this);
+        if (ArrayUtils.isNotEmpty(startListeners)) {
+            for (StartListener startListener : startListeners) {
+                startListener.onStart(this);
+            }
         }
     }
 

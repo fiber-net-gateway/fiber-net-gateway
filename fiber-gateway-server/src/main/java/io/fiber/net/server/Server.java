@@ -2,6 +2,7 @@ package io.fiber.net.server;
 
 import io.fiber.net.common.Engine;
 import io.fiber.net.common.utils.EpollAvailable;
+import io.fiber.net.common.utils.StringUtils;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.handler.codec.http.HttpServerCodec;
@@ -22,23 +23,36 @@ public class Server implements HttpServer {
     }
 
     @Override
-    public void start(Engine engine) {
+    public void start(ServerConfig config, Engine engine) {
         bootstrap = new ServerBootstrap();
         bootstrap.channel(EpollAvailable.serverSocketClazz());
         bootstrap.group(EpollAvailable.bossGroup(), eventLoopGroup);
-        bootstrap.option(ChannelOption.SO_BACKLOG, 128).childOption(ChannelOption.SO_KEEPALIVE, true)
-                .childOption(ChannelOption.TCP_NODELAY, true);
+        ServerBootstrap option = bootstrap.option(ChannelOption.SO_BACKLOG, config.getBacklog());
+
+        if (config.isTcpKeepAlive()) {
+            option.childOption(ChannelOption.SO_KEEPALIVE, true);
+        }
+        if (config.isTcpNoDelay()) {
+            option.childOption(ChannelOption.TCP_NODELAY, true);
+        }
 
         bootstrap.childHandler(new ChannelInitializer<Channel>() {
 
             @Override
             protected void initChannel(Channel ch) {
-                ch.pipeline().addLast(new HttpServerCodec())
+                ch.pipeline().addLast(new HttpServerCodec(config.getMaxInitialLineLength(),
+                                config.getMaxHeaderSize(), config.getMaxChunkSize()))
                         .addLast(new HttpServerKeepAliveHandler())
-                        .addLast(new ReqHandler(1024, engine));
+                        .addLast(new ReqHandler(config.getMaxBodySize(), engine));
             }
         });
-        ChannelFuture future = bootstrap.bind(16688).awaitUninterruptibly();
+        String bindIp = config.getBindIp();
+        if (StringUtils.isEmpty(bindIp)) {
+            bootstrap.localAddress(config.getServerPort());
+        } else {
+            bootstrap.localAddress(bindIp, config.getServerPort());
+        }
+        ChannelFuture future = bootstrap.bind().awaitUninterruptibly();
         listenCh = future.channel();
         log.info("netty server({}) stopped", listenCh.localAddress());
     }

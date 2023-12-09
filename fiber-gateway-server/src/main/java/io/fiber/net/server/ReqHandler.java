@@ -2,6 +2,7 @@ package io.fiber.net.server;
 
 import io.fiber.net.common.Engine;
 import io.fiber.net.common.FiberException;
+import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.Fiber;
 import io.fiber.net.common.utils.SystemPropertyUtil;
@@ -58,10 +59,16 @@ public class ReqHandler extends ChannelDuplexHandler {
     private int readBodySize;
     private FullHttpResponse noEngineResp;
     private boolean lingeringSend;
+    private Scheduler scheduler;
 
     public ReqHandler(int maxLength, Engine engine) {
         this.maxLength = maxLength;
         this.engine = engine;
+    }
+
+    @Override
+    public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
+        scheduler = Scheduler.current();
     }
 
     @Override
@@ -70,7 +77,7 @@ public class ReqHandler extends ChannelDuplexHandler {
             HttpRequest httpRequest = (HttpRequest) msg;
             if ((noEngineResp = notEngineResponse(httpRequest, ctx)) == null) {
                 try {
-                    engine.run(httpExchange = new HttpExchangeImpl(ctx.channel(), httpRequest));
+                    engine.run(httpExchange = new HttpExchangeImpl(ctx.channel(), httpRequest, scheduler));
                 } catch (Throwable e) {
                     logger.error("error run engine", e);
                     try {

@@ -4,13 +4,9 @@ import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.proxy.lib.ExtensiveHttpLib;
 import io.fiber.net.script.Script;
 
-import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-
 public class ProjectRouterBuilder {
     private final Injector injector;
-    private File file;
+    private String code;
     private String name;
 
     public ProjectRouterBuilder(Injector injector) {
@@ -21,15 +17,13 @@ public class ProjectRouterBuilder {
         this.name = name;
     }
 
-    public void setFile(File file) {
-        this.file = file;
+    public void setCode(String code) {
+        this.code = code;
     }
 
-
     private Script parseScript() throws Exception {
-        byte[] bytes = Files.readAllBytes(file.toPath());
         ExtensiveHttpLib library = new ExtensiveHttpLib(injector);
-        return Script.compile(new String(bytes, StandardCharsets.UTF_8), library);
+        return Script.compile(code, library);
     }
 
     public ScriptProjectRouter build() throws Exception {

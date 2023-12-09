@@ -37,14 +37,15 @@ class HttpExchangeImpl extends HttpExchange {
     private boolean responseWrote;
     private final String path;
     private final String query;
-    private final BodyBufSubject reqBufSubject = new BodyBufSubject();
+    private final BodyBufSubject reqBufSubject;
 
-    public HttpExchangeImpl(Channel ch, HttpRequest request) {
+    public HttpExchangeImpl(Channel ch, HttpRequest request, Scheduler scheduler) {
         this.ch = ch;
         this.request = request;
         uri = request.uri();
         method = HttpMethod.valueOf(request.method().name());
         headers.set(HttpHeaderNames.CACHE_CONTROL, HttpHeaderValues.NO_CACHE);
+        reqBufSubject = new BodyBufSubject(scheduler);
         int i;
         if ((i = uri.indexOf('?')) != -1) {
             path = uri.substring(0, i);

@@ -8,7 +8,15 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 
 public class BodyBufSubject extends Subject<ByteBuf> {
-    private final Scheduler scheduler = Scheduler.current();
+    private final Scheduler scheduler;
+
+    public BodyBufSubject() {
+        this(Scheduler.current());
+    }
+
+    public BodyBufSubject(Scheduler scheduler) {
+        this.scheduler = scheduler;
+    }
 
     @Override
     protected ByteBuf noSubscriberMerge(ByteBuf previous, ByteBuf current) {

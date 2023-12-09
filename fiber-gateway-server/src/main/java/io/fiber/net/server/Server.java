@@ -52,8 +52,7 @@ public class Server implements HttpServer {
         } else {
             bootstrap.localAddress(bindIp, config.getServerPort());
         }
-        ChannelFuture future = null;
-        future = bootstrap.bind().syncUninterruptibly();
+        ChannelFuture future = bootstrap.bind().syncUninterruptibly();
         listenCh = future.channel();
         log.info("netty server({}) started", listenCh.localAddress());
     }

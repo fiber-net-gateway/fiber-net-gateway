@@ -1,5 +1,5 @@
 # fiber-net-gateway 
-基于脚本解释器的低代码 API 网关。
+一个基于脚本解释器的易扩展的低代码 API 网关。
 
 
 # 使用
@@ -42,25 +42,25 @@ java -jar fiber-gateway-proxy-1.0-SNAPSHOT.jar conf
 
 - 测试
 ```
+# 使用 post 请求，反向代理到百度翻译 （反向代理会透传 downstream 内容）
 curl 127.0.0.1:16688 -XPOST
+# 使用其它请求，返回百度主页。（请求模式，不会透传 downstream）。
 curl 127.0.0.1:16688 -XGET
 ```
 
 # 特性
 
 ## 低代码
-强大的脚本解释器功能、通过脚本代替配置、简单易懂、功能强大。
+强大的脚本解释器功能，通过脚本代替配置，可以实现动态的业务逻辑。
+脚本支持热更新，功能强大、简单易懂、易扩展。
 
 ## 纯异步
-所有的逻辑都在netty eventloop 线程中执行，无其它业务线程。
+基于 netty 实现的纯异步的 http server 和 http client，使用堆外内存、零拷贝。
+支持异步连接池、可以方便的实现反向代理等功能。
+所有的逻辑都在 eventloop 线程中执行，无其它业务线程。
 
 ## 轻依赖
-仅仅使用了netty-http、jackson两个三方库、无其它依赖。
+仅仅使用了 netty-http、jackson 两个三方库、无其它依赖。整个项目代码仅 14000 行，短小精悍。
 
-# 组件
-
-## 脚本引擎
-## 异步 http-client
-## 异步 http-server
 
 

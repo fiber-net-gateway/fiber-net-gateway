@@ -5,7 +5,7 @@
 # 使用
 
 - 编译
-```
+```bash
 git clone https://github.com/fiber-net-gateway/fiber-net-gateway.git
 cd fiber-net-gateway
 mvn package -DskipTests
@@ -13,7 +13,7 @@ cd fiber-gateway-proxy/target
 ```
 
 - 创建配置文件
-```
+```bash
 mkdir conf
 cat > conf/fiber-net.js << EOF
 directive fy from http "https://fanyi.baidu.com";
@@ -36,12 +36,12 @@ EOF
 ```
 
 - 运行
-```
+```bash
 java -jar fiber-gateway-proxy-1.0-SNAPSHOT.jar conf
 ```
 
 - 测试
-```
+```bash
 # 使用 post 请求，反向代理到百度翻译 （反向代理会透传 downstream 内容）
 curl 127.0.0.1:16688 -XPOST
 # 使用其它请求，返回百度主页。（请求模式，不会透传 downstream）。

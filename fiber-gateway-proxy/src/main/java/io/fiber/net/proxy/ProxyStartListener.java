@@ -9,6 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -19,7 +21,7 @@ public class ProxyStartListener implements StartListener, Destroyable, Runnable 
     volatile boolean stop;
     Map<String, Long> lastUpdate = new HashMap<>();
 
-   private final File file;
+    private final File file;
 
     public ProxyStartListener(File file) {
         this.file = file;
@@ -68,7 +70,8 @@ public class ProxyStartListener implements StartListener, Destroyable, Runnable 
             long lasted = listFile.lastModified();
             if (lasted > l) {
                 try {
-                    proxyModule.create(name, listFile);
+                    byte[] bytes = Files.readAllBytes(listFile.toPath());
+                    proxyModule.create(name, new String(bytes, StandardCharsets.UTF_8));
                 } catch (Exception e) {
                     log.error("error init project", e);
                 }

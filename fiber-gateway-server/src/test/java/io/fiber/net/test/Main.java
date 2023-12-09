@@ -12,13 +12,24 @@ import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.server.EngineModule;
 import io.fiber.net.server.HttpServer;
+import io.fiber.net.server.ServerConfig;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.ResourceLeakDetector;
 import org.junit.Test;
 
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class Main {
     static {
@@ -42,7 +53,7 @@ public class Main {
             super.subscribe(observer);
             if (!start) {
                 start = true;
-                Scheduler.current().schedule(this, 1000);
+                Scheduler.current().schedule(this, 1);
             }
         }
 
@@ -63,7 +74,7 @@ public class Main {
                 onComplete();
                 return;
             }
-            Scheduler.current().schedule(this, 3000);
+            Scheduler.current().schedule(this, 3);
         }
     }
 
@@ -122,6 +133,7 @@ public class Main {
         Injector injector = Injector.getRoot().createChild(new M());
         try {
             Engine instance = injector.getInstance(Engine.class);
+            instance.installExt();
             instance.addInterceptor((project, httpExchange, invocation) -> {
                 String path = httpExchange.getPath();
                 if (path.contains("echo")) {
@@ -134,10 +146,81 @@ public class Main {
                 }
             });
             HttpServer server = injector.getInstance(HttpServer.class);
-            server.start(instance);
-            server.awaitShutdown();
+            server.start(new ServerConfig(), instance);
+            bench();
         } finally {
             injector.destroy();
         }
+    }
+
+
+    static byte[] data = new byte[4096];
+
+    static void bench() throws Exception {
+        Runnable task = () -> {
+
+            try {
+                for (int i = 0; i < 200; i++) {
+                    request("/echo");
+                    request("/async");
+                    request("/a123");
+                }
+            } catch (Throwable e) {
+                e.printStackTrace();
+            }
+        };
+
+        IntStream.range(0, 100)
+                .mapToObj(i -> {
+                    Thread thread = new Thread(task);
+                    thread.start();
+                    return thread;
+                }).collect(Collectors.toList()).forEach(thread -> {
+                    try {
+                        thread.join();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                });
+    }
+
+    private static void request(String path) throws Exception {
+        URL url = new URL("http://127.0.0.1:16688" + path);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("POST");
+        connection.setDoInput(true);
+        connection.setDoOutput(true);
+        connection.setInstanceFollowRedirects(false);
+        long start = System.currentTimeMillis();
+        int sendLen = 0;
+        try (OutputStream out = connection.getOutputStream()) {
+            for (int i = 0; i < 8; i++) {
+                int l = ThreadLocalRandom.current().nextInt(data.length);
+                out.write(data, 0, l);
+                sendLen += l;
+            }
+        }
+        long send = System.currentTimeMillis();
+
+        int receiveLen = 0;
+        int code = connection.getResponseCode();
+        try (InputStream in = code < 400 ? connection.getInputStream() : connection.getErrorStream()) {
+            if (in != null) {
+                while (true) {
+                    int i = in.read(data, 0, data.length);
+                    if (i == -1) {
+                        break;
+                    }
+                    receiveLen += i;
+                }
+            } else {
+                receiveLen = -1;
+            }
+        }
+        long receive = System.currentTimeMillis();
+
+        System.out.println("报告：" + path + "状态码：" + code + " 发送" + sendLen + " 耗时："
+                + (send - start) + ", 接收" + receiveLen + "耗时：" + (receive - send));
+
     }
 }

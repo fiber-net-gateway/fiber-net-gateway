@@ -10,6 +10,7 @@ import io.fiber.net.http.DefaultHttpClient;
 import io.fiber.net.http.HttpClient;
 import io.fiber.net.server.EngineModule;
 import io.fiber.net.server.HttpServer;
+import io.fiber.net.server.ServerConfig;
 
 import java.io.File;
 
@@ -39,7 +40,7 @@ public class MainProxyModule implements ProxyModule {
         binder.bindPrototype(ProjectRouterBuilder.class, ProjectRouterBuilder::new);
     }
 
-    public synchronized void create(String projectName, File file) throws Exception {
+    public synchronized void create(String projectName, String code) throws Exception {
         Injector injector;
         if (projectInjector != null) {
             injector = projectInjector.fork();
@@ -49,7 +50,7 @@ public class MainProxyModule implements ProxyModule {
 
         try {
             ProjectRouterBuilder builder = injector.getInstance(ProjectRouterBuilder.class);
-            builder.setFile(file);
+            builder.setCode(code);
             builder.setName(projectName);
             injector.getInstance(Engine.class).addHandlerRouter(builder.build());
         } catch (Throwable e) {
@@ -63,8 +64,7 @@ public class MainProxyModule implements ProxyModule {
         if (ArrayUtils.isEmpty(args) || StringUtils.isEmpty(args[0])) {
             throw new IllegalArgumentException("config path is required");
         }
-        String arg = args[0];
-        File file = new File(arg);
+        File file = new File(args[0]);
         if (!file.exists() || !file.isDirectory()) {
             throw new IllegalArgumentException("config path must be directory");
         }
@@ -75,7 +75,7 @@ public class MainProxyModule implements ProxyModule {
             engine.installExt();
 
             HttpServer server = injector.getInstance(HttpServer.class);
-            server.start(engine);
+            server.start(new ServerConfig(), engine);
             server.awaitShutdown();
         } finally {
             injector.destroy();

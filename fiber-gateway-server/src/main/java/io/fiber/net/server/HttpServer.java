@@ -5,7 +5,7 @@ import io.fiber.net.common.Engine;
 import io.fiber.net.common.ioc.Destroyable;
 
 public interface HttpServer extends Destroyable {
-    void start(Engine engine) throws Exception;
+    void start(ServerConfig config, Engine engine) throws Exception;
 
     void awaitShutdown() throws InterruptedException;
 }

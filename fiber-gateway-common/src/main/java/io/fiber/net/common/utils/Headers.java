@@ -111,8 +111,6 @@ public class Headers {
                         return "accept-charset";
                     case "Ns-Client-Port":
                         return "ns-client-port";
-                    case "X-Pizza-Router":
-                        return "x-pizza-router";
                 }
                 break;
             case 15:

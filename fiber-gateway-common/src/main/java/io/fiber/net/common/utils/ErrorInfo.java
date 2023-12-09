@@ -18,7 +18,7 @@ public class ErrorInfo {
             status = ((FiberException) e).getCode();
             name = ((FiberException) e).getErrorName();
         } else {
-            name = "PIZZA_UNKNOWN_ERROR-" + e.getClass().getName();
+            name = "FIBER_UNKNOWN_ERROR-" + e.getClass().getName();
         }
         errorInfo.name = name;
         errorInfo.status = status;

@@ -762,6 +762,8 @@ public class Parser {
                         }
                     } else if (k.kind == TokenKind.IDENTIFIER) {
                         key = k.data;
+                    } else if (k.kind == TokenKind.RCURLY) {
+                        break;
                     } else {
                         raiseInternalException(t.startpos, SpelMessage.NOT_SUPPORT_INLINE_OBJECT_KEY, k);
                     }

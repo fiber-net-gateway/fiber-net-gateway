@@ -2,6 +2,7 @@ package io.fiber.net.http.impl;
 
 import io.fiber.net.http.HttpHost;
 import io.netty.channel.EventLoop;
+import org.slf4j.Logger;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -9,6 +10,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 public class ThreadConnHolder {
+    private static final Logger log = HttpConnection.log;
 
     static class ConnList implements Runnable {
         private static final AtomicIntegerFieldUpdater<ConnList> IDLE_UPDATER =
@@ -53,6 +55,10 @@ public class ThreadConnHolder {
                 tail = this.head = conn;
             }
 
+            if (log.isDebugEnabled()) {
+                log.debug("connection {} put into pool", conn);
+            }
+
             startEvictTimer();
             return true;
         }
@@ -69,7 +75,10 @@ public class ThreadConnHolder {
                 this.head.prev = null;
                 head.next = null;
             }
-
+            head.detached(this);
+            if (log.isDebugEnabled()) {
+                log.debug("connection {} is fetched from pool", head);
+            }
             return head;
         }
 
@@ -85,6 +94,10 @@ public class ThreadConnHolder {
             } else {
                 this.tail.next = null;
                 tail.prev = null;
+            }
+            tail.detached(this);
+            if (log.isDebugEnabled()) {
+                log.debug("connection {} is fetched from pool", tail);
             }
             return tail;
         }
@@ -116,6 +129,9 @@ public class ThreadConnHolder {
                 n.prev = p;
                 conn.next = null;
             }
+            if (log.isDebugEnabled()) {
+                log.debug("connection {} removed from pool", conn);
+            }
         }
 
         boolean isEmpty() {
@@ -132,6 +148,9 @@ public class ThreadConnHolder {
                     break;
                 }
                 if (l - httpConnection.getLastUpdateTime() >= holder.idleLiveTime || !httpConnection.isActive()) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("starting closing connection {} because of idle timeout", httpConnection);
+                    }
                     httpConnection.close();
                 } else {
                     break;
@@ -144,9 +163,10 @@ public class ThreadConnHolder {
             if (idleCount > 0 && !this.evictTimerStart) {
                 this.evictTimerStart = true;
                 holder.executor.schedule(this, holder.evictInterval, TimeUnit.MILLISECONDS);
-            } else {
-                if (totalCount == 0) {
-                    holder.map.remove(httpHost);
+            } else if (totalCount == 0) {
+                holder.map.remove(httpHost);
+                if (log.isDebugEnabled()) {
+                    log.debug("removed ConnList of Host {} from pool because no connection exists", httpHost);
                 }
             }
         }
@@ -174,9 +194,7 @@ public class ThreadConnHolder {
             return null;
         }
 
-        HttpConnection httpConnection = list.fetchHead();
-        httpConnection.detached(list);
-        return httpConnection;
+        return list.fetchHead();
     }
 
     boolean isAvailable(HttpHost httpHost) {
@@ -194,6 +212,10 @@ public class ThreadConnHolder {
         if (connection.connList == null) {
             connection.connList = list;
             list.incrementTotal();
+        } else {
+            if (log.isDebugEnabled()) {
+                log.debug("creating ConnList for Host {}", connection.getHttpHost());
+            }
         }
     }
 

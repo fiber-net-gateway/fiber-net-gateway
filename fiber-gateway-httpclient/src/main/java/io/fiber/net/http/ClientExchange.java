@@ -18,6 +18,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static io.fiber.net.http.impl.PoolConfig.DEF_MAX_BODY_SIZE;
+
 public class ClientExchange {
 
     /**
@@ -109,7 +111,7 @@ public class ClientExchange {
     protected HttpMethod method = HttpMethod.GET;
     protected int connectTimeout;
     protected int requestTimeout = 5000;
-    protected long maxBodyLength = 32 << 20;
+    protected long maxBodyLength = DEF_MAX_BODY_SIZE;
     protected Function<ClientExchange, Observable<ByteBuf>> reqBodyFunc;
     protected Function<ClientExchange, ByteBuf> reqBufFullFunc;
     protected BiConsumer<ClientExchange, HttpConnection> peekConn;

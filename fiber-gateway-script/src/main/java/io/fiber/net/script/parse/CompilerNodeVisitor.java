@@ -215,8 +215,10 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         node.getTestVal().accept(this);
         int i = pushFalseJump(node.getPos());
         node.getTrueVal().accept(this);
+        int eJump = pushRelationalJump(Code.JUMP, node.getTrueVal().getPos());
         patchJumpPC(i);
         node.getFalseVal().accept(this);
+        patchJumpPC(eJump);
         return null;
     }
 
@@ -413,10 +415,12 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         ifStatement.getPredict().accept(this);
         int i = pushFalseJump(ifStatement.getPos());
         ifStatement.getTrueBlock().accept(this);
+        int jElse = pushRelationalJump(Code.JUMP, ifStatement.getTrueBlock().getPos());
         patchJumpPC(i);
         if (ifStatement.getElseStatement() != null) {
             ifStatement.getElseStatement().accept(this);
         }
+        patchJumpPC(jElse);
         return null;
     }
 

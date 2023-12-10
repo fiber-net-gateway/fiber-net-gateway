@@ -18,7 +18,7 @@ public class ServerConfig {
     public static final boolean DEF_TCP_NO_DELAY =
             SystemPropertyUtil.getBoolean("fiber.http.server.tcpNoDelay", true);
     public static final boolean DEF_TCP_KEEP_ALIVE =
-            SystemPropertyUtil.getBoolean("fiber.http.tcpKeepAlive", true);
+            SystemPropertyUtil.getBoolean("fiber.http.server.tcpKeepAlive", true);
 
     private int backlog = DEF_BACKLOG;
     private int maxInitialLineLength = DEF_MAX_INITIAL_LINE_LENGTH;

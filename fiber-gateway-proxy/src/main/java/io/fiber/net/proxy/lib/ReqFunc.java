@@ -5,16 +5,15 @@ import com.fasterxml.jackson.databind.node.BinaryNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.fiber.net.common.HttpExchange;
-import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.utils.ArrayUtils;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.common.utils.StringUtils;
+import io.fiber.net.http.util.MultiMap;
+import io.fiber.net.http.util.UrlEncoded;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
-import io.fiber.net.http.util.MultiMap;
-import io.fiber.net.http.util.UrlEncoded;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufUtil;
 
@@ -124,19 +123,33 @@ public class ReqFunc {
                 if (throwable != null) {
                     context.throwErr(this, new ScriptExecException(throwable.getMessage(), throwable, 400,
                             ScriptExecException.ERROR_NAME));
-                } else {
-                    JsonNode node;
-                    try {
-                        node = JsonUtil.MAPPER.readTree(new ByteBufInputStream(buf));
-                    } catch (IOException e) {
-                        context.throwErr(this, new ScriptExecException(e.getMessage(), e, 400,
-                                ScriptExecException.ERROR_NAME));
-                        return;
-                    } finally {
-                        buf.release();
-                    }
-                    context.returnVal(this, node);
+                    return;
                 }
+
+                if (buf == null) {
+                    context.throwErr(this, new ScriptExecException("client did not sent body", 400,
+                            ScriptExecException.ERROR_NAME));
+                    return;
+                }
+
+                if (buf.readableBytes() == 0) {
+                    buf.release();
+                    context.throwErr(this, new ScriptExecException("client did not sent body", 400,
+                            ScriptExecException.ERROR_NAME));
+                    return;
+                }
+
+                JsonNode node;
+                try {
+                    node = JsonUtil.MAPPER.readTree(new ByteBufInputStream(buf));
+                } catch (IOException e) {
+                    context.throwErr(this, new ScriptExecException(e.getMessage(), e, 400,
+                            ScriptExecException.ERROR_NAME));
+                    return;
+                } finally {
+                    buf.release();
+                }
+                context.returnVal(this, node);
             });
         }
     }
@@ -149,15 +162,25 @@ public class ReqFunc {
                 if (throwable != null) {
                     context.throwErr(this, new ScriptExecException(throwable.getMessage(), throwable, 400,
                             ScriptExecException.ERROR_NAME));
-                } else {
-                    JsonNode node;
-                    try {
-                        node = BinaryNode.valueOf(ByteBufUtil.getBytes(buf));
-                    } finally {
-                        buf.release();
-                    }
-                    context.returnVal(this, node);
                 }
+                if (buf == null) {
+                    context.returnVal(this, BinaryNode.valueOf(Constant.EMPTY_BYTE_ARR));
+                    return;
+                }
+
+                if (buf.readableBytes() == 0) {
+                    buf.release();
+                    context.returnVal(this, BinaryNode.valueOf(Constant.EMPTY_BYTE_ARR));
+                    return;
+                }
+
+                JsonNode node;
+                try {
+                    node = BinaryNode.valueOf(ByteBufUtil.getBytes(buf));
+                } finally {
+                    buf.release();
+                }
+                context.returnVal(this, node);
             });
         }
     }

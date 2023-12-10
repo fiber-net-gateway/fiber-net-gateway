@@ -46,6 +46,10 @@ public class BodyBufSubject extends Subject<ByteBuf> {
 
     @Override
     public void onNext(ByteBuf value) {
+        if (value.readableBytes() == 0) {
+            value.release();
+            return;
+        }
         assert scheduler.inLoop();
         super.onNext(value);
     }

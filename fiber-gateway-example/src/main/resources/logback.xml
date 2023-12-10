@@ -6,7 +6,7 @@
     <!-- debug:当此属性设置为true时，将打印出logback内部日志信息，实时查看logback运行状态。默认值为false。 -->
     <contextName>logback</contextName>
     <property name="log.path" value="logs"></property>
-    <property name="Console_Pattern" value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%logger{50}] - %msg%n"/>
+    <property name="Console_Pattern" value="%d{HH:mm:ss.SSS} %-5level [%logger{20}][%t] - %msg%n"/>
 
     <appender name="Console" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>

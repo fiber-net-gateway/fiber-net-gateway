@@ -31,9 +31,10 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     private boolean chunkedBody;
     private long receivedBodyLength;
     private boolean requesting;
+    private boolean closeByProto;
+    private int requests;
     private long maxBodyLength;
     private Scheduler scheduler;
-
 
     public HttpConnectionHandler(Channel ch, HttpHost httpHost, EventLoop eventLoop, PoolConfig config) {
         super(ch, httpHost);
@@ -81,7 +82,8 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
             if (decoderResult.isFailure()) {
                 ReferenceCountUtil.release(msg);
                 Throwable cause = decoderResult.cause();
-                ioErrorAndClose(new HttpClientException("reading response error:" + cause.getMessage(), cause, 502, "READ_RESPONSE_ERROR"));
+                ioErrorAndClose(new HttpClientException("reading response error:" + cause.getMessage(), cause, 502,
+                        "READ_RESPONSE_ERROR"));
                 return;
             }
         }
@@ -96,6 +98,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
 
         onHttpMessage(msg, exchange);
         if (exchange.isRequestEnd()) {
+            this.exchange = null;
             dismiss();
         }
     }
@@ -110,6 +113,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
             receivedBodyLength = 0;
             exchange.headerReceived = true;
             HttpResponse response = (HttpResponse) msg;
+            closeByProto = !HttpUtil.isKeepAlive(response);
             exchange.onResp(response.status().code(), response.headers());
             if (maxBodyLength > 0) {
                 long len = HttpUtil.getContentLength(response, -1L);
@@ -187,8 +191,11 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     }
 
     @Override
-    protected boolean isRequesting() {
-        return requesting;
+    protected boolean isValid() {
+        int maxReq;
+        return !requesting
+                && !closeByProto
+                && ((maxReq = config.maxRequestPerConn) <= 0 || requests < maxReq);
     }
 
     HttpHeaders headerForSend(ClientHttpExchange exchange, int contentLength) {
@@ -296,6 +303,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
             throw new IllegalStateException("requesting");
         }
         maxBodyLength = exchange.maxBodyLength();
+        requests++;
     }
 
     private void onRequestSent(Future<? super Void> future) {
@@ -352,7 +360,9 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
         ClientHttpExchange exchange = this.exchange;
         if (exchange != null) {
             this.exchange = null;
-            exchange.notifyError(exception);
+            if (!exchange.isRequestEnd()) {
+                exchange.notifyError(exception);
+            }
         }
         dismiss();
     }

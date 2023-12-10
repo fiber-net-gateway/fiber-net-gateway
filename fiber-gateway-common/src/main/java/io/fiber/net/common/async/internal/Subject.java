@@ -19,7 +19,6 @@ public abstract class Subject<T> implements Observable<T> {
     private volatile ObE<T> obE;
     private T previous;
     private Throwable err;
-    private boolean completed;
     private boolean subscriberClear;
 
     @Override
@@ -37,25 +36,25 @@ public abstract class Subject<T> implements Observable<T> {
         if (o == COMPLETED || o == STARTED) {
             assert !subscriberClear;
             Throwable error;
-            boolean cp;
             T t;
             synchronized (this) {
                 subscriberClear = true;
                 t = previous;
                 error = err;
-                cp = completed;
                 previous = null;
-                err = null;
             }
-            assert error != null || t != null;
+            assert t != null || error != null;
 
             if (t != null) {
                 e.onNext0(t);
             }
 
+            if (o != COMPLETED) {
+                return;
+            }
             if (error != null) {
                 e.onError0(error);
-            } else if (cp || o == COMPLETED) {
+            } else {
                 e.onComplete0();
             }
         }
@@ -128,6 +127,7 @@ public abstract class Subject<T> implements Observable<T> {
                     if (subscriberClear) {
                         continue;
                     } else {
+                        assert previous != null;
                         previous = noSubscriberMerge(previous, value);
                         return;
                     }
@@ -147,7 +147,6 @@ public abstract class Subject<T> implements Observable<T> {
         for (; ; ) {
             ObE e = UPDATER.get(this);
             if (e == null) {
-                completed = true;
                 err = error;
                 if (UPDATER.compareAndSet(this, null, COMPLETED)) {
                     return;
@@ -168,7 +167,6 @@ public abstract class Subject<T> implements Observable<T> {
                     if (subscriberClear) {
                         continue;
                     } else {
-                        completed = true;
                         err = error;
                     }
                 }
@@ -189,7 +187,6 @@ public abstract class Subject<T> implements Observable<T> {
         for (; ; ) {
             ObE e = UPDATER.get(this);
             if (e == null) {
-                completed = true;
                 if (UPDATER.compareAndSet(this, null, COMPLETED)) {
                     return;
                 }
@@ -207,8 +204,6 @@ public abstract class Subject<T> implements Observable<T> {
                 synchronized (this) {
                     if (subscriberClear) {
                         continue;
-                    } else {
-                        completed = true;
                     }
                 }
                 if (UPDATER.compareAndSet(this, STARTED, COMPLETED)) {

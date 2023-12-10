@@ -263,7 +263,7 @@ class HttpExchangeImpl extends HttpExchange {
         private final boolean flush;
         private boolean headerSent;
         private HttpResponseStatus status;
-
+        private Disposable disposable;
 
         public RespWriteOb(boolean flush, int status) {
             this.flush = flush;
@@ -272,6 +272,7 @@ class HttpExchangeImpl extends HttpExchange {
 
         @Override
         public void onSubscribe(Disposable d) {
+            disposable = d;
             if (flush) {
                 writeHeader(true);
             }
@@ -279,10 +280,16 @@ class HttpExchangeImpl extends HttpExchange {
 
         @Override
         public void onNext(ByteBuf buf) {
-            if (!ch.isActive() || buf.readableBytes() == 0) {
+            if (!ch.isActive()) {
+                disposable.dispose();
                 buf.release();
                 return;
             }
+            if (buf.readableBytes() == 0) {
+                buf.release();
+                return;
+            }
+
             if (flush) {
                 ch.writeAndFlush(buf, ch.voidPromise());
             } else {

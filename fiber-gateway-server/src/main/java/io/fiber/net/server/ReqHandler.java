@@ -77,14 +77,20 @@ public class ReqHandler extends ChannelDuplexHandler {
             HttpRequest httpRequest = (HttpRequest) msg;
             if ((noEngineResp = notEngineResponse(httpRequest, ctx)) == null) {
                 try {
-                    engine.run(httpExchange = new HttpExchangeImpl(ctx.channel(), httpRequest, scheduler));
+                    httpExchange = new HttpExchangeImpl(ctx.channel(), httpRequest, scheduler);
+                } catch (Throwable e) {
+                    ctx.writeAndFlush(EXPECTATION_FAILED);
+                    return;
+                }
+
+                try {
+                    engine.run(httpExchange);
                 } catch (Throwable e) {
                     logger.error("error run engine", e);
                     try {
                         httpExchange.writeJson(500, "RUN_ENGINE_ERROR");
                     } catch (FiberException ex) {
                         logger.error("error write RUN_ENGINE_ERROR", e);
-                        ctx.close();
                     }
                     return;
                 }
@@ -202,7 +208,7 @@ public class ReqHandler extends ChannelDuplexHandler {
 
     static void addConnectionHeader(DefaultHttpHeaders headers) {
         headers.set(HttpHeaderNames.DATE, DateFormatter.format(new Date()));
-        headers.set(X_POWERED_BY_HEADER, X_POWERED_BY_VALUE);
+        headers.set(HttpHeaderNames.SERVER, X_POWERED_BY_VALUE);
     }
 
 }

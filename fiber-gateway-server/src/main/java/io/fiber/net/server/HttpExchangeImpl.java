@@ -44,7 +44,6 @@ class HttpExchangeImpl extends HttpExchange {
         this.request = request;
         uri = request.uri();
         method = HttpMethod.valueOf(request.method().name());
-        headers.set(HttpHeaderNames.CACHE_CONTROL, HttpHeaderValues.NO_CACHE);
         reqBufSubject = new BodyBufSubject(scheduler);
         int i;
         if ((i = uri.indexOf('?')) != -1) {

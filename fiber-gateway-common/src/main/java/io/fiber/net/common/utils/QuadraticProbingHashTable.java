@@ -9,7 +9,7 @@ public class QuadraticProbingHashTable<K, V> {
 
     private static <S> int hash(HashingStrategy<? super S> strategy, S key) {
         int h;
-        return (h = key.hashCode()) ^ (h >>> 16);
+        return (h = strategy.hashCode(key)) ^ (h >>> 16);
     }
 
     private static int computeCap(int uCap) {

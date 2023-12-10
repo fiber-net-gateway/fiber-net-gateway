@@ -1,7 +1,7 @@
 directive fy from http "https://fanyi.baidu.com";
 directive bd from http "https://www.baidu.com";
 
-if(req.getMethod() == "POST") {
+if (req.getMethod() == "POST") {
     resp.setHeader("AAA", "bbb");
     fy.proxyPass({
         path: "/v2transapi",
@@ -12,7 +12,17 @@ if(req.getMethod() == "POST") {
         }
     });
 
-} else {
+} else if(strings.contains(req.getPath(), "proxy")) {
+    bd.proxyPass({
+        path: "/",
+        query: "from=en&to=zh",
+        headers: {
+            "X-Fiber-Project": null,
+            Host: null
+        }
+    });
+}
+ else{
     req.discardBody();
     let res = bd.request({path: "/"});
     resp.setHeader("Content-Type", "text/html");

@@ -6,8 +6,12 @@ import io.fiber.net.http.HttpHost;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.util.AttributeKey;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public abstract class HttpConnection {
+    static final Logger log = LoggerFactory.getLogger(HttpConnection.class);
+
     protected static final int STATE_DETACH = 0;
     protected static final int STATE_POOLED = 1;
     protected static final int STATE_CLOSED = 2;
@@ -47,8 +51,8 @@ public abstract class HttpConnection {
     }
 
     final void detached(ThreadConnHolder.ConnList connList) {
+        assert this.connList == connList;
         connState = STATE_DETACH;
-        this.connList = connList;
     }
 
     protected final void endRequest() {
@@ -76,6 +80,9 @@ public abstract class HttpConnection {
         }
         list.decrementTotal();
         ch.close();
+        if (log.isDebugEnabled()) {
+            log.debug("connection {} is closed", this);
+        }
     }
 
     public boolean isClosed() {
@@ -110,4 +117,9 @@ public abstract class HttpConnection {
     public abstract void send(ClientHttpExchange exchange, ByteBuf buf) throws HttpClientException;
 
     public abstract void send(ClientHttpExchange exchange, Observable<ByteBuf> buf, boolean flush) throws HttpClientException;
+
+    @Override
+    public String toString() {
+        return "HttpConnection(" + httpHost + "->" + ch.remoteAddress() + ")@" + hashCode();
+    }
 }

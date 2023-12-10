@@ -1,21 +1,49 @@
 package io.fiber.net.http.impl;
 
+import io.fiber.net.common.utils.SystemPropertyUtil;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 import javax.net.ssl.TrustManagerFactory;
 
 public class PoolConfig {
-    int maxIdlePerHost = 100;
-    long evictInterval = 3000;
-    long idleLiveTime = 25000;
-    boolean enableDnsCache = true;
-    boolean enableDnsCnameCache = true;
-    boolean tcpNoDelay = true;
-    boolean tcpKeepalive = true;
-    boolean reuseAddr;
-    int maxInlineLen = 64 << 10;
-    int maxChunkLen = 8 << 10;
-    int maxHeaderLen = 128 << 10;
+    public static final int DEF_MAX_INITIAL_LINE_LENGTH
+            = SystemPropertyUtil.getInt("fiber.http.client.maxInitialLineLen", 32 << 10);
+    public static final int DEF_MAX_HEADER_SIZE =
+            SystemPropertyUtil.getInt("fiber.http.client.maxHeaderSize", 64 << 10);
+    public static final int DEF_MAX_CHUNK_SIZE =
+            SystemPropertyUtil.getInt("fiber.http.client.maxHeaderSize", 128 << 10);
+
+    public static final int DEF_MAX_BODY_SIZE =
+            SystemPropertyUtil.getInt("fiber.http.client.maxBodySize", 16 << 20);
+    public static final boolean DEF_TCP_NO_DELAY =
+            SystemPropertyUtil.getBoolean("fiber.http.client.tcpNoDelay", true);
+    public static final boolean DEF_TCP_KEEP_ALIVE =
+            SystemPropertyUtil.getBoolean("fiber.http.client.tcpKeepAlive", true);
+    public static final boolean DEF_REUSE_ADDR =
+            SystemPropertyUtil.getBoolean("fiber.http.client.reuseAddr", false);
+    public static final boolean DEF_DNS_CACHE =
+            SystemPropertyUtil.getBoolean("fiber.http.client.dnsCache", true);
+    public static final boolean DEF_DNS_CNAME_CACHE =
+            SystemPropertyUtil.getBoolean("fiber.http.client.dnsCnameCache", true);
+
+    public static final int DEF_MAX_IDLE_PER_HOST =
+            SystemPropertyUtil.getInt("fiber.http.client.maxIdlePerHost", 100);
+    public static final int DEF_EVICT_INTERVAL =
+            SystemPropertyUtil.getInt("fiber.http.client.evictInterval", 3000);
+    public static final int DEF_IDLE_TIME =
+            SystemPropertyUtil.getInt("fiber.http.client.idleLiveTime", 25000);
+
+    int maxIdlePerHost = DEF_MAX_IDLE_PER_HOST;
+    long evictInterval = DEF_EVICT_INTERVAL;
+    long idleLiveTime = DEF_IDLE_TIME;
+    boolean enableDnsCache = DEF_DNS_CACHE;
+    boolean enableDnsCnameCache = DEF_DNS_CNAME_CACHE;
+    boolean tcpNoDelay = DEF_TCP_NO_DELAY;
+    boolean tcpKeepalive = DEF_TCP_KEEP_ALIVE;
+    boolean reuseAddr = DEF_REUSE_ADDR;
+    int maxInlineLen = DEF_MAX_INITIAL_LINE_LENGTH;
+    int maxChunkLen = DEF_MAX_CHUNK_SIZE;
+    int maxHeaderLen = DEF_MAX_HEADER_SIZE;
     TrustManagerFactory trustManager = InsecureTrustManagerFactory.INSTANCE;
 
 

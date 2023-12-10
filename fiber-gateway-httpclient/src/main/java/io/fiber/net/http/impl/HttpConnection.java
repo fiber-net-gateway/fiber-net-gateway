@@ -57,10 +57,13 @@ public abstract class HttpConnection {
 
     protected final void endRequest() {
         if (connState != STATE_DETACH) {
+            if(!isActive()){
+                close();
+            }
             return;
         }
         lastUpdateTime = System.currentTimeMillis();
-        if (!isRequesting() && isActive() && connList.putHead(this)) {
+        if (isValid() && isActive() && connList.putHead(this)) {
             connState = STATE_POOLED;
         } else {
             close();
@@ -109,7 +112,7 @@ public abstract class HttpConnection {
         return ch.isActive() && !isClosed();
     }
 
-    protected abstract boolean isRequesting();
+    protected abstract boolean isValid();
 
 
     public abstract void sendNonBody(ClientHttpExchange exchange) throws HttpClientException;

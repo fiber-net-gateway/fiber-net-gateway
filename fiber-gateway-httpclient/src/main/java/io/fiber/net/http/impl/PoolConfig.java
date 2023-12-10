@@ -32,6 +32,8 @@ public class PoolConfig {
             SystemPropertyUtil.getInt("fiber.http.client.evictInterval", 3000);
     public static final int DEF_IDLE_TIME =
             SystemPropertyUtil.getInt("fiber.http.client.idleLiveTime", 25000);
+    public static final int DEF_MAX_REQUEST_PER_CONN =
+            SystemPropertyUtil.getInt("fiber.http.client.maxRequestPerConn", 150);
 
     int maxIdlePerHost = DEF_MAX_IDLE_PER_HOST;
     long evictInterval = DEF_EVICT_INTERVAL;
@@ -44,6 +46,7 @@ public class PoolConfig {
     int maxInlineLen = DEF_MAX_INITIAL_LINE_LENGTH;
     int maxChunkLen = DEF_MAX_CHUNK_SIZE;
     int maxHeaderLen = DEF_MAX_HEADER_SIZE;
+    int maxRequestPerConn = DEF_MAX_REQUEST_PER_CONN;
     TrustManagerFactory trustManager = InsecureTrustManagerFactory.INSTANCE;
 
 
@@ -141,5 +144,13 @@ public class PoolConfig {
 
     public void setReuseAddr(boolean reuseAddr) {
         this.reuseAddr = reuseAddr;
+    }
+
+    public int getMaxRequestPerConn() {
+        return maxRequestPerConn;
+    }
+
+    public void setMaxRequestPerConn(int maxRequestPerConn) {
+        this.maxRequestPerConn = maxRequestPerConn;
     }
 }

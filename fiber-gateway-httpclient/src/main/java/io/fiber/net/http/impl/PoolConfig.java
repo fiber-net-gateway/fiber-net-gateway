@@ -15,7 +15,7 @@ public class PoolConfig {
     }
 
     public static final String DEF_USER_AGENT =
-            SystemPropertyUtil.get("fiber.http.client.maxRequestPerConn", FIBER_USER_AGENT);
+            SystemPropertyUtil.get("fiber.http.client.defaultUserAgent", FIBER_USER_AGENT);
 
     public static final int DEF_MAX_INITIAL_LINE_LENGTH
             = SystemPropertyUtil.getInt("fiber.http.client.maxInitialLineLen", 32 << 10);
@@ -45,6 +45,10 @@ public class PoolConfig {
             SystemPropertyUtil.getInt("fiber.http.client.idleLiveTime", 25000);
     public static final int DEF_MAX_REQUEST_PER_CONN =
             SystemPropertyUtil.getInt("fiber.http.client.maxRequestPerConn", 150);
+    public static final int DEF_CONNECT_TIMEOUT =
+            SystemPropertyUtil.getInt("fiber.http.client.connectTimeout", 3000);
+    public static final int DEF_REQUEST_TIMEOUT =
+            SystemPropertyUtil.getInt("fiber.http.client.requestTimeout", 5000);
 
     int maxIdlePerHost = DEF_MAX_IDLE_PER_HOST;
     long evictInterval = DEF_EVICT_INTERVAL;

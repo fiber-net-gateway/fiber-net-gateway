@@ -8,6 +8,7 @@ import io.fiber.net.common.async.internal.SingleSubject;
 import io.fiber.net.common.utils.Headers;
 import io.fiber.net.http.impl.ConnectionPool;
 import io.fiber.net.http.impl.HttpConnection;
+import io.fiber.net.http.impl.PoolConfig;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -17,8 +18,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static io.fiber.net.http.impl.PoolConfig.DEF_MAX_BODY_SIZE;
 
 public class ClientExchange {
 
@@ -109,9 +108,9 @@ public class ClientExchange {
     private final DefaultHttpHeaders headers = new DefaultHttpHeaders();
     protected String uri = "/";
     protected HttpMethod method = HttpMethod.GET;
-    protected int connectTimeout;
-    protected int requestTimeout = 5000;
-    protected long maxBodyLength = DEF_MAX_BODY_SIZE;
+    protected int connectTimeout = PoolConfig.DEF_CONNECT_TIMEOUT;
+    protected long maxBodyLength = PoolConfig.DEF_MAX_BODY_SIZE;
+    protected int requestTimeout = PoolConfig.DEF_REQUEST_TIMEOUT;
     protected Function<ClientExchange, Observable<ByteBuf>> reqBodyFunc;
     protected Function<ClientExchange, ByteBuf> reqBufFullFunc;
     protected BiConsumer<ClientExchange, HttpConnection> peekConn;

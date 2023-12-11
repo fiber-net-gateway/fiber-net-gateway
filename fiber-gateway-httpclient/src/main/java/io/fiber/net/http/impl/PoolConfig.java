@@ -1,11 +1,22 @@
 package io.fiber.net.http.impl;
 
+import io.fiber.net.common.utils.Constant;
+import io.fiber.net.common.utils.Fiber;
 import io.fiber.net.common.utils.SystemPropertyUtil;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 import javax.net.ssl.TrustManagerFactory;
 
 public class PoolConfig {
+    static final String FIBER_USER_AGENT;
+
+    static {
+        FIBER_USER_AGENT = "fiber-net/" + SystemPropertyUtil.get(Constant.APP_NAME, "fn") + "/" + Fiber.VERSION;
+    }
+
+    public static final String DEF_USER_AGENT =
+            SystemPropertyUtil.get("fiber.http.client.maxRequestPerConn", FIBER_USER_AGENT);
+
     public static final int DEF_MAX_INITIAL_LINE_LENGTH
             = SystemPropertyUtil.getInt("fiber.http.client.maxInitialLineLen", 32 << 10);
     public static final int DEF_MAX_HEADER_SIZE =
@@ -48,6 +59,7 @@ public class PoolConfig {
     int maxHeaderLen = DEF_MAX_HEADER_SIZE;
     int maxRequestPerConn = DEF_MAX_REQUEST_PER_CONN;
     TrustManagerFactory trustManager = InsecureTrustManagerFactory.INSTANCE;
+    String userAgent = DEF_USER_AGENT;
 
 
     public int getMaxIdlePerHost() {
@@ -152,5 +164,13 @@ public class PoolConfig {
 
     public void setMaxRequestPerConn(int maxRequestPerConn) {
         this.maxRequestPerConn = maxRequestPerConn;
+    }
+
+    public String getUserAgent() {
+        return userAgent;
+    }
+
+    public void setUserAgent(String userAgent) {
+        this.userAgent = userAgent;
     }
 }

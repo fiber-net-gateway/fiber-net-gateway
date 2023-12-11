@@ -54,17 +54,17 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     }
 
     @Override
-    public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
+    public void channelUnregistered(ChannelHandlerContext ctx) {
         ctx.fireChannelRegistered();
     }
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+    public void channelActive(ChannelHandlerContext ctx) {
         ctx.fireChannelActive();
     }
 
     @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+    public void channelInactive(ChannelHandlerContext ctx) {
         if (!isClosed()) {
             if (exchange != null) {
                 ioErrorAndClose(NO_RESPONSE);
@@ -113,7 +113,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
             receivedBodyLength = 0;
             exchange.headerReceived = true;
             HttpResponse response = (HttpResponse) msg;
-            closeByProto = !HttpUtil.isKeepAlive(response);
+            closeByProto |= !HttpUtil.isKeepAlive(response);
             exchange.onResp(response.status().code(), response.headers());
             if (maxBodyLength > 0) {
                 long len = HttpUtil.getContentLength(response, -1L);
@@ -159,32 +159,32 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     }
 
     @Override
-    public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
+    public void channelReadComplete(ChannelHandlerContext ctx) {
         ctx.fireChannelReadComplete();
     }
 
     @Override
-    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
         ctx.fireUserEventTriggered(evt);
     }
 
     @Override
-    public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception {
+    public void channelWritabilityChanged(ChannelHandlerContext ctx) {
         ctx.fireChannelWritabilityChanged();
     }
 
     @Override
-    public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+    public void handlerAdded(ChannelHandlerContext ctx) {
         this.ctx = ctx;
     }
 
     @Override
-    public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
+    public void handlerRemoved(ChannelHandlerContext ctx) {
 
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         if (!isClosed() && exchange != null) {
             ioErrorAndClose(new HttpClientException("io error:" + cause.getMessage(), cause, 502, "IO_ERROR"));
         }
@@ -192,10 +192,8 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
 
     @Override
     protected boolean isValid() {
-        int maxReq;
         return !requesting
-                && !closeByProto
-                && ((maxReq = config.maxRequestPerConn) <= 0 || requests < maxReq);
+                && !closeByProto;
     }
 
     HttpHeaders headerForSend(ClientHttpExchange exchange, int contentLength) {
@@ -206,6 +204,16 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
                 httpHost = getHttpHost();
             }
             headers.set(HttpHeaderNames.HOST, httpHost.getHostText());
+        }
+
+        if (!headers.contains(HttpHeaderNames.USER_AGENT)) {
+            headers.set(HttpHeaderNames.USER_AGENT, config.userAgent);
+        }
+
+        int maxRequest;
+        if ((maxRequest = config.maxRequestPerConn) > 0 && ++requests >= maxRequest) {
+            headers.set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+            closeByProto = true;
         }
         if (contentLength >= 0) {
             headers.set(HttpHeaderNames.CONTENT_LENGTH, contentLength);
@@ -303,7 +311,6 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
             throw new IllegalStateException("requesting");
         }
         maxBodyLength = exchange.maxBodyLength();
-        requests++;
     }
 
     private void onRequestSent(Future<? super Void> future) {

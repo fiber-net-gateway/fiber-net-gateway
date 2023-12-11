@@ -1,5 +1,6 @@
 package io.fiber.net.common.async.internal;
 
+import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.async.Single;
 import io.fiber.net.common.utils.Exceptions;
 
@@ -17,7 +18,7 @@ public final class SingleCreate<T> implements Single<T> {
         observer.onSubscribe(obE);
         try {
             source.subscribe(obE);
-        }catch (Throwable e){
+        } catch (Throwable e) {
             Exceptions.throwIfFatal(e);
             obE.onError(e);
         }
@@ -25,31 +26,48 @@ public final class SingleCreate<T> implements Single<T> {
 
     static class ObE<T> extends DisposableOb implements Emitter<T> {
         private final Observer<? super T> observer;
+        private final Scheduler scheduler;
 
         ObE(Observer<? super T> observer) {
             this.observer = observer;
+            scheduler = observer.scheduler();
         }
 
         @Override
         public void onSuccess(T t) {
-            if (!isDisposed()) {
-                try {
-                    observer.onSuccess(t);
-                } finally {
-                    dispose();
-                }
+            if (isDisposed()) {
+                return;
             }
+            Scheduler scheduler = this.scheduler;
+            try {
+                if (scheduler.inLoop()) {
+                    observer.onSuccess(t);
+                } else {
+                    scheduler.execute(() -> observer.onSuccess(t));
+                }
+            } finally {
+                dispose();
+            }
+
         }
 
         @Override
         public void onError(Throwable t) {
-            if (!isDisposed()) {
-                try {
-                    observer.onError(t);
-                } finally {
-                    dispose();
-                }
+            if (isDisposed()) {
+                return;
             }
+
+            Scheduler scheduler = this.scheduler;
+            try {
+                if (scheduler.inLoop()) {
+                    observer.onError(t);
+                } else {
+                    scheduler.execute(() -> observer.onError(t));
+                }
+            } finally {
+                dispose();
+            }
+
         }
     }
 }

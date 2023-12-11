@@ -2,6 +2,7 @@ package io.fiber.net.script.parse;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.ValueNode;
 import io.fiber.net.script.Vm;
 import io.fiber.net.script.ast.*;
 import io.fiber.net.script.std.Compares;
@@ -26,7 +27,7 @@ public class OptimiserNodeVisitor implements NodeVisitor<Node> {
         }
 
         public boolean isConst() {
-            return !hasChanged && constLiteral != null;
+            return !hasChanged && constLiteral instanceof ValueNode;
         }
 
         public String getName() {

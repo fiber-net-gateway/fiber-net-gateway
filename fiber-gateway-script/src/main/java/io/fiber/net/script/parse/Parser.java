@@ -747,6 +747,7 @@ public class Parser {
                     ExpandArrArg expand = new ExpandArrArg(toPos(t), eatExpression());
                     map.put(InlineObject.expandKey(), expand);
                 } else {
+                    nextToken();
                     String key = null;
                     if (k.kind == TokenKind.LITERAL_STRING) {
                         try {
@@ -762,12 +763,18 @@ public class Parser {
                         }
                     } else if (k.kind == TokenKind.IDENTIFIER) {
                         key = k.data;
+                        if (peekToken(TokenKind.COMMA)) {
+                            ExpressionNode old = map.put(key, new VariableReference(key, toPos(k)));
+                            if (old != null) {
+                                raiseInternalException(t.startpos, SpelMessage.INLINE_OBJECT_DUPLICATE_KEY, k);
+                            }
+                            continue;
+                        }
                     } else if (k.kind == TokenKind.RCURLY) {
                         break;
                     } else {
                         raiseInternalException(t.startpos, SpelMessage.NOT_SUPPORT_INLINE_OBJECT_KEY, k);
                     }
-                    nextToken();
                     eatToken(TokenKind.COLON);
                     ExpressionNode old = map.put(key, eatExpression());
                     if (old != null) {

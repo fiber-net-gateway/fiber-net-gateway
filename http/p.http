@@ -46,4 +46,10 @@ Content-Type: application/x-www-form-urlencoded; charset=UTF-8
 
 from=en&to=zh&query=hello&simple_means_flag=3&sign=54706.276099&token=e2636ef565c8fb8499fdce03222481ae&domain=common&ts=1702022544560
 ###
+# curl https://36.155.132.3:443 -v -H'Host: www.baidu.com'
+GET https://36.155.132.3:443
+Host: www.baidu.com
+
+###
+
 

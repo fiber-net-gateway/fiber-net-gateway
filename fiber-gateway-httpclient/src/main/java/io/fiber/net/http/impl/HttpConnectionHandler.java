@@ -192,8 +192,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
 
     @Override
     protected boolean isValid() {
-        return !requesting
-                && !closeByProto;
+        return !requesting && !closeByProto;
     }
 
     HttpHeaders headerForSend(ClientHttpExchange exchange, int contentLength) {
@@ -235,7 +234,8 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
         HttpMethod method = exchange.requestMethod();
         String uri = exchange.requestUri();
         HttpHeaders headers = headerForSend(exchange, buf.readableBytes());
-        ctx.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, uri, buf, headers, EmptyHttpHeaders.INSTANCE), ctx.newPromise().addListener(this::onRequestSent));
+        ctx.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, uri, buf, headers, EmptyHttpHeaders.INSTANCE),
+                ctx.newPromise().addListener(this::onRequestSent));
     }
 
     @Override

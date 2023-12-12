@@ -16,6 +16,11 @@ for(let k,v of c) {
 }
 
 b.cc = "123";
+try {
+    b.json = req.readJson();
+} catch (e) {
+    b.jsonError = e;
+}
 
 let bdData = bd.request({headers: {"User-Agent": "Apache-HttpClient/4.5.14 (Java/17.0.6)"}});
 bdData.body = strings.toString(bdData.body);

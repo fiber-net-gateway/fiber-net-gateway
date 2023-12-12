@@ -9,7 +9,7 @@ public class ServerConfig {
     public static final int DEF_MAX_HEADER_SIZE =
             SystemPropertyUtil.getInt("fiber.http.server.maxHeaderSize", 64 << 10);
     public static final int DEF_MAX_CHUNK_SIZE =
-            SystemPropertyUtil.getInt("fiber.http.server.maxHeaderSize", 128 << 10);
+            SystemPropertyUtil.getInt("fiber.http.server.maxChunkSize", 128 << 10);
     public static final int DEF_SERVER_PORT =
             SystemPropertyUtil.getInt("fiber.http.server.serverPort", 16688);
 

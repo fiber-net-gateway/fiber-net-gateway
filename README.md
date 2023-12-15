@@ -1,5 +1,5 @@
 # fiber-net-gateway 
-一个基于脚本解释器的易扩展的低代码 API 网关。
+一个基于脚本解释器的低代码 API 网关。
 
 
 # 使用
@@ -15,7 +15,7 @@ cd fiber-gateway-example/target
 - 创建配置文件
 ```bash
 mkdir conf
-cat > conf/fiber-net.js << EOF
+cat > conf/fiber-net.gs << EOF
 directive fy from http "https://fanyi.baidu.com";
 directive bd from http "https://www.baidu.com";
 if(req.getMethod() == "POST") {
@@ -47,20 +47,22 @@ curl 127.0.0.1:16688 -XPOST
 # 使用其它请求，返回百度主页。（请求模式，不会透传 downstream）。
 curl 127.0.0.1:16688 -XGET
 ```
+每次请求，fiber-net.gs 都会被执行一次。也可以在 conf 目录下放置其它 .gs 文件
+通过 request header "X-Fiber-Project" 执行被执行的文件名。（如 ttt.gs）
+```bash
+### conf/ttt.gs 文件会被执行，不指定则执行 fiber-net.gs 
+curl 127.0.0.1:16688 -H'X-Fiber-Project: ttt'
+```
+详细说明请参考 [使用文档](doc/user.md)
+
+扩展二次开发请参考 [开发文档](doc/dev.md)
+
+
+# 说明
+本项目的核心是一个内置轻量级脚本解释器，.gs 文件经过 分词（lex）、解析（parse）、优化（optimize）、编译（compile）之后被解释执行。
+每次请求会有 一个协程（coroutine, fiber thread）解释执行 .gs 脚本， 起名 “fiber-gateway” 含义正是来自于此。
+
+除了 脚本解释器 之外 本项目还实现了纯异步的 http server 和 http client， 三者结合就可以作为一个低代码 API 网关使用。
 
 # 特性
-
-## 低代码
-强大的脚本解释器功能，通过脚本代替配置，可以实现动态的业务逻辑。
-脚本支持热更新，功能强大、简单易懂、易扩展。
-
-## 纯异步
-基于 netty 实现的纯异步的 http server 和 http client，使用堆外内存、零拷贝。
-支持异步连接池、可以方便的实现反向代理等功能。
-所有的逻辑都在 eventloop 线程中执行，无其它业务线程。
-
-## 轻依赖
-仅仅使用了 netty-http、jackson 两个三方库、无其它依赖。整个项目代码仅 14000 行，短小精悍。
-
-
-
+炸裂的性能、支持协程、纯异步、零拷贝。

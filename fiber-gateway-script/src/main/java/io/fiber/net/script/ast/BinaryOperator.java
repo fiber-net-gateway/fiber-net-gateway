@@ -62,7 +62,7 @@ public class BinaryOperator extends ExpressionNode {
     public void toStringAST(StringBuilder sb) {
         sb.append("(");
         sb.append(left);
-        sb.append(operator.getPayload());
+        sb.append(operator.getAstPayload());
         sb.append(right);
         sb.append(")");
     }

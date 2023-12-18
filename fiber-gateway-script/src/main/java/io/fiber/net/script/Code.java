@@ -30,6 +30,9 @@ public interface Code {
     int BOP_SNE = 33; //~
 
 
+    int BOP_IN = 34; // in
+
+
     //
     int UNARY_PLUS = 40;
     int UNARY_MINUS = 41;

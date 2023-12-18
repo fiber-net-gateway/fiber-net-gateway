@@ -282,6 +282,10 @@ public class Vm implements ExecutionContext {
                             --sp;
                             stack[sp - 1] = BinaryOperator.sne(stack[sp - 1], stack[sp]);
                             break;
+                        case Code.BOP_IN:
+                            --sp;
+                            stack[sp - 1] = BinaryOperator.in(stack[sp - 1], stack[sp]);
+                            break;
 
                         case Code.UNARY_PLUS:
                             stack[sp - 1] = Unary.plus(stack[sp - 1]);

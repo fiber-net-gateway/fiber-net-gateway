@@ -34,7 +34,7 @@ public class LogicRelationalExpression extends ExpressionNode {
     @Override
     public void toStringAST(StringBuilder sb) {
         left.toStringAST(sb);
-        sb.append(operator.getPayload());
+        sb.append(operator.getAstPayload());
         right.toStringAST(sb);
     }
 

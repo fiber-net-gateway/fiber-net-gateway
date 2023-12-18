@@ -26,7 +26,6 @@ public enum Operator {
 
     NOT("!"),
 
-    INCLUDE("include"),
     TYPEOF("typeof"),
     IN("in"),
     ;
@@ -36,16 +35,20 @@ public enum Operator {
         this.payload = payload;
     }
 
-    public String getPayload() {
-        if (this.ordinal() < INCLUDE.ordinal()) {
+    public String getAstPayload() {
+        if (this.ordinal() < TYPEOF.ordinal()) {
             return payload;
         }
         return " " + payload + " ";
     }
 
+    public String getPayload() {
+        return payload;
+    }
+
     public static Operator fromToken(TokenKind token) {
         for (Operator value : VALUES) {
-            if (value.ordinal() >= INCLUDE.ordinal()) {
+            if (value.ordinal() >= TYPEOF.ordinal()) {
                 break;
             }
             if (token.getPayload().equals(value.payload)) {
@@ -56,7 +59,7 @@ public enum Operator {
     }
 
     public static Operator fromIdentity(String identity) {
-        for (int i = INCLUDE.ordinal(); i < VALUES.length; i++) {
+        for (int i = TYPEOF.ordinal(); i < VALUES.length; i++) {
             if (VALUES[i].payload.equals(identity)) {
                 return VALUES[i];
             }

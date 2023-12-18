@@ -27,7 +27,7 @@ public class UnaryOperator extends ExpressionNode {
 
     @Override
     public void toStringAST(StringBuilder sb) {
-        sb.append(operator.getPayload());
+        sb.append(operator.getAstPayload());
         node.toStringAST(sb);
     }
 

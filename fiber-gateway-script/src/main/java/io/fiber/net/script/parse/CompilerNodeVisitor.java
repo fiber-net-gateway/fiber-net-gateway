@@ -203,8 +203,11 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
             case SNE:
                 push(Code.BOP_SNE, binaryOperator.getPos(), -1);
                 break;
+            case IN:
+                push(Code.BOP_IN, binaryOperator.getPos(), -1);
+                break;
             default:
-                throw new ParseException("变量只支持 $");
+                throw new ParseException("unsupported operator");
         }
 
         return null;

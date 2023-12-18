@@ -71,9 +71,7 @@ public class Tokenizer {
                         pushCharToken(TokenKind.COLON);
                         break;
                     case '.':
-                        if (isThreeCharToken(TokenKind.SAFE_EXPAND)) {
-                            pushThreeToken(TokenKind.SAFE_EXPAND);
-                        } else if (isThreeCharToken(TokenKind.EXPAND)) {
+                        if (isThreeCharToken(TokenKind.EXPAND)) {
                             pushThreeToken(TokenKind.EXPAND);
                         } else {
                             pushCharToken(TokenKind.DOT);

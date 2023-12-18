@@ -17,9 +17,7 @@
 package io.fiber.net.script.parse;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.fiber.net.common.utils.Constant;
-import io.fiber.net.common.utils.JsonUtil;
-import io.fiber.net.common.utils.StringUtils;
+import io.fiber.net.common.utils.*;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ast.*;
 
@@ -460,7 +458,10 @@ public class Parser {
             if (tk == TokenKind.TILDE) {
                 return new BinaryOperator(toPos(t), expr, Operator.MATCH, rhExpr);
             }
-            return new BinaryOperator(toPos(t), expr, Operator.IN, rhExpr);
+            Assert.isTrue(tk == TokenKind.IDENTIFIER);
+            if (relationalOperatorToken.data.equals(Operator.IN.getPayload())) {
+                return new BinaryOperator(toPos(t), expr, Operator.IN, rhExpr);
+            }
         }
         return expr;
     }
@@ -686,7 +687,7 @@ public class Parser {
             }
             if (t.kind != TokenKind.RPAREN) {
                 ExpressionNode e;
-                if (t.kind == TokenKind.EXPAND || t.kind == TokenKind.SAFE_EXPAND) {
+                if (t.kind == TokenKind.EXPAND) {
                     nextToken();
                     e = new ExpandArrArg(toPos(t), eatExpression());
                 } else {
@@ -742,14 +743,14 @@ public class Parser {
                 if (k == null) {
                     raiseInternalException(t.startpos, SpelMessage.MISSING_INLINE_OBJECT_ELEMENT);
                 }
-                if (k.kind == TokenKind.EXPAND || k.kind == TokenKind.SAFE_EXPAND) {
+                if (k.kind == TokenKind.EXPAND) {
                     nextToken();
                     ExpandArrArg expand = new ExpandArrArg(toPos(t), eatExpression());
                     map.put(InlineObject.expandKey(), expand);
                 } else {
-                    nextToken();
                     String key = null;
                     if (k.kind == TokenKind.LITERAL_STRING) {
+                        nextToken();
                         try {
                             JsonNode node = JsonUtil.MAPPER.readTree(k.data);
                             if (!node.isTextual()) {
@@ -763,7 +764,8 @@ public class Parser {
                         }
                     } else if (k.kind == TokenKind.IDENTIFIER) {
                         key = k.data;
-                        if (peekToken(TokenKind.COMMA)) {
+                        nextToken();
+                        if (peekToken(TokenKind.COMMA) || peekToken(TokenKind.RCURLY)) {
                             ExpressionNode old = map.put(key, new VariableReference(key, toPos(k)));
                             if (old != null) {
                                 raiseInternalException(t.startpos, SpelMessage.INLINE_OBJECT_DUPLICATE_KEY, k);
@@ -825,7 +827,7 @@ public class Parser {
                     // unexpectedly ran out of data
                     raiseInternalException(t.startpos, SpelMessage.OOD);
                 }
-                if (ct.kind == TokenKind.SAFE_EXPAND || ct.kind == TokenKind.EXPAND) {
+                if (ct.kind == TokenKind.EXPAND) {
                     nextToken();
                     e = new ExpandArrArg(toPos(ct), eatExpression());
                 } else {
@@ -935,6 +937,9 @@ public class Parser {
             return t;
         }
         if (t.kind == TokenKind.TILDE) {
+            return t;
+        }
+        if (t.kind == TokenKind.IDENTIFIER && Operator.IN.getPayload().equals(t.data)) {
             return t;
         }
         return null;

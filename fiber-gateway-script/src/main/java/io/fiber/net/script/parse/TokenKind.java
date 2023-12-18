@@ -25,7 +25,7 @@ public enum TokenKind {
     LITERAL_INT, LITERAL_LONG, LITERAL_HEXINT, LITERAL_HEXLONG, LITERAL_STRING, LITERAL_REAL, LITERAL_REAL_FLOAT,
     LPAREN("("), RPAREN(")"), COMMA(","), IDENTIFIER,
     COLON(":"), HASH("#"), RSQUARE("]"), LSQUARE("["),
-    LCURLY("{"), RCURLY("}"), SAFE_EXPAND("..?"), EXPAND("..."),
+    LCURLY("{"), RCURLY("}"), EXPAND("..."),
     DOT("."), PLUS("+"), STAR("*"), MINUS("-"), QMARK("?"), PROJECT("#["),
     DIV("/"), GE(">="), GT(">"), LE("<="), LT("<"),
     SEQ("==="), SNE("!=="), EQ("=="), NE("!="),

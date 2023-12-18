@@ -202,4 +202,16 @@ public class BinaryOperator {
     public static BooleanNode sne(JsonNode a, JsonNode b) {
         return BooleanNode.valueOf(Compares.notStrictEqual(a, b));
     }
+
+    public static BooleanNode in(JsonNode key, JsonNode obj) {
+        if (obj.isArray()) {
+            int i;
+            return BooleanNode.valueOf(key.isIntegralNumber() && (i = key.intValue()) >= 0 && i < obj.size());
+        }
+
+        if (obj.isObject()) {
+            return BooleanNode.valueOf(key.isTextual() && obj.get(key.textValue()) != null);
+        }
+        return BooleanNode.FALSE;
+    }
 }

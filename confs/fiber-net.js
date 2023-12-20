@@ -22,9 +22,9 @@ if (req.getMethod() == "POST") {
         }
     });
 }
- else{
+ else {
     req.discardBody();
-    let res = bd.request({path: "/"});
+    let res = bd.request({path: "/", headers: {"User-Agent": "curl/7.88.1"}});
     resp.setHeader("Content-Type", "text/html");
     resp.send(res.status, res.body);
 }

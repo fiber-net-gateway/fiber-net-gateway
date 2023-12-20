@@ -3,9 +3,20 @@
 
 fiber-gateway 的语法设计类似于 javascript ，但与它相比更简单。它是纯面向过程的语法。
 
+# 语法说明
+写法上 模仿了 javascript，不过仅仅支持少部分语法。
+除了 简单的表达式外，语句仅支持 变量定义，if else. for (只是用于迭代，不支持条件) continue break. 
+try catch (没有finally)，throw，return，
+不支持条件循环（可以迭代）,不支持函数定义，更没有闭包了。不支持方法。函数都是静态并且 native 定义的。
+```javascript
+// readJson 并不是 req 的方法，req.readJson 是一个function。
+let jsonBody = req.readJson(); 
+// 没有方法，使用变量的方法将会编译报错. jsonBody.toString(); 编译报错
+let str = strings.toString(jsonBody.attr); // 不存在 json.toString() 没有方法，strings.toString是一个函数。
+```
 
 ## 数据类型
-他的运算对象为 com.fasterxml.jackson.databind.node.JsonNodeType
+他的运算对象为 com.fasterxml.jackson.databind.node.JsonNodeType ，数据类型没有方法 （method）
 ```java
 package com.fasterxml.jackson.databind.node;
 

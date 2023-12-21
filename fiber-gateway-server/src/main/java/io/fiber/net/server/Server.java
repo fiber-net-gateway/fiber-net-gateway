@@ -23,7 +23,7 @@ public class Server implements HttpServer {
     }
 
     @Override
-    public void start(ServerConfig config, Engine engine) {
+    public void start(ServerConfig config, Engine engine) throws Exception {
         bootstrap = new ServerBootstrap();
         bootstrap.channel(EpollAvailable.serverSocketClazz());
         bootstrap.group(EpollAvailable.bossGroup(), eventLoopGroup);
@@ -53,14 +53,17 @@ public class Server implements HttpServer {
             bootstrap.localAddress(bindIp, config.getServerPort());
         }
         ChannelFuture future = bootstrap.bind().syncUninterruptibly();
+        if (!future.isSuccess()) {
+            throw new Exception("bind error", future.cause());
+        }
         listenCh = future.channel();
         log.info("netty server({}) started", listenCh.localAddress());
     }
 
     @Override
-    public void awaitShutdown() throws InterruptedException {
-        bootstrap.config().group().terminationFuture().await();
-        bootstrap.config().childGroup().terminationFuture().await();
+    public void awaitShutdown() {
+        bootstrap.config().group().terminationFuture().awaitUninterruptibly();
+        bootstrap.config().childGroup().terminationFuture().awaitUninterruptibly();
     }
 
     @Override

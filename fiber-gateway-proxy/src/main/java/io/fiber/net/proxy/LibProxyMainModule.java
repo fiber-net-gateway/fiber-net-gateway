@@ -9,6 +9,11 @@ import io.fiber.net.http.DefaultHttpClient;
 import io.fiber.net.http.HttpClient;
 import io.fiber.net.server.EngineModule;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.ServiceLoader;
+
 public class LibProxyMainModule implements Module {
 
     private static class SubModule implements ProxyModule {
@@ -70,6 +75,35 @@ public class LibProxyMainModule implements Module {
         SubModule subModule = engine.getInjector().getInstance(SubModule.class);
         assert subModule.engineInjector == engine.getInjector();
         subModule.createProject(projectName, code);
+    }
+
+    public static Engine createEngineWithSPI(ClassLoader loader) throws Exception {
+        ServiceLoader<Module> serviceLoader = ServiceLoader.load(Module.class,
+                loader == null ? Thread.currentThread().getContextClassLoader() : loader);
+        return createEngine(serviceLoader);
+    }
+
+    public static Engine createEngine(Module... extModules) throws Exception {
+        return createEngine(Arrays.asList(extModules));
+    }
+
+    public static Engine createEngine(Iterable<Module> extModules) throws Exception {
+        List<Module> modules = new ArrayList<>();
+        modules.add(new EngineModule());
+        modules.add(new LibProxyMainModule());
+        for (Module module : extModules) {
+            modules.add(module);
+        }
+
+        Injector injector = Injector.getRoot().createChild(modules);
+        Engine engine = injector.getInstance(Engine.class);
+        try {
+            engine.installExt();
+        } catch (Throwable e) {
+            injector.destroy();
+            throw e;
+        }
+        return engine;
     }
 
 }

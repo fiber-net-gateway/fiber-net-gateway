@@ -2,18 +2,19 @@ package io.fiber.net.example;
 
 import io.fiber.net.common.Engine;
 import io.fiber.net.common.ioc.Binder;
-import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.utils.ArrayUtils;
 import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.proxy.ConfigWatcher;
 import io.fiber.net.proxy.LibProxyMainModule;
-import io.fiber.net.server.EngineModule;
 import io.fiber.net.server.HttpServer;
 import io.fiber.net.server.ServerConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 
 public class Main {
+    private static final Logger log = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) throws Exception {
         if (ArrayUtils.isEmpty(args) || StringUtils.isEmpty(args[0])) {
@@ -23,19 +24,20 @@ public class Main {
         if (!file.exists() || !file.isDirectory()) {
             throw new IllegalArgumentException("config path must be directory");
         }
-        Injector injector = Injector.getRoot().createChild(new EngineModule(),
-                new LibProxyMainModule(),
-                b -> install(b, file));
-        try {
-            Engine engine = injector.getInstance(Engine.class);
-            engine.installExt();
+        Engine engine = LibProxyMainModule.createEngine(binder -> install(binder, file));
 
-            HttpServer server = injector.getInstance(HttpServer.class);
+        try {
+            HttpServer server = engine.getInjector().getInstance(HttpServer.class);
             server.start(new ServerConfig(), engine);
-            server.awaitShutdown();
-        } finally {
-            injector.destroy();
+        } catch (Throwable e) {
+            log.error("error start http server", e);
+            engine.getInjector().destroy();
+            throw e;
         }
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            engine.getInjector().destroy();
+        }));
     }
 
     private static void install(Binder binder, File file) {

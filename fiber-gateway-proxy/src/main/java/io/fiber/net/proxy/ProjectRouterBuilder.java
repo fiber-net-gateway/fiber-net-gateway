@@ -22,7 +22,13 @@ public class ProjectRouterBuilder {
     }
 
     private Script parseScript() throws Exception {
-        ExtensiveHttpLib library = new ExtensiveHttpLib(injector);
+        HttpLibConfigure[] configures = injector.getInstances(HttpLibConfigure.class);
+        ExtensiveHttpLib library = new ExtensiveHttpLib(injector, configures);
+        if (configures != null) {
+            for (HttpLibConfigure configure : configures) {
+                configure.onInit(library);
+            }
+        }
         return Script.compile(code, library);
     }
 

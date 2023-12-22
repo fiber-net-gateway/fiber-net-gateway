@@ -46,4 +46,19 @@ public class ScriptExecException extends FiberException {
         super(message, cause, 500, ERROR_NAME);
     }
 
+    public static ScriptExecException fromThrowable(Throwable cause) {
+        if (cause instanceof ScriptExecException) {
+            return (ScriptExecException) cause;
+        }
+
+        if (cause instanceof FiberException) {
+            FiberException fe = (FiberException) cause;
+            return new ScriptExecException(fe.getMessage(), cause, fe.getCode(),
+                    fe.getErrorName());
+        }
+
+        return new ScriptExecException(cause.getMessage(), cause);
+
+    }
+
 }

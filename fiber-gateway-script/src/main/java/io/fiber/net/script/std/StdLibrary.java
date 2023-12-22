@@ -3,7 +3,6 @@ package io.fiber.net.script.std;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ast.Literal;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,23 +23,20 @@ public class StdLibrary implements Library {
         DEF_FUNC_MAP.putAll(BinaryFunc.FUNC);
     }
 
-    public static Map<String, Library.Function> getDefFuncMap() {
+    protected static Map<String, Library.Function> getDefFuncMap() {
         return DEF_FUNC_MAP;
     }
 
-    private final static StdLibrary DEF_INSTANCE = new StdLibrary(DEF_FUNC_MAP, Collections.emptyMap());
+    private final static StdLibrary DEF_INSTANCE = new StdLibrary(DEF_FUNC_MAP);
 
     public static StdLibrary getDefInstance() {
         return DEF_INSTANCE;
     }
 
     protected final Map<String, Library.Function> functionMap;
-    protected final Map<String, Map<String, Constant>> constantMap;
 
-    public StdLibrary(Map<String, Library.Function> functionMap,
-                      Map<String, Map<String, Constant>> constantMap) {
+    public StdLibrary(Map<String, Library.Function> functionMap) {
         this.functionMap = functionMap;
-        this.constantMap = constantMap;
     }
 
     @Override
@@ -50,7 +46,7 @@ public class StdLibrary implements Library {
 
     @Override
     public Constant findConstant(String namespace, String key) {
-        return constantMap.get(namespace).get(key);
+        return null;
     }
 
     @Override

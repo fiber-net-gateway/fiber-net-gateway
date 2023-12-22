@@ -4,7 +4,7 @@ import io.fiber.net.common.HttpExchange;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 
-interface HttpDynamicFunc extends Library.Function {
+public interface HttpDynamicFunc extends Library.Function {
 
     @Override
     default boolean isConstExpr() {

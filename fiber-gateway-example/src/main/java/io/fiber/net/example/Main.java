@@ -18,11 +18,11 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         if (ArrayUtils.isEmpty(args) || StringUtils.isEmpty(args[0])) {
-            throw new IllegalArgumentException("config path is required");
+            throw new IllegalArgumentException("onInit path is required");
         }
         File file = new File(args[0]);
         if (!file.exists() || !file.isDirectory()) {
-            throw new IllegalArgumentException("config path must be directory");
+            throw new IllegalArgumentException("onInit path must be directory");
         }
         Engine engine = LibProxyMainModule.createEngine(binder -> install(binder, file));
 

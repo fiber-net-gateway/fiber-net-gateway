@@ -38,9 +38,11 @@ public class Tokenizer {
 
     public Tokenizer(String inputdata) {
         this.expressionString = inputdata;
-        this.toProcess = (inputdata + "\0").toCharArray();
-        this.max = toProcess.length;
         this.pos = 0;
+        int length = inputdata.length();
+        this.max = length + 1;
+        this.toProcess = new char[max];
+        inputdata.getChars(0, length, toProcess, 0);
     }
 
     public void process() {

@@ -87,6 +87,16 @@
         <appender-ref ref="RollingFileError"/>
     </root>
 
+    <logger name="org.apache.dubbo" level="info">
+        <appender-ref ref="Console"/>
+        <appender-ref ref="RollingFileWarn"/>
+        <appender-ref ref="RollingFileError"/>
+    </logger>
+    <logger name="com.alibaba" level="info">
+        <appender-ref ref="Console"/>
+        <appender-ref ref="RollingFileWarn"/>
+        <appender-ref ref="RollingFileError"/>
+    </logger>
     <!--生产环境:输出到文件-->
     <!--    <springProfile name="pro">-->
     <!--        <root level="INFO">-->

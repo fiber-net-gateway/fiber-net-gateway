@@ -1,5 +1,6 @@
 package io.fiber.net.dubbo.nacos;
 
+import com.alibaba.fastjson2.JSONFactory;
 import io.fiber.net.common.utils.StringUtils;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
@@ -15,11 +16,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 public class DubboClient {
+    static {
+        JsonNodeForFastJson2.config(JSONFactory.getDefaultObjectWriterProvider());
+    }
+
     private static final InternalLogger log = InternalLoggerFactory.getInstance(DubboClient.class);
     private final Map<String, Service> map = new ConcurrentHashMap<>();
     private final ApplicationModel model;
 
     public DubboClient(DubboConfig dubboConfig) {
+        System.setProperty("dubbo.application.logger", "slf4j");
         ApplicationConfig config = new ApplicationConfig(dubboConfig.getApplicationName());
         ApplicationModel model = ApplicationModel.defaultModel();
         model.getApplicationConfigManager().setApplication(config);

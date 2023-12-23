@@ -261,7 +261,7 @@ public class Parser {
             literals.add(literal);
         }
         if (directiveMap.containsKey(name.getName())) {
-            raiseInternalException(startpos, SpelMessage.DIRECTIVE_NOT_FOUND, name.getName(), type.getName());
+            raiseInternalException(startpos, SpelMessage.DIRECTIVE_EXISTS, name.getName(), type.getName());
             return null;
         }
 

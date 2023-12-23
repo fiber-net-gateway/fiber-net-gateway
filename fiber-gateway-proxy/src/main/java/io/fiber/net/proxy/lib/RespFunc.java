@@ -76,8 +76,8 @@ public class RespFunc {
         @Override
         public void call(ExecutionContext context, JsonNode... args) {
             HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
-            if (args.length < 2 || !args[1].isBinary()) {
-                context.throwErr(this, new ScriptExecException("send require status and binary body"));
+            if (args.length < 2) {
+                context.throwErr(this, new ScriptExecException("send require status and body"));
                 return;
             }
 

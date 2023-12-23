@@ -1,8 +1,11 @@
 directive fy from http "https://fanyi.baidu.com";
 directive bd from http "https://www.baidu.com";
+directive demoService from dubbo "com.test.dubbo.DemoService";
 
-if (req.getMethod() == "POST") {
-    resp.setHeader("AAA", "bbb");
+if (req.getMethod() == "GET") {
+    let dubboResult = demoService.createUser(req.getHeader("Host"));
+    resp.send(200, {dubboResult, success:true});
+} else if (req.getMethod() == "POST") {
     fy.proxyPass({
         path: "/v2transapi",
         query: "from=en&to=zh",
@@ -11,20 +14,9 @@ if (req.getMethod() == "POST") {
             "X-Fiber-Project": null
         }
     });
-
-} else if(strings.contains(req.getPath(), "proxy")) {
-    bd.proxyPass({
-        path: "/",
-        query: "from=en&to=zh",
-        headers: {
-            "X-Fiber-Project": null,
-            Host: null
-        }
-    });
-}
- else {
-    req.discardBody();
-    let res = bd.request({path: "/", headers: {"User-Agent": "curl/7.88.1"}});
-    resp.setHeader("Content-Type", "text/html");
-    resp.send(res.status, res.body);
+} else {
+      req.discardBody();
+      let res = bd.request({path: "/", headers: {"User-Agent": "curl/7.88.1"}});
+      resp.setHeader("Content-Type", "text/html");
+      resp.send(res.status, res.body);
 }

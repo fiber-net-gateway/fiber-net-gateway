@@ -22,7 +22,12 @@ mkdir conf
 cat > conf/fiber-net.gs << EOF
 directive fy from http "https://fanyi.baidu.com";
 directive bd from http "https://www.baidu.com";
-if(req.getMethod() == "POST") {
+directive demoService from dubbo "com.test.dubbo.DemoService";
+
+if (req.getMethod() == "GET") {
+    let dubboResult = demoService.createUser(req.getHeader("Host"));
+    resp.send(200, {dubboResult, success:true});
+} else if (req.getMethod() == "POST") {
     fy.proxyPass({
         path: "/v2transapi",
         query: "from=en&to=zh",
@@ -32,24 +37,40 @@ if(req.getMethod() == "POST") {
         }
     });
 } else {
-    let res = bd.request({path: "/"});
-    resp.setHeader("Content-Type", "text/html");
-    resp.send(res.status, res.body);
+      req.discardBody();
+      let res = bd.request({path: "/", headers: {"User-Agent": "curl/7.88.1"}});
+      resp.setHeader("Content-Type", "text/html");
+      resp.send(res.status, res.body);
 }
 EOF
 ```
 
 - 运行
 ```bash
-java -jar fiber-gateway-example-1.0-SNAPSHOT.jar conf
+java -jar -Dfiber.dubbo.registry=nacos://<nacos_ip_port> fiber-gateway-example-1.0-SNAPSHOT.jar conf
 ```
 
 - 测试
 ```bash
+# 使用 get 请求，返回 dubbo DemoService.createUser 调用的结果
+curl 127.0.0.1:16688 -XGET
 # 使用 post 请求，反向代理到百度翻译 （反向代理会透传 downstream 内容）
 curl 127.0.0.1:16688 -XPOST
 # 使用其它请求，返回百度主页。（请求模式，不会透传 downstream）。
-curl 127.0.0.1:16688 -XGET
+curl 127.0.0.1:16688 -XPUT
+```
+dubbo 定义如下
+```java
+package com.test.dubbo;
+public interface DemoService {
+    User createUser(String name);
+    class User {
+        private String name;
+        private int age;
+        private boolean male;
+        // getter/setter ...
+    }
+}
 ```
 每次请求，fiber-net.gs 都会被执行一次。也可以在 conf 目录下放置其它 .gs 文件
 通过 request header "X-Fiber-Project" 执行被执行的文件名。（如 ttt.gs）

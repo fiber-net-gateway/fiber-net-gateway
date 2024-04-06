@@ -1,47 +1,43 @@
 package io.fiber.net.script.std;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.BooleanNode;
-import com.fasterxml.jackson.databind.node.TextNode;
-import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.common.json.ArrayNode;
+import io.fiber.net.common.json.BooleanNode;
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.TextNode;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
+import io.fiber.net.script.run.Compares;
 
 public class IncludesFunc implements Library.Function {
 
     @Override
-    public void call(ExecutionContext context, JsonNode... args) {
-        if (ArrayUtils.isEmpty(args)) {
-            context.returnVal(this, BooleanNode.FALSE);
-            return;
+    public JsonNode call(ExecutionContext context) {
+        if (context.noArgs()) {
+            return BooleanNode.FALSE;
         }
 
-        JsonNode c = args[0];
+        JsonNode c = context.getArgVal(0);
         boolean isText;
         if (!(isText = (c instanceof TextNode)) && !(c instanceof ArrayNode)) {
-            context.returnVal(this, BooleanNode.FALSE);
-            return;
+            return BooleanNode.FALSE;
         }
 
-        int length = args.length;
+        int length = context.getArgCnt();
         if (isText) {
             String t = c.textValue();
             JsonNode item;
             for (int i = 1; i < length; i++) {
-                if (!(item = args[i]).isTextual() || !t.contains(item.textValue())) {
-                    context.returnVal(this, BooleanNode.FALSE);
-                    return;
+                if (!(item = context.getArgVal(i)).isTextual() || !t.contains(item.textValue())) {
+                    return BooleanNode.FALSE;
                 }
             }
         } else {
             for (int i = 1; i < length; i++) {
-                if (!Compares.includes(c, args[i])) {
-                    context.returnVal(this, BooleanNode.FALSE);
-                    return;
+                if (!Compares.includes(c, context.getArgVal(i))) {
+                    return BooleanNode.FALSE;
                 }
             }
         }
-        context.returnVal(this, BooleanNode.TRUE);
+        return BooleanNode.TRUE;
     }
 }

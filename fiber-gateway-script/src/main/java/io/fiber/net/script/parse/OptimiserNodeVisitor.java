@@ -1,11 +1,13 @@
 package io.fiber.net.script.parse;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.NullNode;
-import com.fasterxml.jackson.databind.node.ValueNode;
-import io.fiber.net.script.Vm;
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.NullNode;
+import io.fiber.net.common.json.ValueNode;
+import io.fiber.net.common.utils.Assert;
+import io.fiber.net.common.utils.Predictions;
 import io.fiber.net.script.ast.*;
-import io.fiber.net.script.std.Compares;
+import io.fiber.net.script.run.Compares;
+import io.fiber.net.script.run.Vm;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -90,9 +92,8 @@ public class OptimiserNodeVisitor implements NodeVisitor<Node> {
         if (node instanceof Literal) {
             return (Literal) node;
         }
-        CompilerNodeVisitor.Compiled compiled = CompilerNodeVisitor.compile(node);
+        Vm vm = CompiledScript.createVM(CompilerNodeVisitor.compile(node), NullNode.getInstance(), null);
         JsonNode jsonNode;
-        Vm vm = compiled.createVM(NullNode.getInstance(), null);
         try {
             vm.exec();
             jsonNode = vm.getResultNow();
@@ -242,7 +243,7 @@ public class OptimiserNodeVisitor implements NodeVisitor<Node> {
     public ExpressionNode visit(ExpandArrArg node) {
         ExpressionNode left = (ExpressionNode) node.getOperand().accept(this);
         if (left != node.getOperand()) {
-            return new ExpandArrArg(node.getPos(), left);
+            return new ExpandArrArg(node.getPos(), left, node.getWhere());
         }
         return node;
     }
@@ -323,29 +324,59 @@ public class OptimiserNodeVisitor implements NodeVisitor<Node> {
         if (statementList.isEmpty()) {
             return NoopNode.INS;
         }
-        return new Block(block.getPos(), statementList);
+        return new Block(block.getPos(), statementList, block.getType());
     }
 
     @Override
     public Node visit(IfStatement ifStatement) {
         ExpressionNode predict = ifStatement.getPredict();
         ExpressionNode expressionNode = (ExpressionNode) predict.accept(this);
-        Statement ts = (Statement) ifStatement.getTrueBlock().accept(this);
-        Statement es = ifStatement.getElseStatement() != null ? (Statement)
-                ifStatement.getElseStatement().accept(this) : null;
+        Block trueBlock = ifStatement.getTrueBlock();
+        Assert.isTrue(trueBlock.getType() == Block.Type.IF);
+        Statement ts = (Statement) trueBlock.accept(this);
+        Block elseBlock = ifStatement.getElseBlock();
+        Statement es = elseBlock != null ? (Statement)
+                elseBlock.accept(this) : null;
         if (expressionNode instanceof Literal) {
             if (Compares.logic(((Literal) expressionNode).getLiteralValue())) {
+                if (ts instanceof Block) {
+                    ((Block) ts).setType(Block.Type.SCRIPT);
+                }
                 return ts;
-            } else if (ifStatement.getElseStatement() != null) {
+            } else if (es != null) {
+                if (es instanceof Block) {
+                    ((Block) es).setType(Block.Type.SCRIPT);
+                }
                 return es;
             } else {
                 return NoopNode.INS;
             }
         }
-        return new IfStatement(ifStatement.getPos(), expressionNode,
-                ts,
-                es
+        return new IfStatement(ifStatement.getPos(),
+                expressionNode,
+                getBlock(ts, Block.Type.IF),
+                getBlock(es, Block.Type.ELSE)
         );
+    }
+
+    private static Block getBlock(Statement statement, Block.Type type) {
+        Block tb;
+        if (statement instanceof Block) {
+            Predictions.assertTrue(((Block) statement).getType() == type, "not if block???");
+            tb = (Block) statement;
+        } else if (statement == null) {
+            tb = null;
+        } else {
+            tb = new Block(statement.getPos(), Collections.singletonList(statement), type);
+        }
+        return tb;
+    }
+
+    private VarDef defIterateVar(String name) {
+        if ("_".equals(name)) {
+            return null;
+        }
+        return addVarDef(name, null);
     }
 
     @Override
@@ -357,8 +388,8 @@ public class OptimiserNodeVisitor implements NodeVisitor<Node> {
         Block iterableBlock = foreachStatement.getIterableBlock();
         Statement statement;
         enterScope();
-        addVarDef(keyVarName.getName(), null);
-        addVarDef(valVarName.getName(), null);
+        defIterateVar(keyVarName.getName());
+        defIterateVar(valVarName.getName());
         statement = visitBlockAndExistScope(iterableBlock);
 
         if (statement == NoopNode.INS) {

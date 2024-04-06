@@ -1,6 +1,6 @@
 package io.fiber.net.script;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.script.ast.Literal;
 
 import java.util.List;
@@ -12,7 +12,7 @@ public interface Library {
             return true;
         }
 
-        void get(ExecutionContext context);
+        JsonNode get(ExecutionContext context) throws ScriptExecException;
     }
 
 
@@ -21,19 +21,31 @@ public interface Library {
             return true;
         }
 
-        void call(ExecutionContext context, JsonNode... args);
+        JsonNode call(ExecutionContext context) throws ScriptExecException;
     }
+
+    interface AsyncConstant {
+        void get(ExecutionContext context);
+    }
+
+    interface AsyncFunction {
+        void call(ExecutionContext context);
+    }
+
 
     interface DirectiveDef {
         Function findFunc(String directive, String function);
+
+        AsyncFunction findAsyncFunc(String directive, String function);
     }
 
-    Library.Function findFunc(String name);
+    Object findFunc(String name);
+
 
     default void markRootProp(String propName) {
     }
 
-    Constant findConstant(String namespace, String key);
+    Object findConstant(String namespace, String key);
 
     DirectiveDef findDirectiveDef(String type, String name, List<Literal> literals);
 

@@ -1,6 +1,5 @@
 package io.fiber.net.dubbo.nacos;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.proxy.HttpLibConfigure;
 import io.fiber.net.proxy.lib.ExtensiveHttpLib;
@@ -55,6 +54,11 @@ public class DubboLibConfigure implements HttpLibConfigure {
 
         @Override
         public Library.Function findFunc(String directive, String function) {
+            return null;
+        }
+
+        @Override
+        public Library.AsyncFunction findAsyncFunc(String directive, String function) {
             if (ref == null) {
                 ref = injector.getInstance(DubboClient.class).getRef(service, timeout);
             }
@@ -72,12 +76,22 @@ public class DubboLibConfigure implements HttpLibConfigure {
         }
 
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
+        public void call(ExecutionContext context) {
+            int argCnt = context.getArgCnt();
+            Object[] args;
+            if (argCnt > 0) {
+                args = new Object[argCnt];
+                for (int i = 0; i < argCnt; i++) {
+                    args[i] = context.getArgVal(i);
+                }
+            } else {
+                args = DubboReference.EMPTY;
+            }
             ref.invoke(method, args).subscribe((jsonNode, throwable) -> {
                 if (throwable != null) {
-                    context.throwErr(this, ScriptExecException.fromThrowable(throwable));
+                    context.throwErr(ScriptExecException.fromThrowable(throwable));
                 } else {
-                    context.returnVal(this, jsonNode);
+                    context.returnVal(jsonNode);
                 }
             });
         }

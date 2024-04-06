@@ -3,8 +3,8 @@ package io.fiber.net.dubbo.nacos;
 import com.alibaba.fastjson2.JSONWriter;
 import com.alibaba.fastjson2.writer.ObjectWriter;
 import com.alibaba.fastjson2.writer.ObjectWriterProvider;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.*;
+import io.fiber.net.common.json.*;
+import io.fiber.net.common.utils.JsonUtil;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -75,19 +75,15 @@ public class JsonNodeForFastJson2 {
                     jsonWriter.endObject();
                     break;
                 }
-                case POJO: {
-                    Object pojo = ((POJONode) node).getPojo();
-                    if (pojo == null) {
-                        jsonWriter.writeNull();
-                    } else {
-                        ObjectWriter<?> writer = jsonWriter.getObjectWriter(pojo.getClass());
-                        writer.write(jsonWriter, pojo);
-                    }
-                    break;
-                }
+
                 case STRING:
                     jsonWriter.writeString(node.textValue());
                     break;
+                case EXCEPTION:
+                case ITERATOR: {
+                    write(jsonWriter, JsonUtil.valueToTree(node), null, null, l);
+                    break;
+                }
             }
         }
     }
@@ -110,10 +106,11 @@ public class JsonNodeForFastJson2 {
         provider.register(NullNode.class, JsonNodeWriter.INSTANCE, true);
         provider.register(NumericNode.class, JsonNodeWriter.INSTANCE, true);
         provider.register(ObjectNode.class, JsonNodeWriter.INSTANCE, true);
-        provider.register(POJONode.class, JsonNodeWriter.INSTANCE, true);
         provider.register(ShortNode.class, JsonNodeWriter.INSTANCE, true);
         provider.register(TextNode.class, JsonNodeWriter.INSTANCE, true);
         provider.register(ValueNode.class, JsonNodeWriter.INSTANCE, true);
+        provider.register(ExceptionNode.class, JsonNodeWriter.INSTANCE, true);
+        provider.register(IteratorNode.class, JsonNodeWriter.INSTANCE, true);
 
         provider.register(ArrayNode.class, JsonNodeWriter.INSTANCE);
         provider.register(BaseJsonNode.class, JsonNodeWriter.INSTANCE);
@@ -131,10 +128,11 @@ public class JsonNodeForFastJson2 {
         provider.register(NullNode.class, JsonNodeWriter.INSTANCE);
         provider.register(NumericNode.class, JsonNodeWriter.INSTANCE);
         provider.register(ObjectNode.class, JsonNodeWriter.INSTANCE);
-        provider.register(POJONode.class, JsonNodeWriter.INSTANCE);
         provider.register(ShortNode.class, JsonNodeWriter.INSTANCE);
         provider.register(TextNode.class, JsonNodeWriter.INSTANCE);
         provider.register(ValueNode.class, JsonNodeWriter.INSTANCE);
+        provider.register(ExceptionNode.class, JsonNodeWriter.INSTANCE);
+        provider.register(IteratorNode.class, JsonNodeWriter.INSTANCE);
     }
 
 }

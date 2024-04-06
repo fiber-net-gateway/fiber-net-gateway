@@ -22,10 +22,10 @@ import io.fiber.net.script.parse.NodeVisitor;
 public class FunctionCall extends ExpressionNode {
 
     private final String name;
-    private final Library.Function func;
+    private final Object func;
     private final ExpressionNode[] args;
 
-    public FunctionCall(Library.Function func, String functionName, int pos, ExpressionNode... arguments) {
+    public FunctionCall(Object func, String functionName, int pos, ExpressionNode... arguments) {
         super(pos);
         this.func = func;
         name = functionName;
@@ -37,7 +37,15 @@ public class FunctionCall extends ExpressionNode {
     }
 
     public Library.Function getFunc() {
-        return func;
+        return (Library.Function) func;
+    }
+
+    public boolean isAsync() {
+        return func instanceof Library.AsyncFunction;
+    }
+
+    public Library.AsyncFunction getAsyncFunc() {
+        return (Library.AsyncFunction) func;
     }
 
     public String getName() {
@@ -68,6 +76,6 @@ public class FunctionCall extends ExpressionNode {
                 return false;
             }
         }
-        return func.isConstExpr();
+        return !isAsync() && getFunc().isConstExpr();
     }
 }

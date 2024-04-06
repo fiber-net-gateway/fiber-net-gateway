@@ -1,6 +1,6 @@
 package io.fiber.net.proxy;
 
-import com.fasterxml.jackson.databind.node.NullNode;
+import io.fiber.net.common.json.NullNode;
 import io.fiber.net.common.FiberException;
 import io.fiber.net.common.HttpExchange;
 import io.fiber.net.common.RequestHandlerRouter;

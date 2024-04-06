@@ -2,15 +2,23 @@ package io.fiber.net.common.utils;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.*;
-import com.fasterxml.jackson.databind.node.*;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.*;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Type;
+import java.net.URL;
 
 public class JsonUtil {
-
+    public static final JsonNodeFactory NODE_FACTORY = JsonNodeFactory.INSTANCE;
     public final static ObjectMapper MAPPER;
 
     static {
@@ -30,6 +38,28 @@ public class JsonUtil {
                 .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true)//
                 .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
 
+
+        SimpleModule module = new SimpleModule();
+        addJsonNodeModule(module, JsonNode.class);
+        addJsonNodeModule(module, ObjectNode.class);
+        addJsonNodeModule(module, ArrayNode.class);
+        addJsonNodeModule(module, NullNode.class);
+        addJsonNodeModule(module, NumericNode.class);
+        addJsonNodeModule(module, MissingNode.class);
+        addJsonNodeModule(module, BooleanNode.class);
+        addJsonNodeModule(module, BinaryNode.class);
+        addJsonNodeModule(module, BigIntegerNode.class);
+        addJsonNodeModule(module, DecimalNode.class);
+        addJsonNodeModule(module, LongNode.class);
+        addJsonNodeModule(module, IntNode.class);
+        addJsonNodeModule(module, ShortNode.class);
+        addJsonNodeModule(module, TextNode.class);
+        addJsonNodeModule(module, ContainerNode.class);
+        addJsonNodeModule(module, FloatNode.class);
+        addJsonNodeModule(module, DecimalNode.class);
+        addJsonNodeModule(module, BaseJsonNode.class);
+        MAPPER.registerModule(module);
+
         switch (SystemPropertyUtil.get("fiber.jsonignore.level", "none")) {
             case "null":
                 MAPPER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
@@ -39,6 +69,11 @@ public class JsonUtil {
                 break;
         }
 
+    }
+
+    private static <T extends JsonNode> SimpleModule addJsonNodeModule(SimpleModule module, Class<T> cls) {
+        module.addDeserializer(cls, JsonNodeDeserializer.getDeserializer(cls));
+        return module;
     }
 
     private static class $TryLoadJsr310 {
@@ -56,35 +91,35 @@ public class JsonUtil {
     }
 
     public static TextNode createTextNode(String text) {
-        return MAPPER.getNodeFactory().textNode(text);
+        return TextNode.valueOf(text);
     }
 
     public static NumericNode numberNode(long val) {
-        return MAPPER.getNodeFactory().numberNode(val);
+        return LongNode.valueOf(val);
     }
 
     public static NumericNode numberNode(int val) {
-        return MAPPER.getNodeFactory().numberNode(val);
+        return IntNode.valueOf(val);
     }
 
     public static NumericNode numberNode(double val) {
-        return MAPPER.getNodeFactory().numberNode(val);
+        return DoubleNode.valueOf(val);
     }
 
     public static BooleanNode booleanNode(boolean val) {
-        return MAPPER.getNodeFactory().booleanNode(val);
+        return BooleanNode.valueOf(val);
     }
 
     public static ArrayNode createArrayNode(int capacity) {
-        return MAPPER.getNodeFactory().arrayNode();
+        return NODE_FACTORY.arrayNode(capacity);
     }
 
     public static ArrayNode createArrayNode() {
-        return MAPPER.getNodeFactory().arrayNode();
+        return NODE_FACTORY.arrayNode();
     }
 
     public static ObjectNode createObjectNode() {
-        return MAPPER.getNodeFactory().objectNode();
+        return NODE_FACTORY.objectNode();
     }
 
     public static boolean isNull(JsonNode node) {
@@ -97,7 +132,7 @@ public class JsonUtil {
 
     public static JsonNode shallowCopy(JsonNode node) {
         if (node instanceof ObjectNode) {
-            ObjectNode objectNode = MAPPER.createObjectNode();
+            ObjectNode objectNode = NODE_FACTORY.objectNode();
             objectNode.setAll((ObjectNode) node);
             return objectNode;
         }
@@ -107,6 +142,33 @@ public class JsonUtil {
             return arrayNode;
         }
         return node;
+    }
+
+    public static JsonNode readTree(String text) throws JsonProcessingException {
+        return MAPPER.readValue(text, JsonNode.class);
+    }
+    public static JsonNode valueToTree(Object object) {
+        return MAPPER.convertValue(object, JsonNode.class);
+    }
+
+    public static JsonNode readTree(InputStream json) throws IOException {
+        return MAPPER.readValue(json, JsonNode.class);
+    }
+
+    public static JsonNode readTree(JsonParser parser) throws IOException {
+        return MAPPER.readValue(parser, JsonNode.class);
+    }
+
+    public static JsonNode readTree(byte[] bytes) throws IOException {
+        return MAPPER.readValue(bytes, JsonNode.class);
+    }
+
+    public static JsonNode readTree(File json) throws IOException {
+        return MAPPER.readValue(json, JsonNode.class);
+    }
+
+    public static JsonNode readTree(URL json) throws IOException {
+        return MAPPER.readValue(json, JsonNode.class);
     }
 
     //  not null

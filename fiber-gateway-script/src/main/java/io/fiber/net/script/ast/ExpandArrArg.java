@@ -4,11 +4,19 @@ import io.fiber.net.script.parse.NodeVisitor;
 
 public class ExpandArrArg extends ExpressionNode {
 
-    private final ExpressionNode operand;
+    public enum Where {
+        INIT_OBJ,
+        INIT_ARR,
+        FUNC_CALL,
+    }
 
-    public ExpandArrArg(int pos, ExpressionNode operand) {
+    private final ExpressionNode operand;
+    private final Where where;
+
+    public ExpandArrArg(int pos, ExpressionNode operand, Where where) {
         super(pos);
         this.operand = operand;
+        this.where = where;
     }
 
     @Override
@@ -31,4 +39,7 @@ public class ExpandArrArg extends ExpressionNode {
         return operand.isConstant();
     }
 
+    public Where getWhere() {
+        return where;
+    }
 }

@@ -16,7 +16,7 @@
 
 package io.fiber.net.script.parse;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.utils.*;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ast.*;
@@ -94,7 +94,7 @@ public class Parser {
         this.tokenStreamPointer = 0;
         Block block;
         try {
-            block = eatBlock(false);
+            block = eatBlock(false, Block.Type.SCRIPT);
         } catch (ParseException e) {
             e.expressionString = originScript;
             throw e;
@@ -129,6 +129,8 @@ public class Parser {
     }
 
     private Statement eatStatement() throws ParseException {
+
+
         Statement statement = tryEatIfStatement();
         if (statement != null) {
             return statement;
@@ -142,6 +144,8 @@ public class Parser {
         if (statement != null) {
             return statement;
         }
+
+
         statement = tryEatContinueStatement();
         if (statement != null) {
             return statement;
@@ -193,12 +197,12 @@ public class Parser {
         }
 
         Token tryTk = eatKeyWord(Keyword.TRY);
-        Block tryBk = eatBlock(true);
+        Block tryBk = eatBlock(true, Block.Type.TRY);
         eatKeyWord(Keyword.CATCH);
         eatToken(TokenKind.LPAREN);
         Identifier identifier = eatIdentifier();
         eatToken(TokenKind.RPAREN);
-        Block catchBk = eatBlock(true);
+        Block catchBk = eatBlock(true, Block.Type.CATCH);
         return new TryCatchStatement(toPos(tryTk.startpos, catchBk.getEndPosition()), identifier, tryBk, catchBk);
     }
 
@@ -306,7 +310,7 @@ public class Parser {
 
         ExpressionNode collection = eatExpression();
         eatToken(TokenKind.RPAREN);
-        Block block = eatBlock(true);
+        Block block = eatBlock(true, Block.Type.FOR);
 
         return new ForeachStatement(toPos(forKW.startpos, block.getEndPosition()), key, val, collection, block);
     }
@@ -320,26 +324,27 @@ public class Parser {
         eatToken(TokenKind.LPAREN);
         ExpressionNode prediction = eatExpression();
         eatToken(TokenKind.RPAREN);
-        Block trueBlock = eatBlock(true);
+        Block trueBlock = eatBlock(true, Block.Type.IF);
         int endPos = trueBlock.getEndPosition();
-        Statement elseBlock = null;
 
         if (peekIdentifierToken(Keyword.ELSE.idt)) {
             eatToken(TokenKind.IDENTIFIER);
             if (peekIdentifierToken(Keyword.IF.idt)) { // else if
                 //
-                elseBlock = tryEatIfStatement();
+                IfStatement elseIf = tryEatIfStatement();
+                assert elseIf != null;
+                return new IfStatement(toPos(ifKW.startpos, elseIf.getEndPosition()), prediction, trueBlock, elseIf);
             } else {
-                elseBlock = eatBlock(true);
+                Block elseBlock = eatBlock(true, Block.Type.ELSE);
+                Predictions.assertTrue(elseBlock != null, " else block is missing");
+                return new IfStatement(toPos(ifKW.startpos, elseBlock.getEndPosition()), prediction, trueBlock, elseBlock);
             }
-            assert elseBlock != null;
-            endPos = elseBlock.getEndPosition();
         }
 
-        return new IfStatement(toPos(ifKW.startpos, endPos), prediction, trueBlock, elseBlock);
+        return new IfStatement(toPos(ifKW.startpos, endPos), prediction, trueBlock);
     }
 
-    private Block eatBlock(boolean mustCurly) {
+    private Block eatBlock(boolean mustCurly, Block.Type type) {
 
         Token s = mustCurly ? eatToken(TokenKind.LCURLY) : null;
         List<Statement> statements = new ArrayList<>();
@@ -370,7 +375,7 @@ public class Parser {
             return null;
         }
 
-        return new Block(pos, statements);
+        return new Block(pos, statements, type);
     }
 
     private Identifier eatIdentifier() {
@@ -526,11 +531,14 @@ public class Parser {
                     ExpressionNode[] args = maybeEatMethodArgs();
                     if (args != null) {
                         String funcName = sb.toString();
-                        Library.Function func = library.findFunc(funcName);
+                        Object func = library.findFunc(funcName);
 
                         if (func == null && dotSize == 1 && directiveMap.containsKey(prefix.getName())) {
                             DirectiveStatement directiveStatement = directiveMap.get(prefix.getName());
-                            func = directiveStatement.getDirectiveDef().findFunc(prefix.getName(), token.data);
+                            Library.DirectiveDef directiveDef = directiveStatement.getDirectiveDef();
+                            func = Optional
+                                    .<Object>ofNullable(directiveDef.findFunc(prefix.getName(), token.data))
+                                    .orElse(directiveDef.findAsyncFunc(prefix.getName(), token.data));
                         }
 
                         if (func == null) {
@@ -604,7 +612,7 @@ public class Parser {
             return null;
         }
         nextToken();
-        Library.Constant constant = library.findConstant(prefix.data, key);
+        Object constant = library.findConstant(prefix.data, key);
         if (constant == null) {
             raiseInternalException(prefix.startpos, SpelMessage.CONSTANT_NOT_FIND, prefix.data, key);
             return null;
@@ -646,11 +654,12 @@ public class Parser {
         Token t = eatToken(TokenKind.IDENTIFIER);
         ExpressionNode[] args = maybeEatMethodArgs();
         if (args != null) {
-            Library.Function func = library.findFunc(t.data);
+            Object func = library.findFunc(t.data);
             if (func == null) {
                 raiseInternalException(t.startpos, SpelMessage.FUNCTION_NOT_DEFINED, t.data);
             }
-            return new FunctionCall(func, t.data, toPos(t.startpos, t.endpos), args);
+            return new FunctionCall(func, t.data, toPos(t.startpos, args.length > 0 ? args[args.length - 1].getEndPosition() + 1
+                    : t.endpos + 2), args);
 
         }
         if (t.data.charAt(0) == '$') {
@@ -689,7 +698,7 @@ public class Parser {
                 ExpressionNode e;
                 if (t.kind == TokenKind.EXPAND) {
                     nextToken();
-                    e = new ExpandArrArg(toPos(t), eatExpression());
+                    e = new ExpandArrArg(toPos(t), eatExpression(), ExpandArrArg.Where.FUNC_CALL);
                 } else {
                     e = eatExpression();
                 }
@@ -745,14 +754,14 @@ public class Parser {
                 }
                 if (k.kind == TokenKind.EXPAND) {
                     nextToken();
-                    ExpandArrArg expand = new ExpandArrArg(toPos(t), eatExpression());
+                    ExpandArrArg expand = new ExpandArrArg(toPos(t), eatExpression(), ExpandArrArg.Where.INIT_OBJ);
                     map.put(InlineObject.expandKey(), expand);
                 } else {
                     String key = null;
                     if (k.kind == TokenKind.LITERAL_STRING) {
                         nextToken();
                         try {
-                            JsonNode node = JsonUtil.MAPPER.readTree(k.data);
+                            JsonNode node = JsonUtil.readTree(k.data);
                             if (!node.isTextual()) {
                                 raiseInternalException(t.startpos, SpelMessage.NOT_SUPPORT_INLINE_OBJECT_KEY, k);
                             }
@@ -829,7 +838,7 @@ public class Parser {
                 }
                 if (ct.kind == TokenKind.EXPAND) {
                     nextToken();
-                    e = new ExpandArrArg(toPos(ct), eatExpression());
+                    e = new ExpandArrArg(toPos(ct), eatExpression(), ExpandArrArg.Where.INIT_ARR);
                 } else {
                     e = eatExpression();
                 }

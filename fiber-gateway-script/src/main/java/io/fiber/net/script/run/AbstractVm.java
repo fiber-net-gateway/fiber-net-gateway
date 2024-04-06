@@ -1,0 +1,126 @@
+package io.fiber.net.script.run;
+
+import io.fiber.net.common.async.Maybe;
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.MissingNode;
+import io.fiber.net.common.json.NullNode;
+import io.fiber.net.script.ExecutionContext;
+import io.fiber.net.script.Library;
+
+public abstract class AbstractVm implements ExecutionContext {
+
+    public static final int STAT_INIT = 0;
+
+    public static final int STAT_RUNNING = 1;
+
+    public static final int STAT_INVOKING = 2;
+    public static final int STAT_ASYNC = 3;
+
+    public static final int STAT_RETURN = 4;
+    public static final int STAT_THROW = 5;
+
+    public static final int STAT_END_SEC = 7;
+    public static final int STAT_END_ERR = 8;
+
+    protected final JsonNode root;
+    protected final Object attach;
+
+    protected int state;
+    protected ScriptExceptionNode rtError;
+    protected JsonNode rtValue;
+
+    protected AbstractVm(JsonNode root, Object attach) {
+        this.root = root;
+        this.attach = attach;
+    }
+
+    public abstract Maybe<JsonNode> exec();
+
+    public boolean isEnd() {
+        int state = this.state;
+        return state == STAT_END_SEC || state == STAT_END_ERR;
+    }
+
+    protected final boolean callAsyncFunc(Library.AsyncFunction function) {
+        if (state != STAT_RUNNING) {
+            throw new IllegalStateException("vm not running??");
+        }
+        state = STAT_INVOKING;
+        function.call(this);
+        if (state != STAT_INVOKING) {
+            return false;
+        }
+        state = STAT_ASYNC;
+        rtValue = null;
+        rtError = null;
+        return true;
+    }
+
+    protected final boolean callAsyncConst(Library.AsyncConstant cn) {
+        if (state != STAT_RUNNING) {
+            throw new IllegalStateException("vm not running??");
+        }
+        state = STAT_INVOKING;
+        cn.get(this);
+        if (state != STAT_INVOKING) {
+            return false;
+        }
+        state = STAT_ASYNC;
+        rtValue = null;
+        rtError = null;
+        return true;
+    }
+
+    @Override
+    public void returnVal(JsonNode value) {
+        int s = state;
+        if (s != STAT_INVOKING && s != STAT_ASYNC) {
+            throw new IllegalStateException("vm not in resume");
+        }
+        state = STAT_RETURN;
+        rtError = null;
+        rtValue = value == null ? MissingNode.getInstance() : value;
+        if (s == STAT_ASYNC) {
+            resume();
+        }
+    }
+
+    @Override
+    public void throwErr(ScriptExceptionNode node) {
+        int s = state;
+        if (s != STAT_INVOKING && s != STAT_ASYNC) {
+            throw new IllegalStateException("vm not in resume");
+        }
+
+        state = STAT_THROW;
+        rtError = node;
+        rtValue = null;
+
+        if (s == STAT_ASYNC) {
+            resume();
+        }
+    }
+
+
+    protected abstract void resume();
+
+
+    @Override
+    public JsonNode root() {
+        return root;
+    }
+
+
+    @Override
+    public Object attach() {
+        return attach;
+    }
+
+    public static JsonNode nullNode(JsonNode node) {
+        return node != null ? node : NullNode.getInstance();
+    }
+
+    public int getCurrentPc() {
+        return 0;
+    }
+}

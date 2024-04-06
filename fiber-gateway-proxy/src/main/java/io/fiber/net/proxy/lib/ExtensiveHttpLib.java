@@ -8,7 +8,6 @@ import io.fiber.net.proxy.HttpLibConfigure;
 import io.fiber.net.script.ast.Literal;
 import io.fiber.net.script.std.StdLibrary;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -16,25 +15,17 @@ public class ExtensiveHttpLib extends StdLibrary {
     final Injector injector;
     final HttpLibConfigure[] configures;
 
-    private static Map<String, Function> getFuncMap() {
-        HashMap<String, Function> map = new HashMap<>();
-        map.putAll(StdLibrary.getDefFuncMap());
-        map.putAll(ReqFunc.FC_MAP);
-        map.putAll(RespFunc.FC_MAP);
-        return map;
-    }
-
     public ExtensiveHttpLib(Injector injector, HttpLibConfigure[] configures) {
-        super(getFuncMap());
         this.injector = injector;
         this.configures = configures;
-    }
-
-    public void registerFunc(String name, Function fc, boolean override) {
-        if (override) {
-            functionMap.put(name, fc);
-        } else {
-            functionMap.putIfAbsent(name, fc);
+        for (Map.Entry<String, AsyncFunction> entry : ReqFunc.ASYNC_FC_MAP.entrySet()) {
+            putAsyncFunc(entry.getKey(), entry.getValue());
+        }
+        for (Map.Entry<String, Function> entry : ReqFunc.FC_MAP.entrySet()) {
+            putFunc(entry.getKey(), entry.getValue());
+        }
+        for (Map.Entry<String, SyncHttpFunc> entry : RespFunc.FC_MAP.entrySet()) {
+            putFunc(entry.getKey(), entry.getValue());
         }
     }
 

@@ -1,9 +1,15 @@
 # fiber-net-gateway 
-一个基于脚本解释器的低代码 API 网关。用于协议转换、反向代理、服务编排，[BFF](https://zhuanlan.zhihu.com/p/634498512)等。
+一个基于脚本引擎的低代码 API 网关 | FaaS 框架。实现的功能是每收到一次 http 请求，执行一段脚本。
 
-此项目是由 阿里本地生活 使用的 API 网关改进而来，在内部有非常广泛的使用，在本地生活承担 40W QPS，支持 http 、dubbo。
+用于协议转换、反向代理、服务编排，[BFF](https://zhuanlan.zhihu.com/p/634498512)等。
 
-本项目的亮点是可以通过脚本来代替复杂的网关配置，灵活性高，使用简单直观（毕竟 API 网关的用户都是程序员）。
+性能非常高，是世界上最快的 java 网关｜FaaS 框架了（没有之一）。
+- http 处理是全异步的，没有用到 线程池，除了 Netty 的 IO 线程外无其它线程。
+- 脚本的执行是通过协程实现的，是的，用 java 8 也能跑出协程来。
+- 脚本有两种执行方式：解释器（Interpreter）方式 使用的是 stackful 协程（类似 lua 解释器）；
+AOT 方式使用的是 stackless 协程（类似 rust），脚本会被编译为状态机 class。
+
+ps：仅仅是一个框架，若要用于生产环境，需要进行二次开发，比如接入配置中心，扩展脚本函数等。
 
 
 # 使用
@@ -50,7 +56,7 @@ EOF
 java -jar -Dfiber.dubbo.registry=nacos://<nacos_ip_port> fiber-gateway-example-1.0-SNAPSHOT.jar conf
 ```
 
-- 测试
+- 测试：每发一个请求，上边的脚本就会执行一次
 ```bash
 # 使用 get 请求，返回 dubbo DemoService.createUser 调用的结果
 curl 127.0.0.1:16688 -XGET
@@ -82,12 +88,3 @@ curl 127.0.0.1:16688 -H'X-Fiber-Project: ttt'
 
 扩展二次开发请参考 [开发文档](doc/dev.md)
 
-
-# 说明
-本项目的核心是一个内置轻量级脚本解释器，.gs 文件经过 分词（lex）、解析（parse）、优化（optimize）、编译（compile）之后被解释执行。
-每次请求会有 一个协程（coroutine, fiber thread）解释执行 .gs 脚本， 起名 “fiber-gateway” 含义正是来自于此。
-
-除了 脚本解释器 之外 本项目还实现了纯异步的 http server 和 http client， 三者结合就可以作为一个低代码 API 网关使用。
-
-# 特性
-炸裂的性能、支持协程、纯异步、零拷贝。

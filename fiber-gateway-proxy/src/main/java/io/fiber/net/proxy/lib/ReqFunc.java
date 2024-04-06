@@ -1,11 +1,7 @@
 package io.fiber.net.proxy.lib;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.BinaryNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import io.fiber.net.common.HttpExchange;
-import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.common.json.*;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.common.utils.StringUtils;
@@ -79,98 +75,96 @@ public class ReqFunc {
     }
 
 
-    private static class GetHeader implements HttpDynamicFunc {
+    private static class GetHeader implements SyncHttpFunc {
 
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
+        public JsonNode call(ExecutionContext context) {
             Ctx ctx = getOrCreateCtx(context);
-            if (ArrayUtils.isEmpty(args)) {
-                context.returnVal(this, ctx.getHeaders());
+            if (context.noArgs()) {
+                return ctx.getHeaders();
             } else {
-                String texted = args[0].textValue();
+                String texted = context.getArgVal(0).textValue();
                 if (StringUtils.isEmpty(texted)) {
-                    context.returnVal(this, null);
-                    return;
+                    return NullNode.getInstance();
                 }
-                context.returnVal(this, ctx.getHeaders().get(texted));
+                return ctx.getHeaders().get(texted);
             }
         }
     }
 
-    private static class GetQuery implements HttpDynamicFunc {
+    private static class GetQuery implements SyncHttpFunc {
 
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
+        public JsonNode call(ExecutionContext context) {
             Ctx ctx = getOrCreateCtx(context);
-            if (ArrayUtils.isEmpty(args)) {
-                context.returnVal(this, ctx.getQuery());
+            if (context.noArgs()) {
+                return ctx.getQuery();
             } else {
-                String texted = args[0].textValue();
+                String texted = context.getArgVal(0).textValue();
                 if (StringUtils.isEmpty(texted)) {
-                    context.returnVal(this, null);
-                    return;
+                    return null;
                 }
-                context.returnVal(this, ctx.getQuery().get(texted));
+                return ctx.getQuery().get(texted);
             }
         }
     }
 
     private static class ReadJsonBody implements HttpDynamicFunc {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
+        public void call(ExecutionContext context) {
             HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
             exchange.readFullReqBody().subscribe((buf, throwable) -> {
                 if (throwable != null) {
-                    context.throwErr(this, new ScriptExecException(throwable.getMessage(), throwable, 400,
+                    context.throwErr(new ScriptExecException(throwable.getMessage(), throwable, 400,
                             ScriptExecException.ERROR_NAME));
                     return;
                 }
 
                 if (buf == null) {
-                    context.throwErr(this, new ScriptExecException("client did not sent body", 400,
+                    context.throwErr(new ScriptExecException("client did not sent body", 400,
                             ScriptExecException.ERROR_NAME));
                     return;
                 }
 
                 if (buf.readableBytes() == 0) {
                     buf.release();
-                    context.throwErr(this, new ScriptExecException("client did not sent body", 400,
+                    context.throwErr(new ScriptExecException("client did not sent body", 400,
                             ScriptExecException.ERROR_NAME));
                     return;
                 }
 
                 JsonNode node;
                 try {
-                    node = JsonUtil.MAPPER.readTree(new ByteBufInputStream(buf));
+                    node = JsonUtil.readTree(new ByteBufInputStream(buf));
                 } catch (IOException e) {
-                    context.throwErr(this, new ScriptExecException(e.getMessage(), e, 400,
+                    context.throwErr(new ScriptExecException(e.getMessage(), e, 400,
                             ScriptExecException.ERROR_NAME));
                     return;
                 } finally {
                     buf.release();
                 }
-                context.returnVal(this, node);
+                context.returnVal(node);
             });
         }
     }
 
     private static class ReadBinaryBody implements HttpDynamicFunc {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
+        public void call(ExecutionContext context) {
             HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
             exchange.readFullReqBody().subscribe((buf, throwable) -> {
                 if (throwable != null) {
-                    context.throwErr(this, new ScriptExecException(throwable.getMessage(), throwable, 400,
+                    context.throwErr(new ScriptExecException(throwable.getMessage(), throwable, 400,
                             ScriptExecException.ERROR_NAME));
                 }
                 if (buf == null) {
-                    context.returnVal(this, BinaryNode.valueOf(Constant.EMPTY_BYTE_ARR));
+                    context.returnVal(BinaryNode.valueOf(Constant.EMPTY_BYTE_ARR));
                     return;
                 }
 
                 if (buf.readableBytes() == 0) {
                     buf.release();
-                    context.returnVal(this, BinaryNode.valueOf(Constant.EMPTY_BYTE_ARR));
+                    context.returnVal(BinaryNode.valueOf(Constant.EMPTY_BYTE_ARR));
                     return;
                 }
 
@@ -180,42 +174,43 @@ public class ReqFunc {
                 } finally {
                     buf.release();
                 }
-                context.returnVal(this, node);
+                context.returnVal(node);
             });
         }
     }
 
-    private static class DiscardBody implements HttpDynamicFunc {
+    private static class DiscardBody implements SyncHttpFunc {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
+        public JsonNode call(ExecutionContext context) {
             HttpDynamicFunc.httpExchange(context).discardReqBody();
-            context.returnVal(this, null);
+            return NullNode.getInstance();
         }
     }
 
-    private static class GetPath implements HttpDynamicFunc {
+    private static class GetPath implements SyncHttpFunc {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            context.returnVal(this, TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getPath()));
+        public JsonNode call(ExecutionContext context) {
+            return TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getPath());
         }
     }
 
-    private static class GetQueryText implements HttpDynamicFunc {
+    private static class GetQueryText implements SyncHttpFunc {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            context.returnVal(this, TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getPath()));
+        public JsonNode call(ExecutionContext context) {
+            return TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getPath());
         }
     }
 
-    private static class GetMethodText implements HttpDynamicFunc {
+    private static class GetMethodText implements SyncHttpFunc {
         private static final TextNode[] MTD = Constant.METHOD_TEXTS;
 
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            context.returnVal(this, MTD[HttpDynamicFunc.httpExchange(context).getRequestMethod().ordinal()]);
+        public JsonNode call(ExecutionContext context) {
+            return MTD[HttpDynamicFunc.httpExchange(context).getRequestMethod().ordinal()];
         }
     }
 
+    static final Map<String, Library.AsyncFunction> ASYNC_FC_MAP = new HashMap<>();
     static final Map<String, Library.Function> FC_MAP = new HashMap<>();
 
     static {
@@ -224,9 +219,9 @@ public class ReqFunc {
         FC_MAP.put("req.getMethod", new GetMethodText());
         FC_MAP.put("req.getHeader", new GetHeader());
         FC_MAP.put("req.getQuery", new GetQuery());
-        FC_MAP.put("req.readJson", new ReadJsonBody());
-        FC_MAP.put("req.readBinary", new ReadBinaryBody());
         FC_MAP.put("req.discardBody", new DiscardBody());
+        ASYNC_FC_MAP.put("req.readJson", new ReadJsonBody());
+        ASYNC_FC_MAP.put("req.readBinary", new ReadBinaryBody());
     }
 
 }

@@ -1,9 +1,9 @@
 package io.fiber.net.script.std;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.utils.JsonUtil;
-import io.fiber.net.script.Library;
 import io.fiber.net.script.ExecutionContext;
+import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
 
 import java.util.HashMap;
@@ -12,29 +12,28 @@ import java.util.Map;
 public class JsonFunc {
     static class Parse implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            JsonNode arg = args[0];
+        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+            JsonNode arg = context.getArgVal(0);
             if (!arg.isTextual()) {
-                context.throwErr(this, new ScriptExecException("parseJson not support " + arg.getNodeType()));
-                return;
+                throw new ScriptExecException("parseJson not support " + arg.getNodeType());
             }
 
             try {
-                context.returnVal(this, JsonUtil.MAPPER.readTree(arg.textValue()));
+                return JsonUtil.MAPPER.readValue(arg.textValue(), JsonNode.class);
             } catch (Exception e) {
-                context.throwErr(this, new ScriptExecException("cannot parseJson: " + e.getMessage(), e));
+                throw new ScriptExecException("cannot parseJson: " + e.getMessage(), e);
             }
         }
     }
 
     static class Stringify implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
+        public JsonNode call(ExecutionContext context) throws ScriptExecException {
             try {
-                String s = JsonUtil.MAPPER.writeValueAsString(args[0]);
-                context.returnVal(this, JsonUtil.createTextNode(s));
+                String s = JsonUtil.MAPPER.writeValueAsString(context.getArgVal(0));
+                return JsonUtil.createTextNode(s);
             } catch (Exception e) {
-                context.throwErr(this, new ScriptExecException("error invoke jsonStringify:" + e.getMessage(), e));
+                throw new ScriptExecException("error invoke jsonStringify:" + e.getMessage(), e);
             }
 
         }

@@ -16,8 +16,8 @@
 
 package io.fiber.net.script.ast;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.NumericNode;
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.NumericNode;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.common.utils.StringUtils;
 
@@ -46,4 +46,11 @@ public class AstUtils {
 
     }
 
+    public static int startPos(long pos) {
+        return ((int) (pos >> 16)) & 0xFFFF;
+    }
+
+    public static int endPos(long pos) {
+        return ((int) pos) & 0xFFFF;
+    }
 }

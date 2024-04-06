@@ -1,9 +1,8 @@
 package io.fiber.net.script.std;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.common.json.ArrayNode;
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.ObjectNode;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
@@ -15,60 +14,45 @@ import java.util.Map;
 
 public class ObjectsFuncs {
 
-    private static ObjectNode firstObj(JsonNode[] args) throws ScriptExecException {
-        if (ArrayUtils.isEmpty(args)) {
+    private static ObjectNode firstObj(ExecutionContext context) throws ScriptExecException {
+        if (context.noArgs()) {
             throw new ScriptExecException("require object");
         }
-        if (!args[0].isObject()) {
-            throw new ScriptExecException("require object but get " + args[0].getNodeType());
+        if (!context.getArgVal(0).isObject()) {
+            throw new ScriptExecException("require object but get " + context.getArgVal(0).getNodeType());
         }
 
-        return (ObjectNode) args[0];
+        return (ObjectNode) context.getArgVal(0);
     }
 
     static class AssignMethod implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            ObjectNode t;
-            try {
-                t = firstObj(args);
-            } catch (ScriptExecException e) {
-
-                context.throwErr(this, e);
-                return;
-            }
-            int length = args.length;
+        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+            ObjectNode t = firstObj(context);
+            int length = context.getArgCnt();
             if (length < 2) {
-                context.throwErr(this, new ScriptExecException("assignObject empty params"));
-                return;
+                throw new ScriptExecException("assignObject empty params");
             }
-            for (int i = 1; i < args.length; i++) {
-                JsonNode arg = args[i];
+            for (int i = 1; i < length; i++) {
+                JsonNode arg = context.getArgVal(i);
                 if (arg instanceof ObjectNode) {
                     t.setAll((ObjectNode) arg);
                 }
             }
 
-            context.returnVal(this, t);
-            return;
+            return t;
         }
     }
 
     static class KeysMethod implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            ObjectNode t;
-            try {
-                t = firstObj(args);
-            } catch (ScriptExecException e) {
-                context.throwErr(this, e);
-                return;
-            }
+        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+            ObjectNode t = firstObj(context);
             ArrayNode arrayNode = JsonUtil.createArrayNode(t.size());
             for (Iterator<String> ks = t.fieldNames(); ks.hasNext(); ) {
                 arrayNode.add(ks.next());
             }
-            context.returnVal(this, arrayNode);
+            return arrayNode;
         }
     }
 
@@ -76,19 +60,13 @@ public class ObjectsFuncs {
 
 
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            ObjectNode t;
-            try {
-                t = firstObj(args);
-            } catch (ScriptExecException e) {
-                context.throwErr(this, e);
-                return;
-            }
+        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+            ObjectNode t = firstObj(context);
             ArrayNode arrayNode = JsonUtil.createArrayNode(t.size());
             for (JsonNode jsonNode : t) {
                 arrayNode.add(jsonNode);
             }
-            context.returnVal(this, arrayNode);
+            return arrayNode;
         }
     }
 
@@ -96,27 +74,25 @@ public class ObjectsFuncs {
 
     static class DeleteKeyFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            int length = args.length;
+        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+            int length = context.getArgCnt();
             if (length < 2) {
-                context.throwErr(this, new ScriptExecException("deleteObjectKey params undefined"));
-                return;
+                throw new ScriptExecException("deleteObjectKey params undefined");
             }
 
-            JsonNode arg = args[0];
+            JsonNode arg = context.getArgVal(0);
             if (!arg.isObject()) {
-                context.throwErr(this, new ScriptExecException("deleteObjectKey not support " + arg.getNodeType()));
-                return;
+                throw new ScriptExecException("deleteObjectKey not support " + arg.getNodeType());
             }
 
             ObjectNode obj = (ObjectNode) arg;
             for (int i = 1; i < length; i++) {
-                if (args[i].isTextual()) {
-                    obj.remove(args[i].textValue());
+                if (context.getArgVal(i).isTextual()) {
+                    obj.remove(context.getArgVal(i).textValue());
                 }
             }
 
-            context.returnVal(this, obj);
+            return obj;
         }
     }
 

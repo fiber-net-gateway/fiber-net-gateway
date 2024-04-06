@@ -4,18 +4,25 @@ import io.fiber.net.script.Library;
 import io.fiber.net.script.parse.NodeVisitor;
 
 public class ConstantVal extends ExpressionNode {
-    private final Library.Constant constant;
+    private final Object constant;
     private final String name;
 
-    public ConstantVal(int pos, String name, Library.Constant constant) {
+    public ConstantVal(int pos, String name, Object constant) {
         super(pos);
         this.constant = constant;
         this.name = name;
     }
 
+    public boolean isAsync() {
+        return constant instanceof Library.AsyncFunction;
+    }
 
     public Library.Constant getConstant() {
-        return constant;
+        return (Library.Constant) constant;
+    }
+
+    public Library.AsyncConstant getAsyncConstant() {
+        return (Library.AsyncConstant) constant;
     }
 
     @Override
@@ -30,6 +37,6 @@ public class ConstantVal extends ExpressionNode {
 
     @Override
     public boolean isConstant() {
-        return constant.isConstExpr();
+        return !isAsync() && getConstant().isConstExpr();
     }
 }

@@ -1,12 +1,11 @@
 package io.fiber.net.script.std;
 
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.LongNode;
-import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.LongNode;
 import io.fiber.net.script.ExecutionContext;
-import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.Library;
+import io.fiber.net.script.ScriptExecException;
 
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -17,20 +16,18 @@ public class RandomFunc implements Library.Function {
     }
 
     @Override
-    public void call(ExecutionContext context, JsonNode... args) {
+    public JsonNode call(ExecutionContext context) throws ScriptExecException {
         long t;
-        if (ArrayUtils.isEmpty(args)) {
+        if (context.noArgs()) {
             t = 1000;
         } else {
-            JsonNode arg = args[0];
+            JsonNode arg = context.getArgVal(0);
             if (!arg.isNumber()) {
-                context.throwErr(this, new ScriptExecException("random argument must be number"));
-                return;
+                throw new ScriptExecException("random argument must be number");
             }
             t = arg.longValue();
         }
         long l = ThreadLocalRandom.current().nextLong(t);
-        context.returnVal(this, LongNode.valueOf(l));
-        return;
+        return LongNode.valueOf(l);
     }
 }

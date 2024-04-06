@@ -1,18 +1,34 @@
 package io.fiber.net.script.ast;
 
+import io.fiber.net.common.utils.Predictions;
 import io.fiber.net.script.parse.NodeVisitor;
+
+import java.util.Collections;
 
 public class IfStatement extends Statement {
 
     private final ExpressionNode predict;
-    private final Statement trueBlock;
-    private final Statement elseStatement;
+    private final Block trueBlock;
+    private final Block elseBlock;
 
-    public IfStatement(int pos, ExpressionNode predict, Statement trueBlock, Statement elseStatement) {
+    public IfStatement(int pos, ExpressionNode predict, Block trueBlock, IfStatement elseIf) {
         super(pos);
         this.predict = predict;
         this.trueBlock = trueBlock;
-        this.elseStatement = elseStatement;
+        this.elseBlock = new Block(elseIf.getPos(), Collections.singletonList(elseIf), Block.Type.ELSE);
+    }
+
+    public IfStatement(int pos, ExpressionNode predict, Block trueBlock, Block elseBlock) {
+        super(pos);
+        Predictions.assertTrue(predict != null, "predict not null");
+        Predictions.assertTrue(trueBlock != null, "predict not null");
+        this.predict = predict;
+        this.trueBlock = trueBlock;
+        this.elseBlock = elseBlock;
+    }
+
+    public IfStatement(int pos, ExpressionNode predict, Block trueBlock) {
+        this(pos, predict, trueBlock, (Block) null);
     }
 
     @Override
@@ -26,9 +42,9 @@ public class IfStatement extends Statement {
         predict.toStringAST(sb);
         sb.append(")");
         trueBlock.toStringAST(sb);
-        if (elseStatement != null) {
+        if (elseBlock != null) {
             sb.append(" else ");
-            elseStatement.toStringAST(sb);
+            elseBlock.toStringAST(sb);
         }
     }
 
@@ -36,11 +52,12 @@ public class IfStatement extends Statement {
         return predict;
     }
 
-    public Statement getTrueBlock() {
+    public Block getTrueBlock() {
         return trueBlock;
     }
 
-    public Statement getElseStatement() {
-        return elseStatement;
+
+    public Block getElseBlock() {
+        return elseBlock;
     }
 }

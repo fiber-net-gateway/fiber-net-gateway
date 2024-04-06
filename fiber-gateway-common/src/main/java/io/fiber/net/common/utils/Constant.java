@@ -1,6 +1,6 @@
 package io.fiber.net.common.utils;
 
-import com.fasterxml.jackson.databind.node.TextNode;
+import io.fiber.net.common.json.TextNode;
 import io.fiber.net.common.HttpMethod;
 
 public class Constant {

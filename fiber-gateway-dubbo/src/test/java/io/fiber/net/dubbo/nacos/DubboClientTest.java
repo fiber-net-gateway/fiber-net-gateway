@@ -1,6 +1,6 @@
 package io.fiber.net.dubbo.nacos;
 
-import com.fasterxml.jackson.databind.node.TextNode;
+import io.fiber.net.common.json.TextNode;
 import io.netty.channel.nio.NioEventLoopGroup;
 import org.junit.Test;
 

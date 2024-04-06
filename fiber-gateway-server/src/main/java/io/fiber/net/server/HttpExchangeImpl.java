@@ -305,7 +305,7 @@ class HttpExchangeImpl extends HttpExchange {
                 if (flush) {
                     ch.writeAndFlush(msg, ch.voidPromise());
                 } else {
-                    ch.write(msg);
+                    ch.write(msg, ch.voidPromise());
                 }
             }
         }

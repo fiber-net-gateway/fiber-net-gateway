@@ -1,9 +1,9 @@
 package io.fiber.net.dubbo.nacos;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.NullNode;
 import io.fiber.net.common.async.Single;
+import io.fiber.net.common.json.ArrayNode;
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.NullNode;
 import io.fiber.net.common.utils.ArrayUtils;
 import io.fiber.net.common.utils.JsonUtil;
 import org.apache.dubbo.common.constants.CommonConstants;
@@ -11,12 +11,12 @@ import org.apache.dubbo.rpc.RpcContext;
 import org.apache.dubbo.rpc.service.GenericService;
 
 public final class DubboReference {
-    private static final Object[] EMPTY = new Object[0];
+    static final Object[] EMPTY = new Object[0];
     private final GenericService genericService;
     private final DubboClient.Service ref;
     private final Long timeout;
 
-    public DubboReference(DubboClient.Service service, long timeout) {
+    DubboReference(DubboClient.Service service, long timeout) {
         this.ref = service;
         this.genericService = service.genericService;
         this.timeout = timeout;
@@ -47,7 +47,7 @@ public final class DubboReference {
             if (o instanceof JsonNode) {
                 return (JsonNode) o;
             } else if (o != null) {
-                return JsonUtil.MAPPER.valueToTree(o);
+                return JsonUtil.valueToTree(o);
             } else {
                 return NullNode.getInstance();
             }

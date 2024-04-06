@@ -1,12 +1,11 @@
 package io.fiber.net.script.std;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.NullNode;
-import com.fasterxml.jackson.databind.node.TextNode;
-import io.fiber.net.common.utils.ArrayUtils;
-import io.fiber.net.script.Library;
+import io.fiber.net.common.json.ArrayNode;
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.NullNode;
+import io.fiber.net.common.json.TextNode;
 import io.fiber.net.script.ExecutionContext;
+import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
 
 import java.util.HashMap;
@@ -17,70 +16,63 @@ public class ArrayFuncs {
 
     static class ArrayJoinFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            if (ArrayUtils.isEmpty(args)) {
-                context.throwErr(this, new ScriptExecException("array join require array but get none"));
-                return;
-
+        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+            if (context.noArgs()) {
+                throw new ScriptExecException("array join require array but get none");
             }
 
-            if (!args[0].isArray()) {
-                context.throwErr(this, new ScriptExecException("array join require array but get " + args[0].getNodeType()));
-                return;
+            if (!context.getArgVal(0).isArray()) {
+                throw new ScriptExecException("array join require array but get " + context.getArgVal(0).getNodeType());
             }
 
-            ArrayNode arr = (ArrayNode) args[0];
-            String delimiter = args.length < 2 ? "" : args[1].asText("");
+            ArrayNode arr = (ArrayNode) context.getArgVal(0);
+            String delimiter = context.getArgCnt() < 2 ? "" : context.getArgVal(1).asText("");
             StringJoiner js = new StringJoiner(delimiter);
             for (JsonNode arg : arr) {
                 js.add(arg.asText(""));
             }
 
-            context.returnVal(this, TextNode.valueOf(js.toString()));
+            return TextNode.valueOf(js.toString());
         }
     }
 
     static class ArrayPopFunc implements Library.Function {
-        public void call(ExecutionContext context, JsonNode... args) {
-            if (ArrayUtils.isEmpty(args)) {
-                context.throwErr(this, new ScriptExecException("array pop require array but get none"));
-                return;
+        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+            if (context.noArgs()) {
+                throw new ScriptExecException("array pop require array but get none");
             }
 
-            if (!args[0].isArray()) {
-                context.throwErr(this, new ScriptExecException("array pop require array but get " + args[0].getNodeType()));
-                return;
+            if (!context.getArgVal(0).isArray()) {
+                throw new ScriptExecException("array pop require array but get " + context.getArgVal(0).getNodeType());
             }
 
-            ArrayNode arr = (ArrayNode) args[0];
+            ArrayNode arr = (ArrayNode) context.getArgVal(0);
             if (arr.isEmpty()) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            context.returnVal(this, arr.remove(arr.size() - 1));
+            return arr.remove(arr.size() - 1);
         }
     }
 
     static class ArrayPushFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            if (ArrayUtils.isEmpty(args)) {
-                context.throwErr(this, new ScriptExecException("array pop require array but get none"));
-                return;
+        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+            if (context.noArgs()) {
+                throw new ScriptExecException("array pop require array but get none");
             }
 
-            if (!args[0].isArray()) {
-                context.throwErr(this, new ScriptExecException("array pop require array but get " + args[0].getNodeType()));
-                return;
+            JsonNode argVal = context.getArgVal(0);
+            if (!argVal.isArray()) {
+                throw new ScriptExecException("array pop require array but get " + argVal.getNodeType());
             }
 
-            ArrayNode arr = (ArrayNode) args[0];
-            int l = args.length;
+            ArrayNode arr = (ArrayNode) argVal;
+            int l = context.getArgCnt();
             for (int i = 1; i < l; i++) {
-                arr.add(args[i]);
+                arr.add(context.getArgVal(i));
             }
 
-            context.returnVal(this, arr);
+            return arr;
         }
     }
 

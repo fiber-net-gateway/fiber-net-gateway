@@ -1,11 +1,12 @@
 package io.fiber.net.script.std;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.BinaryNode;
-import com.fasterxml.jackson.databind.node.TextNode;
-import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.common.json.BinaryNode;
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.MissingNode;
+import io.fiber.net.common.json.TextNode;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
+import io.fiber.net.script.ScriptExecException;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -15,41 +16,37 @@ import java.util.Map;
 public class BinaryFunc {
     static class EncodeBase64 implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            if (ArrayUtils.isEmpty(args)) {
-                context.returnVal(this, null);
-                return;
+        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+            if (context.noArgs()) {
+                return MissingNode.getInstance();
             }
-            JsonNode arg = args[0];
+            JsonNode arg = context.getArgVal(0);
             if (!arg.isBinary()) {
-                context.returnVal(this, null);
-                return;
+                return MissingNode.getInstance();
             }
-            TextNode node = null;
+            JsonNode node;
             try {
                 node = TextNode.valueOf(Base64.getEncoder().encodeToString(arg.binaryValue()));
             } catch (IOException ignore) {
                 // not hit
+                node = MissingNode.getInstance();
             }
-            context.returnVal(this, node);
+            return node;
         }
     }
 
     static class DecodeBase64 implements Library.Function {
 
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            if (ArrayUtils.isEmpty(args)) {
-                context.returnVal(this, null);
-                return;
+        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+            if (context.noArgs()) {
+                return MissingNode.getInstance();
             }
-            JsonNode arg = args[0];
+            JsonNode arg = context.getArgVal(0);
             if (!arg.isTextual()) {
-                context.returnVal(this, null);
-                return;
+                return MissingNode.getInstance();
             }
-            BinaryNode node = BinaryNode.valueOf(Base64.getDecoder().decode(arg.textValue()));
-            context.returnVal(this, node);
+            return BinaryNode.valueOf(Base64.getDecoder().decode(arg.textValue()));
         }
     }
 

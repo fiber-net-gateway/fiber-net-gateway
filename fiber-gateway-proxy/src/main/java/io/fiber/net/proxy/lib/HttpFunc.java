@@ -1,14 +1,13 @@
 package io.fiber.net.proxy.lib;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.IntNode;
-import com.fasterxml.jackson.databind.node.NullNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fiber.net.common.FiberException;
 import io.fiber.net.common.HttpExchange;
 import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.async.internal.SerializeJsonObservable;
-import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.common.json.IntNode;
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.NullNode;
+import io.fiber.net.common.json.ObjectNode;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.common.utils.StringUtils;
@@ -43,13 +42,18 @@ public class HttpFunc implements Library.DirectiveDef {
 
     @Override
     public Library.Function findFunc(String directive, String function) {
+        return null;
+    }
+
+    @Override
+    public Library.AsyncFunction findAsyncFunc(String directive, String function) {
         return fc.get(function);
     }
 
     private class SendFunc implements HttpDynamicFunc {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            JsonNode param = ArrayUtils.isNotEmpty(args) ? args[0] : NullNode.getInstance();
+        public void call(ExecutionContext context) {
+            JsonNode param = context.getArgCnt() > 0 ? context.getArgVal(0) : NullNode.getInstance();
             ClientExchange exchange = httpClient.refer(httpHost);
             setMethod(param, HttpMethod.GET, exchange);
             setUri(param, "/", null, exchange);
@@ -66,15 +70,15 @@ public class HttpFunc implements Library.DirectiveDef {
             }
             exchange.sendForResp().subscribe((response, e) -> {
                 if (e != null) {
-                    context.throwErr(this, new ScriptExecException("error send http", e));
+                    context.throwErr(new ScriptExecException("error send http", e));
                 } else {
-                    ObjectNode nodes = JsonUtil.MAPPER.createObjectNode();
+                    ObjectNode nodes = JsonUtil.createObjectNode();
                     nodes.put("status", response.status());
                     response.readFullRespBody().subscribe((buf, e2) -> {
                         byte[] bytes = ByteBufUtil.getBytes(buf);
                         nodes.put("body", bytes);
                         buf.release();
-                        context.returnVal(this, nodes);
+                        context.returnVal(nodes);
                     });
                 }
             });
@@ -155,9 +159,9 @@ public class HttpFunc implements Library.DirectiveDef {
     private class ProxyFunc implements HttpDynamicFunc {
 
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
+        public void call(ExecutionContext context) {
             HttpExchange httpExchange = HttpDynamicFunc.httpExchange(context);
-            JsonNode param = ArrayUtils.isNotEmpty(args) ? args[0] : NullNode.getInstance();
+            JsonNode param = context.getArgCnt() > 0 ? context.getArgVal(0) : NullNode.getInstance();
             ClientExchange exchange = httpClient.refer(httpHost);
             setMethod(param, httpExchange.getRequestMethod(), exchange);
             setUri(param, httpExchange.getPath(), httpExchange.getQuery(), exchange);
@@ -170,7 +174,7 @@ public class HttpFunc implements Library.DirectiveDef {
             JsonNode node = param.get("responseHeaders");
             exchange.sendForResp().subscribe((response, e) -> {
                 if (e != null) {
-                    context.throwErr(this, new ScriptExecException(e.getMessage(), e));
+                    context.throwErr(new ScriptExecException(e.getMessage(), e));
                 } else {
                     int status = response.status();
                     for (String name : response.getHeaderNames()) {
@@ -180,10 +184,10 @@ public class HttpFunc implements Library.DirectiveDef {
                     try {
                         httpExchange.writeRawBytes(status, response.readRespBody());
                     } catch (FiberException ex) {
-                        context.throwErr(this, new ScriptExecException(ex.getMessage(), ex));
+                        context.throwErr(new ScriptExecException(ex.getMessage(), ex));
                         return;
                     }
-                    context.returnVal(this, IntNode.valueOf(status));
+                    context.returnVal(IntNode.valueOf(status));
                 }
             });
         }

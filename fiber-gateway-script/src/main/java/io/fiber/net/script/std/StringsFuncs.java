@@ -1,13 +1,11 @@
 package io.fiber.net.script.std;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.*;
-import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.common.json.*;
 import io.fiber.net.common.utils.CharArrUtil;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.common.utils.StringUtils;
-import io.fiber.net.script.Library;
 import io.fiber.net.script.ExecutionContext;
+import io.fiber.net.script.Library;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,156 +14,141 @@ import java.util.regex.Pattern;
 
 public class StringsFuncs {
 
-    private static TextNode assertTextNode(JsonNode[] args, int minLen) {
+    private static TextNode assertTextNode(ExecutionContext context, int minLen) {
         assert minLen >= 1;
-        if (args == null || minLen > args.length || !args[0].isTextual()) {
+        JsonNode node;
+        if (minLen > context.getArgCnt() || !(node = context.getArgVal(0)).isTextual()) {
             return null;
         }
-        return (TextNode) args[0];
+        return (TextNode) node;
     }
 
     static class HasPrefixFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 2);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 2);
             if (textNode == null) {
-                context.returnVal(this, BooleanNode.FALSE);
-                return;
+                return BooleanNode.FALSE;
             }
-            JsonNode arg = args[1];
+            JsonNode arg = context.getArgVal(1);
             if (!arg.isTextual()) {
-                context.returnVal(this, BooleanNode.FALSE);
-                return;
+                return BooleanNode.FALSE;
             }
-            context.returnVal(this, BooleanNode.valueOf(textNode.textValue().startsWith(arg.textValue())));
+            return BooleanNode.valueOf(textNode.textValue().startsWith(arg.textValue()));
         }
     }
 
     static class HasSuffixFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 2);
+        public BooleanNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 2);
             if (textNode == null) {
-                context.returnVal(this, BooleanNode.FALSE);
-                return;
+                return BooleanNode.FALSE;
             }
-            JsonNode arg = args[1];
+            JsonNode arg = context.getArgVal(1);
             if (!arg.isTextual()) {
-                context.returnVal(this, BooleanNode.FALSE);
-                return;
+                return BooleanNode.FALSE;
             }
-            context.returnVal(this, BooleanNode.valueOf(textNode.textValue().endsWith(arg.textValue())));
+            return BooleanNode.valueOf(textNode.textValue().endsWith(arg.textValue()));
         }
     }
 
     static class ToLowerFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 1);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 1);
             if (textNode == null) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            context.returnVal(this, TextNode.valueOf(textNode.textValue().toLowerCase()));
+            return TextNode.valueOf(textNode.textValue().toLowerCase());
         }
     }
 
     static class ToUpperFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 1);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 1);
             if (textNode == null) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            context.returnVal(this, TextNode.valueOf(textNode.textValue().toUpperCase()));
+            return TextNode.valueOf(textNode.textValue().toUpperCase());
         }
     }
 
     static class TrimFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 1);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 1);
             if (textNode == null) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            if (args.length < 2 || !args[1].isTextual()) {
-                context.returnVal(this, TextNode.valueOf(textNode.textValue().trim()));
-                return;
+            if (context.getArgCnt() < 2 || !context.getArgVal(1).isTextual()) {
+                return TextNode.valueOf(textNode.textValue().trim());
             }
-            context.returnVal(this, TextNode.valueOf(StringUtils.trim(textNode.textValue(), args[1].textValue())));
+            return TextNode.valueOf(StringUtils.trim(textNode.textValue(), context.getArgVal(1).textValue()));
         }
     }
 
     static class TrimLeft implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 1);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 1);
             if (textNode == null) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            if (args.length < 2 || !args[1].isTextual()) {
-                context.returnVal(this, TextNode.valueOf(StringUtils.trimLeftEmpty(textNode.textValue())));
-                return;
+            if (context.getArgCnt() < 2 || !context.getArgVal(1).isTextual()) {
+                return TextNode.valueOf(StringUtils.trimLeftEmpty(textNode.textValue()));
             }
-            context.returnVal(this, TextNode.valueOf(StringUtils.trimLeft(textNode.textValue(), args[1].textValue())));
+            return TextNode.valueOf(StringUtils.trimLeft(textNode.textValue(), context.getArgVal(1).textValue()));
         }
     }
 
     static class TrimRight implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 1);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 1);
             if (textNode == null) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            if (args.length < 2 || !args[1].isTextual()) {
-                context.returnVal(this, TextNode.valueOf(StringUtils.trimRightEmpty(textNode.textValue())));
-                return;
+            if (context.getArgCnt() < 2 || !context.getArgVal(1).isTextual()) {
+                return TextNode.valueOf(StringUtils.trimRightEmpty(textNode.textValue()));
             }
-            context.returnVal(this, TextNode.valueOf(StringUtils.trimRight(textNode.textValue(), args[1].textValue())));
+            return TextNode.valueOf(StringUtils.trimRight(textNode.textValue(), context.getArgVal(1).textValue()));
         }
     }
 
     static class SplitFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 1);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 1);
             if (textNode == null) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            if (args.length < 2 || !args[1].isTextual()) {
+            if (context.getArgCnt() < 2 || !context.getArgVal(1).isTextual()) {
                 ArrayNode arrayNode = JsonUtil.createArrayNode(1);
                 arrayNode.add(textNode);
-                context.returnVal(this, arrayNode);
-                return;
+                return arrayNode;
             }
-            String[] strings = StringUtils.split(textNode.textValue(), args[1].textValue());
+            String[] strings = StringUtils.split(textNode.textValue(), context.getArgVal(1).textValue());
             ArrayNode arrayNode = JsonUtil.createArrayNode(strings.length);
             for (String string : strings) {
                 arrayNode.add(string);
             }
-            context.returnVal(this, arrayNode);
+            return arrayNode;
         }
     }
 
     static class FindAllFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 2);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 2);
             if (textNode == null) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            if (!args[1].isTextual()) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+            if (!context.getArgVal(1).isTextual()) {
+                return NullNode.getInstance();
             }
-            String value = args[1].textValue();
+            String value = context.getArgVal(1).textValue();
             Pattern pattern = Pattern.compile(textNode.textValue());
             Matcher matcher = pattern.matcher(value);
             ArrayNode arrayNode = JsonUtil.createArrayNode(6);
@@ -174,150 +157,140 @@ public class StringsFuncs {
                 arrayNode.add(matcher.group());
                 s = matcher.end();
             }
-            context.returnVal(this, arrayNode);
+            return arrayNode;
         }
     }
 
     static class ContainsFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 2);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 2);
             if (textNode == null) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            if (!args[1].isTextual()) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+            if (!context.getArgVal(1).isTextual()) {
+                return NullNode.getInstance();
             }
-            String value = args[1].textValue();
-            context.returnVal(this, BooleanNode.valueOf(textNode.textValue().contains(value)));
+            String value = context.getArgVal(1).textValue();
+            return BooleanNode.valueOf(textNode.textValue().contains(value));
         }
     }
 
     static class ContainsAnyFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 2);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 2);
             if (textNode == null) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            if (!args[1].isTextual()) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+            if (!context.getArgVal(1).isTextual()) {
+                return NullNode.getInstance();
             }
-            String value = args[1].textValue();
-            context.returnVal(this, BooleanNode.valueOf(StringUtils.containsAny(textNode.textValue(), CharArrUtil.toCharArr(value))));
+            String value = context.getArgVal(1).textValue();
+            return BooleanNode.valueOf(StringUtils.containsAny(textNode.textValue(), CharArrUtil.toCharArr(value)));
         }
     }
 
     static class IndexFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 2);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 2);
             if (textNode == null) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            if (!args[1].isTextual()) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+            JsonNode argVal = context.getArgVal(1);
+            if (!argVal.isTextual()) {
+                return NullNode.getInstance();
             }
-            String value = args[1].textValue();
-            context.returnVal(this, IntNode.valueOf(textNode.textValue().indexOf(value)));
+            String value = argVal.textValue();
+            return IntNode.valueOf(textNode.textValue().indexOf(value));
         }
     }
 
     static class IndexAnyFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 2);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 2);
             if (textNode == null) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            if (!args[1].isTextual()) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+            JsonNode argVal = context.getArgVal(1);
+            if (!argVal.isTextual()) {
+                return NullNode.getInstance();
             }
-            String value = args[1].textValue();
-            context.returnVal(this, IntNode.valueOf(StringUtils.indexOfAny(textNode.textValue(), CharArrUtil.toCharArr(value))));
+            String value = argVal.textValue();
+            return IntNode.valueOf(StringUtils.indexOfAny(textNode.textValue(), CharArrUtil.toCharArr(value)));
         }
     }
 
     static class LastIndexFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 2);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 2);
             if (textNode == null) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            if (!args[1].isTextual()) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+            JsonNode argVal = context.getArgVal(1);
+            if (!argVal.isTextual()) {
+                return NullNode.getInstance();
             }
-            String value = args[1].textValue();
-            context.returnVal(this, IntNode.valueOf(textNode.textValue().lastIndexOf(value)));
+            String value = argVal.textValue();
+            return IntNode.valueOf(textNode.textValue().lastIndexOf(value));
         }
     }
 
     static class LastIndexAnyFunc implements Library.Function {
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 2);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 2);
             if (textNode == null) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            if (!args[1].isTextual()) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+            JsonNode argVal = context.getArgVal(1);
+            if (!argVal.isTextual()) {
+                return NullNode.getInstance();
             }
             String src = textNode.textValue();
 
             int i;
-            String value = args[1].textValue();
+            String value = argVal.textValue();
             char[] chars = CharArrUtil.toCharArr(value);
             for (char c : chars) {
                 if ((i = src.lastIndexOf(c)) >= 0) {
-                    context.returnVal(this, IntNode.valueOf(i));
-                    return;
+                    return IntNode.valueOf(i);
                 }
             }
-            context.returnVal(this, IntNode.valueOf(-1));
+            return IntNode.valueOf(-1);
         }
     }
 
     static class RepeatFunc implements Library.Function {
 
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 2);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 2);
             if (textNode == null) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            if (!args[1].isNumber()) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+            JsonNode argVal = context.getArgVal(1);
+            if (!argVal.isNumber()) {
+                return NullNode.getInstance();
             }
             String s = textNode.textValue();
-            int i = args[1].intValue();
+            int i = argVal.intValue();
 
             if (i < 0) {
-                context.returnVal(this, NullNode.getInstance());
+                return NullNode.getInstance();
             } else if (i == 0 || s.isEmpty()) {
-                context.returnVal(this, TextNode.valueOf(""));
+                return TextNode.valueOf("");
             } else if (i == 1) {
-                context.returnVal(this, textNode);
+                return textNode;
             } else {
                 StringBuilder sb = new StringBuilder(i * s.length());
                 for (int j = 0; j < i; j++) {
                     sb.append(s);
                 }
-                context.returnVal(this, TextNode.valueOf(sb.toString()));
+                return TextNode.valueOf(sb.toString());
             }
         }
     }
@@ -325,67 +298,58 @@ public class StringsFuncs {
     static class MatchFunc implements Library.Function {
 
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            TextNode textNode = assertTextNode(args, 2);
+        public JsonNode call(ExecutionContext context) {
+            TextNode textNode = assertTextNode(context, 2);
             if (textNode == null) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+                return NullNode.getInstance();
             }
-            if (!args[1].isTextual()) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+            JsonNode argVal = context.getArgVal(1);
+            if (!argVal.isTextual()) {
+                return NullNode.getInstance();
             }
 
-            context.returnVal(this, BooleanNode.valueOf(args[1].textValue().matches(textNode.textValue())));
+            return BooleanNode.valueOf(argVal.textValue().matches(textNode.textValue()));
         }
     }
 
     static class SubstringFunc implements Library.Function {
 
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
+        public JsonNode call(ExecutionContext context) {
             JsonNode node;
-            if (ArrayUtils.isEmpty(args) || !(node = args[0]).isTextual()) {
-                context.returnVal(this, NullNode.getInstance());
-                return;
+            if (context.noArgs() || !(node = context.getArgVal(0)).isTextual()) {
+                return NullNode.getInstance();
             }
             String txt = node.textValue();
-            switch (args.length) {
+            switch (context.getArgCnt()) {
                 case 1:
-                    context.returnVal(this, node);
-                    return;
+                    return node;
                 case 2: {
-                    int i = args[1].asInt();
+                    int i = context.getArgVal(1).asInt();
                     if (i <= 0) {
-                        context.returnVal(this, node);
-                        return;
+                        return node;
                     }
                     if (i >= txt.length()) {
-                        context.returnVal(this, TextNode.valueOf(""));
-                        return;
+                        return TextNode.valueOf("");
                     }
-                    context.returnVal(this, TextNode.valueOf(txt.substring(i)));
-                    return;
+                    return TextNode.valueOf(txt.substring(i));
                 }
                 default: {
-                    int i = args[1].asInt();
+                    int i = context.getArgVal(1).asInt();
                     if (i >= txt.length()) {
-                        context.returnVal(this, TextNode.valueOf(""));
-                        return;
+                        return TextNode.valueOf("");
                     }
                     if (i < 0) {
                         i = 0;
                     }
-                    int j = args[2].asInt();
+                    int j = context.getArgVal(2).asInt();
                     if (j <= i) {
-                        context.returnVal(this, TextNode.valueOf(""));
-                        return;
+                        return TextNode.valueOf("");
                     }
                     if (j >= txt.length()) {
-                        context.returnVal(this, TextNode.valueOf(txt.substring(i)));
-                        return;
+                        return TextNode.valueOf(txt.substring(i));
                     }
-                    context.returnVal(this, TextNode.valueOf(txt.substring(i, j)));
+                    return TextNode.valueOf(txt.substring(i, j));
                 }
             }
         }
@@ -394,16 +358,15 @@ public class StringsFuncs {
     static class ToStringFunc implements Library.Function {
 
         @Override
-        public void call(ExecutionContext context, JsonNode... args) {
-            if (ArrayUtils.isEmpty(args)) {
-                context.returnVal(this, null);
-                return;
+        public JsonNode call(ExecutionContext context) {
+            if (context.noArgs()) {
+                return null;
             }
-            JsonNode arg = args[0];
+            JsonNode arg = context.getArgVal(0);
             if (JsonUtil.isNull(arg)) {
-                context.returnVal(this, TextNode.valueOf("null"));
+                return TextNode.valueOf("null");
             } else {
-                context.returnVal(this, TextNode.valueOf(JsonUtil.toString(arg)));
+                return TextNode.valueOf(JsonUtil.toString(arg));
             }
         }
     }

@@ -16,7 +16,7 @@ let str = strings.toString(jsonBody.attr); // 不存在 json.toString() 没有�
 ```
 
 ## 数据类型
-他的运算对象为 com.fasterxml.jackson.databind.node.JsonNodeType ，数据类型没有方法 （method）
+他的运算对象为 io.fiber.net.common.json.JsonNodeType ，数据类型没有方法 （method）
 ```java
 package com.fasterxml.jackson.databind.node;
 

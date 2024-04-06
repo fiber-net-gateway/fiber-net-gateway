@@ -1,30 +1,46 @@
 package io.fiber.net.script.parse;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.NullNode;
-import com.fasterxml.jackson.databind.node.ValueNode;
-import io.fiber.net.script.Code;
+import io.fiber.net.common.json.ContainerNode;
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.NullNode;
+import io.fiber.net.common.json.ValueNode;
+import io.fiber.net.common.utils.Assert;
 import io.fiber.net.script.Library;
-import io.fiber.net.script.Vm;
 import io.fiber.net.script.ast.*;
+import io.fiber.net.script.run.Code;
+import io.fiber.net.script.run.Vm;
 
 import java.util.*;
 
 public class CompilerNodeVisitor implements NodeVisitor<Void> {
+    private static final int SCOPE_TYPE_SCRIPT = 0;
+    private static final int SCOPE_TYPE_TRY = 1;
+    private static final int SCOPE_TYPE_CATCH = 2;
+    private static final int SCOPE_TYPE_FOR = 3;
+    private static final int SCOPE_TYPE_IF = 4;
+    private static final int SCOPE_TYPE_ELSE = 5;
+
+    private static final int TERMINAL_TYPE_NONE = 0;
+    private static final int TERMINAL_BIT_ITERATOR = 1;
+    private static final int TERMINAL_BIT_SCRIPT = 2;
+    private static final int TERMINAL_TYPE_ITERATOR = TERMINAL_BIT_ITERATOR;
+    private static final int TERMINAL_TYPE_SCRIPT = TERMINAL_BIT_ITERATOR | TERMINAL_BIT_SCRIPT;
+
 
     private static class Scope {
         Scope outer;
         Map<String, Integer> varIdx = new HashMap<>();
         final int outVarIdx;
-
-        boolean isTryScope;
+        final int type;
 
         int iteratePc;
         List<Integer> breakJumpPc;
+        int terminal = TERMINAL_TYPE_NONE;
 
-        public Scope(Scope outer, int outVarIdx) {
+        public Scope(Scope outer, int outVarIdx, int type) {
             this.outer = outer;
             this.outVarIdx = outVarIdx;
+            this.type = type;
         }
 
         void addBreakJump(int pc) {
@@ -36,7 +52,6 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
 
     }
 
-
     private int[] codes;
     private long[] positions;
     private int len;
@@ -46,26 +61,56 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
     private int currentStackSize;
     private int varLength;
     private int varCapacity;
+    private int iteratorVarIdx;
+    private int[] expMapping;
+    private int emLen;
+
     private final Map<Object, Integer> extCache = new HashMap<>();
+    private final Map<Object, Integer> extIdtCache = new IdentityHashMap<>();
     private final Stack<Scope> scopes = new Stack<>();
 
     private Scope getCurrentScope() {
         return scopes.peek();
     }
 
-    private Scope enterScope() {
-        Scope c = new Scope(scopes.empty() ? null : scopes.peek(), varLength);
+    private int addExpMapping(int cpc) {
+        int el = emLen;
+        if (el == 0) {
+            expMapping = new int[24];
+        } else if (expMapping.length <= el) {
+            expMapping = Arrays.copyOf(expMapping, expMapping.length << 1);
+        }
+        expMapping[el] = cpc;
+
+        emLen = el + 3;
+        return el;
+    }
+
+    private void patchExpMapping(int el, int tryEnd, int catchPc) {
+        expMapping[el + 1] = tryEnd;
+        expMapping[el + 2] = catchPc;
+    }
+
+    private Scope enterScope(int type) {
+        Scope c = new Scope(scopes.empty() ? null : scopes.peek(), varLength, type);
         scopes.add(c);
         return c;
     }
 
-    private void exitScope() {
+    private int exitScope() {
         Scope pop = scopes.pop();
         varLength = pop.outVarIdx;
         if (pop.breakJumpPc != null) {
             for (Integer i : pop.breakJumpPc) {
                 patchJumpPC(i);
             }
+        }
+        return pop.terminal;
+    }
+
+    private void checkDeadCode(int pos) {
+        if (getCurrentScope().terminal != TERMINAL_TYPE_NONE) {
+            throw new ParseException("dead code is not allowed: @" + AstUtils.startPos(pos));
         }
     }
 
@@ -80,6 +125,13 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         return idx;
     }
 
+    private int defIterateVar(String name) {
+        if ("_".equals(name)) {
+            return -1;
+        }
+        return defVar(name);
+    }
+
     private int getVar(String name) {
         Scope scope = getCurrentScope();
         Integer idx;
@@ -91,11 +143,10 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         return idx;
     }
 
-
     private void push(int code, long position, int stackChange) {
         if (len == 0) {
-            codes = new int[32];
-            positions = new long[32];
+            codes = new int[64];
+            positions = new long[64];
         }
         if (codes.length <= len) {
             codes = Arrays.copyOf(codes, codes.length << 1);
@@ -114,13 +165,33 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
     }
 
     private int pushExt(Object ct) {
-        if (ct instanceof Library.Function || ct instanceof Library.Constant || ct instanceof ValueNode || ct instanceof String) {
+        int id;
+        if (ct instanceof ValueNode
+                || ct instanceof String) {
             Integer i = extCache.get(ct);
             if (i != null) {
                 return i;
             }
+            id = pushExt0(ct);
+            extCache.put(ct, id);
+        } else if (ct instanceof Library.Function
+                || ct instanceof Library.Constant
+                || ct instanceof Library.AsyncFunction
+                || ct instanceof Library.AsyncConstant) {
+            Integer i = extIdtCache.get(ct);
+            if (i != null) {
+                return i;
+            }
+            id = pushExt0(ct);
+            extIdtCache.put(ct, id);
+        } else {
+            id = pushExt0(ct);
         }
 
+        return id;
+    }
+
+    private int pushExt0(Object ct) {
         int operandsLen = this.operandsLen;
         if (operands == null) {
             operands = new Object[16];
@@ -129,26 +200,41 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         }
         operands[operandsLen] = ct;
         this.operandsLen++;
-        extCache.put(ct, operandsLen);
         return operandsLen;
     }
 
-    private int pushFalseJump(long pos) {
-        push(Code.JUMP_IF_FALSE, pos, -1);
+    private int pushLogicJump(int code, long pos) {
+        push(code, pos, -1);
         return len;
     }
 
-    private int pushRelationalJump(int code, long pos) {
-        return pushRelationalJump(code, pos, 0);
+    private int pushJump(long pos) {
+        push(Code.JUMP, pos, 0);
+        return len;
     }
 
-    private int pushRelationalJump(int code, long pos, int stackChange) {
-        push(code, pos, stackChange);
+    private void pushJump(int pc, long pos) {
+        push(Code.JUMP | (pc << 8), pos, 0);
+    }
+
+    private int getCpc() {
         return len;
     }
 
     private void pushSpreadFunc(long pos, Library.Function func) {
         push((pushExt(func) << 8) | Code.CALL_FUNC_SPREAD, pos, 0);
+    }
+
+    private void pushSpreadAsyncFunc(long pos, Library.AsyncFunction func) {
+        push((pushExt(func) << 8) | Code.CALL_ASYNC_FUNC_SPREAD, pos, 0);
+    }
+
+    private void pushFunction(long pos, Library.Function func, int argCount) {
+        push((pushExt(func) << 16) | (argCount << 8) | Code.CALL_FUNC, pos, -argCount + 1);
+    }
+
+    private void pushAsyncFunction(long pos, Library.AsyncFunction func, int argCount) {
+        push((pushExt(func) << 16) | (argCount << 8) | Code.CALL_ASYNC_FUNC, pos, -argCount + 1);
     }
 
     private void patchJumpPC(int pc) {
@@ -216,9 +302,9 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
     @Override
     public Void visit(Ternary node) {
         node.getTestVal().accept(this);
-        int i = pushFalseJump(node.getPos());
+        int i = pushLogicJump(Code.JUMP_IF_FALSE, node.getPos());
         node.getTrueVal().accept(this);
-        int eJump = pushRelationalJump(Code.JUMP, node.getTrueVal().getPos());
+        int eJump = pushJump(node.getTrueVal().getPos());
         patchJumpPC(i);
         node.getFalseVal().accept(this);
         patchJumpPC(eJump);
@@ -228,7 +314,9 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
     @Override
     public Void visit(LogicRelationalExpression exp) {
         exp.getLeft().accept(this);
-        int i = pushRelationalJump(exp.getOperator() == Operator.AND ? Code.LOGICAL_AND : Code.LOGICAL_OR, exp.getPos());
+        push(Code.JUMP, exp.getLeft().getPos(), 1);
+        int i = pushLogicJump(exp.getOperator() == Operator.AND ? Code.JUMP_IF_FALSE : Code.JUMP_IF_TRUE,
+                exp.getPos());
         exp.getRight().accept(this);
         patchJumpPC(i);
         return null;
@@ -236,6 +324,12 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
 
     @Override
     public Void visit(Assign assign) {
+        visitAssign(assign, true);
+        return null;
+    }
+
+    private boolean visitAssign(Assign assign, boolean requireResult) {
+        boolean noResult = false;
         MaybeLValue left = assign.getLeft();
         assert left.isLValue() : "必须是左值";
         left.accept(this);
@@ -245,8 +339,9 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
             stackChange = -2;
         } else if (left instanceof VariableReference) {
             int i = getVar(((VariableReference) left).getName());
-            code = Code.STORE_VAR_1 | (i << 8);
-            stackChange = 0;
+            code = Code.STORE_VAR | (i << 8);
+            stackChange = -1;
+            noResult = true;
         } else {
             assert left instanceof PropertyReference;
             int i = pushExt(((PropertyReference) left).getName());
@@ -254,8 +349,11 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
             stackChange = -1;
         }
         assign.getRight().accept(this);
+        if (requireResult && noResult) {
+            push(Code.DUMP, assign.getEndPosition(), 1);
+        }
         push(code, assign.getPos(), stackChange);
-        return null;
+        return noResult;
     }
 
     @Override
@@ -277,7 +375,12 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
 
     @Override
     public Void visit(ConstantVal constantVal) {
-        push((pushExt(constantVal.getConstant()) << 8) | Code.CALL_CONST, constantVal.getPos(), 1);
+        if (constantVal.isAsync()) {
+            push((pushExt(constantVal.getAsyncConstant()) << 8) | Code.CALL_ASYNC_CONST, constantVal.getPos(), 1);
+        } else {
+            push((pushExt(constantVal.getConstant()) << 8) | Code.CALL_CONST, constantVal.getPos(), 1);
+        }
+
         return null;
     }
 
@@ -300,7 +403,6 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
 
     @Override
     public Void visit(FunctionCall functionCall) {
-
         boolean spread = false;
         ExpressionNode[] args = functionCall.getArgs();
         for (ExpressionNode arg : args) {
@@ -313,13 +415,16 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
             push(Code.NEW_ARRAY, functionCall.getPos(), 1);
             for (ExpressionNode arg : args) {
                 arg.accept(this);
-                if (arg instanceof ExpandArrArg) {
-                    push(Code.EXP_ARRAY, arg.getPos(), -1);
-                } else {
+                if (!(arg instanceof ExpandArrArg)) {
                     push(Code.PUSH_ARRAY, arg.getPos(), -1);
                 }
             }
-            pushSpreadFunc(functionCall.getPos(), functionCall.getFunc());
+            if (functionCall.isAsync()) {
+                pushSpreadAsyncFunc(functionCall.getPos(), functionCall.getAsyncFunc());
+            } else {
+                pushSpreadFunc(functionCall.getPos(), functionCall.getFunc());
+            }
+
         } else {
             if (args.length > 255) {
                 throw new ParseException("参数过多：" + functionCall.getName());
@@ -327,7 +432,12 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
             for (ExpressionNode arg : args) {
                 arg.accept(this);
             }
-            push((pushExt(functionCall.getFunc()) << 16) | args.length << 8 | Code.CALL_FUNC, functionCall.getPos(), -args.length + 1);
+
+            if (functionCall.isAsync()) {
+                pushAsyncFunction(functionCall.getPos(), functionCall.getAsyncFunc(), args.length);
+            } else {
+                pushFunction(functionCall.getPos(), functionCall.getFunc(), args.length);
+            }
         }
         return null;
     }
@@ -336,7 +446,7 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
     public Void visit(UnaryOperator unaryOperator) {
         unaryOperator.getTarget().accept(this);
         switch (unaryOperator.getOperator()) {
-            case AND:
+            case ADD:
                 push(Code.UNARY_PLUS, unaryOperator.getPos(), 0);
                 break;
             case MINUS:
@@ -357,6 +467,15 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
     @Override
     public Void visit(ExpandArrArg expandArrArg) {
         expandArrArg.getOperand().accept(this);
+        switch (expandArrArg.getWhere()) {
+            case INIT_ARR:
+            case FUNC_CALL:
+                push(Code.EXP_ARRAY, expandArrArg.getPos(), -1);
+                break;
+            case INIT_OBJ:
+                push(Code.EXP_OBJECT, expandArrArg.getPos(), -1);
+                break;
+        }
         return null;
     }
 
@@ -374,9 +493,7 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         push(Code.NEW_ARRAY, inlineList.getPos(), 1);
         for (ExpressionNode child : inlineList.getChildren()) {
             child.accept(this);
-            if (child instanceof ExpandArrArg) {
-                push(Code.EXP_ARRAY, child.getPos(), -1);
-            } else {
+            if (!(child instanceof ExpandArrArg)) {
                 push(Code.PUSH_ARRAY, child.getPos(), -1);
             }
         }
@@ -390,9 +507,7 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         ExpressionNode[] valueChildren = inlineObject.getValueChildren();
         for (int i = 0; i < keys.length; i++) {
             valueChildren[i].accept(this);
-            if (InlineObject.isExpandKey(keys[i])) {
-                push(Code.EXP_OBJECT, valueChildren[i].getPos(), -1);
-            } else {
+            if (!InlineObject.isExpandKey(keys[i])) {
                 assert keys[i] instanceof String : "key 必须是 string";
                 push((pushExt(keys[i]) << 8) | Code.PROP_SET_1, valueChildren[i].getPos(), -1);
             }
@@ -400,65 +515,136 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         return null;
     }
 
+    private int lastIfBlockTerminal;
+
     @Override
     public Void visit(Block block) {
-        enterScope();
+        int type;
+        switch (block.getType()) {
+            case SCRIPT:
+                type = SCOPE_TYPE_SCRIPT;
+                break;
+            case IF:
+                type = SCOPE_TYPE_IF;
+                break;
+            case ELSE:
+                type = SCOPE_TYPE_ELSE;
+                break;
+            // 这个已经被 enter scope了 not hit
+            case TRY:
+            case CATCH:
+            case FOR:
+            default:
+                throw new IllegalStateException("invalid scope type");
+        }
+        enterScope(type);
         try {
             for (Statement statement : block.getStatements()) {
                 statement.accept(this);
             }
             return null;
         } finally {
-            exitScope();
+            int t = exitScope();
+            if (type == SCOPE_TYPE_SCRIPT) {
+                if ((t & TERMINAL_BIT_SCRIPT) != 0 && !scopes.empty()) {
+                    getCurrentScope().terminal |= TERMINAL_TYPE_SCRIPT;
+                }
+            } else {
+                lastIfBlockTerminal = t;
+            }
         }
     }
 
     @Override
     public Void visit(IfStatement ifStatement) {
+        checkDeadCode(ifStatement.getPos());
         ifStatement.getPredict().accept(this);
-        int i = pushFalseJump(ifStatement.getPos());
-        ifStatement.getTrueBlock().accept(this);
-        int jElse = pushRelationalJump(Code.JUMP, ifStatement.getTrueBlock().getPos());
-        patchJumpPC(i);
-        if (ifStatement.getElseStatement() != null) {
-            ifStatement.getElseStatement().accept(this);
+        int i = pushLogicJump(Code.JUMP_IF_FALSE, ifStatement.getPredict().getPos());
+        Block trueBlock = ifStatement.getTrueBlock();
+        Assert.isTrue(trueBlock.getType() == Block.Type.IF);
+        trueBlock.accept(this);
+        int trueTerminal = lastIfBlockTerminal;
+        lastIfBlockTerminal = TERMINAL_TYPE_NONE;
+        // predict
+        // .... true  block
+        //
+        // label
+        // .... false block
+        // continue
+        int jElse = -1;
+        Block elseBlock = ifStatement.getElseBlock();
+        if (elseBlock != null) {
+            jElse = pushJump(trueBlock.getPos());
         }
-        patchJumpPC(jElse);
+        patchJumpPC(i);
+        if (elseBlock != null) {
+            Assert.isTrue(elseBlock.getType() == Block.Type.ELSE);
+            elseBlock.accept(this);
+            int falseTerminal = lastIfBlockTerminal;
+            lastIfBlockTerminal = TERMINAL_TYPE_NONE;
+            assert jElse > 0;
+            patchJumpPC(jElse);
+            getCurrentScope().terminal |= TERMINAL_BIT_SCRIPT & trueTerminal & falseTerminal;
+            getCurrentScope().terminal |= TERMINAL_BIT_ITERATOR & trueTerminal & falseTerminal;
+        }
         return null;
+    }
+
+    private boolean mustHasIterate(ExpressionNode node) {
+        if (!(node instanceof Literal)) {
+            return false;
+        }
+
+        JsonNode literalValue = ((Literal) node).getLiteralValue();
+        return literalValue instanceof ContainerNode && !literalValue.isEmpty();
     }
 
     @Override
     public Void visit(ForeachStatement foreachStatement) {
-
-        foreachStatement.getCollection().accept(this);
-
-        int start = pushRelationalJump(Code.INTO_ITERATE, foreachStatement.getPos(), -1);
-        Scope scope = enterScope();
-        scope.iteratePc = start;
+        checkDeadCode(foreachStatement.getPos());
+        ExpressionNode collection = foreachStatement.getCollection();
+        collection.accept(this);
+        final Scope scope = enterScope(SCOPE_TYPE_FOR);
+        int i = defVar("__iterator__var_" + (iteratorVarIdx++));
+        if (i > Vm.MAX_ITERATOR_VAR) {
+            throw new IllegalStateException("too many variables");
+        }
+        push(Code.ITERATE_INTO | (i << 8), foreachStatement.getPos(), -1);
+        scope.iteratePc = getCpc();
         try {
-            int k = defVar(foreachStatement.getKeyVarName().getName());
-            int v = defVar(foreachStatement.getValVarName().getName());
-            scope.addBreakJump(pushRelationalJump(Code.NEXT_ITERATE, foreachStatement.getPos(), 2)); // jump to end
+            int k = defIterateVar(foreachStatement.getKeyVarName().getName());
+            int v = defIterateVar(foreachStatement.getValVarName().getName());
+            if (k >= Vm.MAX_ITERATOR_VAR || v >= Vm.MAX_ITERATOR_VAR) {
+                throw new IllegalStateException("too many variables");
+            }
+
+            push(Code.ITERATE_NEXT | (i << Vm.INSTRUMENT_LEN), foreachStatement.getPos(), 1);
+            scope.addBreakJump(pushLogicJump(Code.JUMP_IF_FALSE, foreachStatement.getPos())); // jump to end
 
             // assign key value;
-            push(Code.STORE_VAR | (v << 8), foreachStatement.getValVarName().getPos(), -1);
-            push(Code.STORE_VAR | (k << 8), foreachStatement.getKeyVarName().getPos(), -1);
-
+            if (k >= 0) {
+                push((i << Vm.ITERATOR_OFF) | (k << Vm.INSTRUMENT_LEN) | Code.ITERATE_KEY,
+                        foreachStatement.getKeyVarName().getPos(), 0);
+            }
+            if (v >= 0) {
+                push((i << Vm.ITERATOR_OFF) | (v << Vm.INSTRUMENT_LEN) | Code.ITERATE_VALUE,
+                        foreachStatement.getValVarName().getPos(), 0);
+            }
             for (Statement statement : foreachStatement.getIterableBlock().getStatements()) {
                 statement.accept(this);
             }
-            push(Code.JUMP | (start << 8), foreachStatement.getPos(), 2); // jump to end
-
+            push(Code.JUMP | (scope.iteratePc << 8), foreachStatement.getPos(), 0); // jump to end
         } finally {
-            exitScope();
+            if ((exitScope() & TERMINAL_BIT_SCRIPT) != 0 && mustHasIterate(collection)) {
+                getCurrentScope().terminal |= TERMINAL_TYPE_SCRIPT;
+            }
         }
-        //
-        push(Code.END_ITERATE, foreachStatement.getKeyVarName().getPos(), 0);
         return null;
     }
 
     @Override
     public Void visit(VariableDeclareStatement variableDeclareStatement) {
+        checkDeadCode(variableDeclareStatement.getPos());
         Identifier variableName = variableDeclareStatement.getVariableName();
         int i = defVar(variableName.getName());
         ExpressionNode initialExp = variableDeclareStatement.getInitialExp();
@@ -474,74 +660,84 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
 
     @Override
     public Void visit(ExpressionStatement expressionStatement) {
+        checkDeadCode(expressionStatement.getPos());
         ExpressionNode expression = expressionStatement.getExpression();
-        expression.accept(this);
-        push(Code.POP, expressionStatement.getPos(), -1);
+        if (expression instanceof Assign && visitAssign((Assign) expression, false)) {
+            return null;
+        } else {
+            expression.accept(this);
+            push(Code.POP, expressionStatement.getPos(), -1);
+        }
         return null;
     }
 
     @Override
-    public Void visit(ContinueStatement breakStatement) {
+    public Void visit(ContinueStatement continueStatement) {
+        checkDeadCode(continueStatement.getPos());
         Scope scope = getCurrentScope();
-        while (scope != null && scope.iteratePc == 0) {
-            if (scope.isTryScope) {
-                push(Code.END_TRY, breakStatement.getPos(), 0);
-            }
+        scope.terminal |= TERMINAL_TYPE_ITERATOR;
+        while (scope != null && scope.type != SCOPE_TYPE_FOR) {
             scope = scope.outer;
         }
         if (scope == null) {
             throw new ParseException("continue statement not in foreach");
         }
 
-        push(Code.JUMP | (scope.iteratePc << 8), breakStatement.getPos(), 0);
+        pushJump(scope.iteratePc << 8, continueStatement.getPos());
         return null;
     }
 
     @Override
     public Void visit(BreakStatement breakStatement) {
+        checkDeadCode(breakStatement.getPos());
         Scope scope = getCurrentScope();
-        while (scope != null && scope.iteratePc == 0) {
-            if (scope.isTryScope) {
-                push(Code.END_TRY, breakStatement.getPos(), 0);
-            }
+        scope.terminal |= TERMINAL_TYPE_ITERATOR;
+        while (scope != null && scope.type != SCOPE_TYPE_FOR) {
             scope = scope.outer;
         }
         if (scope == null) {
             throw new ParseException("break statement not in foreach");
         }
-
-        scope.addBreakJump(pushRelationalJump(Code.JUMP, breakStatement.getPos()));
+        scope.addBreakJump(pushJump(breakStatement.getPos()));
         return null;
     }
 
     @Override
     public Void visit(ReturnStatement returnStatement) {
+        checkDeadCode(returnStatement.getPos());
         ExpressionNode expression = returnStatement.getExpression();
         if (expression != null) {
             expression.accept(this);
         }
         push(Code.END_RETURN, returnStatement.getPos(), 0);
+        getCurrentScope().terminal |= TERMINAL_TYPE_SCRIPT;
         return null;
     }
 
     @Override
     public Void visit(NoopNode noopNode) {
+        checkDeadCode(noopNode.getPos());
         push(Code.NOOP, 0, 0);
         return null;
     }
 
     @Override
     public Void visit(TryCatchStatement tryCatchStatement) {
+        checkDeadCode(tryCatchStatement.getPos());
+
         Statement tryBlock = tryCatchStatement.getTryBlock();
         Statement catchBlock = tryCatchStatement.getCatchBlock();
         Identifier expVarName = tryCatchStatement.getExpVarName();
-        int patchPc = pushRelationalJump(Code.INTO_TRY, tryBlock.getPos(), 0);
-        Scope scope = enterScope();
-        scope.isTryScope = true;
+        enterScope(SCOPE_TYPE_TRY);
+        int patchPc = getCpc();
         if (tryBlock instanceof NoopNode) {
             exitScope();
             return null;
-        } else if (tryBlock instanceof Block) {
+        }
+
+        int tryPoint = addExpMapping(patchPc);
+
+        if (tryBlock instanceof Block) {
             for (Statement statement : ((Block) tryBlock).getStatements()) {
                 statement.accept(this);
             }
@@ -549,14 +745,13 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
             tryBlock.accept(this);
         }
 
-        push(Code.END_TRY, tryBlock.getPos(), 0);
-        exitScope();
-        int patchJump = pushRelationalJump(Code.JUMP, tryBlock.getPos(), 0);
-        patchJumpPC(patchPc);
-        enterScope();
-        push(Code.INTO_CATCH, expVarName.getPos(), 1);
+        int tryTerminal = exitScope();
+        int tryEndPc = getCpc();
+        int patchJump = pushJump(tryBlock.getPos());
+        enterScope(SCOPE_TYPE_CATCH);
+        patchExpMapping(tryPoint, tryEndPc, patchJump);
         int i = defVar(expVarName.getName());
-        push(Code.STORE_VAR | (i << 8), expVarName.getPos(), -1);
+        push(Code.INTO_CATCH | (i << 8), expVarName.getPos(), 0);
         if (catchBlock instanceof Block) {
             for (Statement statement : ((Block) catchBlock).getStatements()) {
                 statement.accept(this);
@@ -564,49 +759,36 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         } else {
             catchBlock.accept(this);
         }
-        exitScope();
+        int catchTerminal = exitScope();
         patchJumpPC(patchJump);
+        getCurrentScope().terminal |= TERMINAL_BIT_SCRIPT & tryTerminal & catchTerminal;
+        getCurrentScope().terminal |= TERMINAL_BIT_ITERATOR & tryTerminal & catchTerminal;
         return null;
     }
 
     @Override
     public Void visit(ThrowStatement throwStatement) {
+        checkDeadCode(throwStatement.getPos());
         ExpressionNode expressionNode = throwStatement.getExpressionNode();
         expressionNode.accept(this);
         push(Code.THROW_EXP, throwStatement.getPos(), -1);
+        getCurrentScope().terminal |= TERMINAL_TYPE_SCRIPT;
         return null;
     }
 
-
-    static class Compiled {
-        private int stackSize;
-        private int varTableSize;
-        private long[] pos;
-        private int[] codes;
-        private Object[] operands;
-
-
-        Vm createVM(JsonNode root, Object attach) {
-            return new Vm(codes, operands, stackSize, varTableSize, root, attach);
-        }
-
-        public long[] getPos() {
-            return pos;
-        }
-    }
 
     static Compiled compile(Node node) {
         CompilerNodeVisitor nodeVisitor = new CompilerNodeVisitor();
         node.accept(nodeVisitor);
 
-        Compiled compiled = new Compiled();
-        compiled.stackSize = nodeVisitor.maxStack;
-        compiled.varTableSize = nodeVisitor.varCapacity;
-        compiled.pos = Arrays.copyOf(nodeVisitor.positions, nodeVisitor.len);
-        compiled.codes = Arrays.copyOf(nodeVisitor.codes, nodeVisitor.len);
-        if (nodeVisitor.operandsLen > 0) {
-            compiled.operands = Arrays.copyOf(nodeVisitor.operands, nodeVisitor.operandsLen);
-        }
+        Compiled compiled = new Compiled(nodeVisitor.maxStack,
+                nodeVisitor.varCapacity,
+                Arrays.copyOf(nodeVisitor.positions, nodeVisitor.len),
+                Arrays.copyOf(nodeVisitor.codes, nodeVisitor.len),
+                nodeVisitor.operandsLen > 0 ? Arrays.copyOf(nodeVisitor.operands, nodeVisitor.operandsLen) : null
+        );
+        compiled.exceptionTable = nodeVisitor.emLen > 0 ? Arrays.copyOf(nodeVisitor.expMapping, nodeVisitor.emLen) : null;
+        compiled.init();
         return compiled;
     }
 

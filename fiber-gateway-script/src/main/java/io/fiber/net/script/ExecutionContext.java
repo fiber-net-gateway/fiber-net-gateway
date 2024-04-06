@@ -1,6 +1,7 @@
 package io.fiber.net.script;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.script.run.ScriptExceptionNode;
 
 public interface ExecutionContext {
 
@@ -8,12 +9,20 @@ public interface ExecutionContext {
 
     Object attach();
 
-    void returnVal(Library.Function fc, JsonNode value);
+    void returnVal(JsonNode value);
 
-    void throwErr(Library.Function fc, ScriptExecException error);
+    void throwErr(ScriptExceptionNode error);
 
-    void returnVal(Library.Constant cn, JsonNode value);
+    default void throwErr(ScriptExecException error) {
+        throwErr(ScriptExceptionNode.of(error));
+    }
 
+    JsonNode getArgVal(int idx);
 
-    void throwErr(Library.Constant cn, ScriptExecException error);
+    int getArgCnt();
+
+    default boolean noArgs() {
+        return getArgCnt() == 0;
+    }
+
 }

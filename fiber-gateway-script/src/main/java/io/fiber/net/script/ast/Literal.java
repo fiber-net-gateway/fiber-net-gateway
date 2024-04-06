@@ -1,11 +1,10 @@
 package io.fiber.net.script.ast;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.*;
+import io.fiber.net.common.json.*;
 import io.fiber.net.common.utils.Assert;
-import io.fiber.net.script.parse.SpelMessage;
-import io.fiber.net.script.parse.ParseException;
 import io.fiber.net.script.parse.NodeVisitor;
+import io.fiber.net.script.parse.ParseException;
+import io.fiber.net.script.parse.SpelMessage;
 
 public final class Literal extends ExpressionNode {
 

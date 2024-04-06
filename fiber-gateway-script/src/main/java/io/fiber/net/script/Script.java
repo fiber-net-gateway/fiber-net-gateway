@@ -1,6 +1,6 @@
 package io.fiber.net.script;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.async.Maybe;
 import io.fiber.net.script.ast.Block;
 import io.fiber.net.script.parse.CompiledScript;

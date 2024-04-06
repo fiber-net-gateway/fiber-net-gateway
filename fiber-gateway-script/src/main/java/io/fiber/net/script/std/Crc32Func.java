@@ -1,7 +1,7 @@
 package io.fiber.net.script.std;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.LongNode;
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.LongNode;
 import io.fiber.net.common.utils.ArrayUtils;
 import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.script.ExecutionContext;
@@ -12,19 +12,17 @@ import java.util.zip.CRC32;
 
 public class Crc32Func implements Library.Function {
     @Override
-    public void call(ExecutionContext context, JsonNode... args) {
-        if (ArrayUtils.isEmpty(args)) {
-            context.returnVal(this, LongNode.valueOf(0));
-            return;
+    public JsonNode call(ExecutionContext context) {
+        if (context.noArgs()) {
+            return LongNode.valueOf(0);
         }
-        String s = args[0].asText(null);
+        String s = context.getArgVal(0).asText(null);
         if (StringUtils.isEmpty(s)) {
-            context.returnVal(this, LongNode.valueOf(0));
-            return;
+            return LongNode.valueOf(0);
         }
         CRC32 crc32 = new CRC32();
         crc32.update(s.getBytes(StandardCharsets.UTF_8));
         long value = crc32.getValue();
-        context.returnVal(this, LongNode.valueOf(value));
+        return LongNode.valueOf(value);
     }
 }

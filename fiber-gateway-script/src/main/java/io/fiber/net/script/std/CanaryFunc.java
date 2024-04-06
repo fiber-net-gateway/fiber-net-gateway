@@ -1,8 +1,7 @@
 package io.fiber.net.script.std;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.BooleanNode;
-import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.common.json.BooleanNode;
+import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
@@ -18,35 +17,32 @@ public class CanaryFunc implements Library.Function {
     }
 
     @Override
-    public void call(ExecutionContext context, JsonNode... args) {
-        if (ArrayUtils.isEmpty(args)) {
-            context.returnVal(this, BooleanNode.FALSE);
-            return;
+    public JsonNode call(ExecutionContext context) {
+        if (context.noArgs()) {
+            return BooleanNode.FALSE;
         }
 
-        long ratio = args[0].asLong(0L);
+        long ratio = context.getArgVal(0).asLong(0L);
         if (ratio <= 0) {
-            context.returnVal(this, BooleanNode.FALSE);
-            return;
+            return BooleanNode.FALSE;
         } else if (ratio >= 100) {
-            context.returnVal(this, BooleanNode.TRUE);
-            return;
+            return BooleanNode.TRUE;
         }
 
-        if (args.length == 1) {
-            context.returnVal(this, BooleanNode.valueOf(ThreadLocalRandom.current().nextInt(101) <= ratio));
-            return;
+        int argCnt = context.getArgCnt();
+        if (argCnt == 1) {
+            return BooleanNode.valueOf(ThreadLocalRandom.current().nextInt(101) <= ratio);
         }
 
         CRC32 crc32 = new CRC32();
-        for (int i = 1; i < args.length; i++) {
-            String s = args[i].asText();
+        for (int i = 1; i < argCnt; i++) {
+            String s = context.getArgVal(i).asText();
             if (StringUtils.isEmpty(s)) {
                 continue;
             }
             crc32.update(s.getBytes(StandardCharsets.UTF_8));
         }
 
-        context.returnVal(this, BooleanNode.valueOf(crc32.getValue() % 100L < ratio));
+        return BooleanNode.valueOf(crc32.getValue() % 100L < ratio);
     }
 }

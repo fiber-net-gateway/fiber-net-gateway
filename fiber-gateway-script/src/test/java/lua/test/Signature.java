@@ -1,11 +1,14 @@
 package lua.test;
 
 import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.script.Library;
+import io.fiber.net.script.run.AbstractVm;
 import io.fiber.net.script.run.Binaries;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.signature.SignatureVisitor;
 import org.objectweb.asm.signature.SignatureWriter;
 
+import java.lang.reflect.Method;
 import java.util.List;
 
 public class Signature {
@@ -40,6 +43,9 @@ public class Signature {
 
         System.out.println(Type.getMethodDescriptor(JsonNode.class
                 .getDeclaredMethod("deepCopy")));
+
+        Method method = AbstractVm.class.getDeclaredMethod("callAsyncFunc", Library.AsyncFunction.class);
+        System.out.println(Type.getMethodDescriptor(method));
 
     }
 }

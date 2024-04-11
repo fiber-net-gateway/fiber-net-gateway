@@ -4,14 +4,15 @@ class FunctionCall extends Exp {
     private final int funcId;
     private final Exp[] args;
     private final Exp spreadArgs;
-    private final boolean async;
+    private final int asyncPoint;
+    private int restoreStackSize;
+    private int stashStackSize;
 
-
-    FunctionCall(int funcId, Exp[] args, Exp spreadArgs, boolean async) {
+    FunctionCall(int funcId, Exp[] args, Exp spreadArgs, int asyncPoint) {
         this.funcId = funcId;
         this.args = args;
         this.spreadArgs = spreadArgs;
-        this.async = async;
+        this.asyncPoint = asyncPoint;
     }
 
     int getArgCount() {
@@ -26,20 +27,54 @@ class FunctionCall extends Exp {
         return spreadArgs != null;
     }
 
-    static FunctionCall of(int funcId, Exp[] args, boolean async) {
-        return new FunctionCall(funcId, args, null, async);
+    void setRestoreStackSize(int restoreStackSize) {
+        this.restoreStackSize = restoreStackSize;
     }
 
-    static FunctionCall spread(int funcId, Exp exp, boolean async) {
-        return new FunctionCall(funcId, null, exp, async);
+    int getRestoreStackSize() {
+        return restoreStackSize;
+    }
+
+    int getStashStackSize() {
+        return stashStackSize;
+    }
+
+    void setStashStackSize(int stashStackSize) {
+        this.stashStackSize = stashStackSize;
+    }
+
+    static FunctionCall of(int funcId, Exp[] args, int asyncPoint) {
+        return new FunctionCall(funcId, args, null, asyncPoint);
+    }
+
+    static FunctionCall spread(int funcId, Exp exp, int asyncPoint) {
+        return new FunctionCall(funcId, null, exp, asyncPoint);
     }
 
     boolean isAsync() {
-        return async;
+        return asyncPoint >= 0;
+    }
+
+    int getAsyncPoint() {
+        return asyncPoint;
     }
 
     @Override
     void accept(InstrumentVisitor visitor) {
         visitor.visitFunctionCall(this);
     }
+
+    @Override
+    int assemble(ClzAssembler assembler) {
+        for (int i = getStashStackSize() - 1; i >= 0; i--) {
+            assembler.stashStack(i);
+        }
+        if (isAsync()) {
+            assembler.asyncFuncCall(this);
+        } else {
+            assembler.syncFuncCall(this);
+        }
+        return isSpread() ? 0 : -args.length + 1;
+    }
+
 }

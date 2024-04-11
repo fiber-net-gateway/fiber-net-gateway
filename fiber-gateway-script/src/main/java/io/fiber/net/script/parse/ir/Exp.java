@@ -1,7 +1,7 @@
 package io.fiber.net.script.parse.ir;
 
 abstract class Exp extends Instrument {
-    private ResDist dist;
+    private ResDist dist = ResDist.NATURE;
 
     ResDist getDist() {
         return dist;
@@ -11,6 +11,4 @@ abstract class Exp extends Instrument {
         this.dist = dist;
         return this;
     }
-
-
 }

@@ -28,7 +28,7 @@ target/
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
-/fiber-gateway-proxy/dist
+/fiber-gateway-script/dist
 
 ### VS Code ###
 .vscode/

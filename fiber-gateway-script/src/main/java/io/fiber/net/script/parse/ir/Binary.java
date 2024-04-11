@@ -11,7 +11,7 @@ class Binary extends Exp {
 
     @Override
     int assemble(ClzAssembler assembler) {
-        assembler.binary(getType());
+        assembler.binary(getType(), isOptimiseIf());
         return -1;
     }
 
@@ -52,6 +52,7 @@ class Binary extends Exp {
 
     private final Exp left;
     private final Exp right;
+    private boolean optimiseIf;
 
     Binary(Type type, Exp left, Exp right) {
         this.type = type;
@@ -75,5 +76,17 @@ class Binary extends Exp {
         return new Binary(TYPES[code - MIN_CODE],
                 left,
                 right);
+    }
+
+    boolean canOptimiseIf() {
+        return type.ordinal() >= Type.MATCHES.ordinal();
+    }
+
+    void setOptimiseIf() {
+        this.optimiseIf = true;
+    }
+
+    boolean isOptimiseIf() {
+        return optimiseIf;
     }
 }

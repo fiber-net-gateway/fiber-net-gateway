@@ -7,7 +7,5 @@ abstract class Instrument {
      * @param assembler assembler
      * @return stackChange
      */
-    int assemble(ClzAssembler assembler) {
-        throw new UnsupportedOperationException("not implements");
-    }
+    abstract int assemble(ClzAssembler assembler);
 }

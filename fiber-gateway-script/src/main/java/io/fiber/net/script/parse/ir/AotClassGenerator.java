@@ -4,31 +4,13 @@ import io.fiber.net.common.utils.Assert;
 import io.fiber.net.common.utils.CollectionUtils;
 import io.fiber.net.script.parse.Compiled;
 import io.fiber.net.script.run.Code;
-import io.fiber.net.script.run.Vm;
+import io.fiber.net.script.run.InterpreterVm;
 
 import java.util.*;
 
 public class AotClassGenerator {
-
-
-    private static class ExpTableItem {
-        private final List<CodeEnterPoint> tryRange = new ArrayList<>();
-        private final CodeEnterPoint catchPoint;
-        private final int tryEndIdx;
-
-        private ExpTableItem(CodeEnterPoint catchPoint, int tryEndIdx) {
-            this.catchPoint = catchPoint;
-            this.tryEndIdx = tryEndIdx;
-        }
-
-        public void add(CodeEnterPoint tryPoint) {
-            tryRange.add(tryPoint);
-        }
-    }
-
     private final TreeMap<Integer, CodeEnterPoint> jumpPc = new TreeMap<>();
     private final TreeMap<Integer, ExpTableItem> expTableMap = new TreeMap<>();
-    private final TreeMap<Integer, CodeEnterPoint> tryExpTableMap = new TreeMap<>();
 
 
     private final Compiled compiled;
@@ -48,12 +30,10 @@ public class AotClassGenerator {
         if (point != null) {
             return;
         }
-        if (idx < compiled.getCodes().length) {
-            jumpPc.put(idx, new CodeEnterPoint(idx, compiled.getStackSize()));
-        } else {
-            Assert.isTrue(compiled.getCodes().length == idx);
-            jumpPc.put(idx, new CodeEnterPoint(idx, 0));
-        }
+
+        Assert.isTrue(idx >= 0 && idx < compiled.getCodes().length, "target pc out of codes???");
+        jumpPc.put(idx, new CodeEnterPoint(idx, compiled.getStackSize(), compiled.getVarTableSize()));
+
     }
 
     public CodeEnterPoint getPoint(int idx) {
@@ -61,28 +41,21 @@ public class AotClassGenerator {
     }
 
     private void computePoint() {
-        int[] exceptionTable = compiled.getExceptionTable();
-        if (exceptionTable != null) {
-            Stack<ExpTableItem> expStack = new Stack<>();
-            for (int i = 0; i < exceptionTable.length; i += 3) {
-                int tryStartIdx = exceptionTable[i];
-                int tryEndIdx = exceptionTable[i + 1];
-                int catchIdx = exceptionTable[i + 2];
-                addPoint(tryStartIdx);
-                addPoint(catchIdx);
-                while (!expStack.empty() && tryStartIdx >= expStack.peek().tryEndIdx) {
-                    ExpTableItem pop = expStack.pop();
-                    Assert.isTrue(tryEndIdx < pop.tryEndIdx);
+        int[] expIns = compiled.getExpIns();
+        if (expIns != null) {
+            for (int i = 0; i < expIns.length; i++) {
+                int codeIdx = expIns[i];
+                if (codeIdx < 0) {
+                    continue;
                 }
-                for (ExpTableItem expTableItem : expStack) {
-                    expTableItem.add(getPoint(tryStartIdx));
+                addPoint(codeIdx);
+                if (i >= (expIns.length >> 1)) {
+                    // exception point
+                    CodeEnterPoint point = getPoint(codeIdx);
+                    point.setWriteFrame(true);
+                    point.setCatchPoint();
                 }
-                ExpTableItem item = new ExpTableItem(getPoint(catchIdx), tryEndIdx);
-                item.add(getPoint(tryStartIdx));
-                expTableMap.put(catchIdx, item);
-                tryExpTableMap.put(tryEndIdx, getPoint(tryStartIdx));
             }
-            Assert.isTrue(expStack.empty());
         }
 
         int[] codes = compiled.getCodes();
@@ -98,9 +71,12 @@ public class AotClassGenerator {
                 case Code.JUMP_IF_FALSE:
                 case Code.JUMP_IF_TRUE:
                     addPoint(i + 1);
-                case Code.JUMP:
-                    addPoint(code >>> 8);
+                case Code.JUMP: {
+                    int target = code >>> 8;
+                    addPoint(target);
+                    getPoint(target).setWriteFrame(true);
                     break;
+                }
                 case Code.INTO_CATCH:
                     Assert.isTrue(getPoint(i) != null);
                 default:
@@ -115,57 +91,73 @@ public class AotClassGenerator {
                 currentPoint = cp;
             }
             assert currentPoint != null;
-
             int code = codes[i];
             switch (code & 0xFF) {
                 case Code.JUMP_IF_FALSE:
                 case Code.JUMP_IF_TRUE:
                     currentPoint.addNextPoint(getPoint(i + 1));
+                    getPoint(code >>> 8);
                 case Code.JUMP:
                     currentPoint.addNextPoint(getPoint(code >>> 8));
                     break;
-                case Code.ITERATE_INTO:
-                    currentPoint.addNextPoint(getPoint(i + 1));
-                    break;
-                case Code.INTO_CATCH: {
-                    CodeEnterPoint tryStart = expTableMap.get(i).tryRange.get(0);
-                    Map.Entry<Integer, CodeEnterPoint> entry = jumpPc.lowerEntry(tryStart.getCodeIdx());
-                    if (entry != null) {
-                        entry.getValue().addNextPoint(tryStart);
-                    }
-                    break;
-                }
                 default:
                     break;
+            }
+        }
+
+        if (expIns != null) {
+            // try 之前的 entry 和 try {} 中间的 try 都是 catch 的直接前
+            int[] exceptionTable = compiled.getExceptionTable();
+            for (int i = 0; i < exceptionTable.length; i += 3) {
+                int tryBegin = exceptionTable[i];
+                int catchBegin = exceptionTable[i + 1];
+                CodeEnterPoint catchPoint = getPoint(catchBegin);
+                if (tryBegin > 0) {
+                    jumpPc.lowerEntry(tryBegin).getValue().addNextPoint(catchPoint);
+                }
+                CodeEnterPoint tryBeginPoint = getPoint(tryBegin);
+                tryBeginPoint.addNextPoint(catchPoint);
+                ExpTableItem tableItem = new ExpTableItem(catchPoint, tryBeginPoint.getStartLabel());
+                expTableMap.put(catchBegin, tableItem);
+                tableItem.setTryEndLabel(tryBeginPoint.getEndLabel());
+
+                int tb = tryBegin;
+                Map.Entry<Integer, CodeEnterPoint> entry;
+                while ((entry = jumpPc.higherEntry(tb)) != null && (tb = entry.getKey()) < catchBegin) {
+                    entry.getValue().addNextPoint(catchPoint);
+                    tableItem.setTryEndLabel(entry.getValue().getEndLabel());
+                }
+            }
+        }
+
+        for (Map.Entry<Integer, CodeEnterPoint> entry : jumpPc.entrySet()) {
+            CodeEnterPoint ep = entry.getValue();
+            if (ep.getCodeIdx() > 0) {
+                switch (codes[ep.getCodeIdx() - 1] & 0xFF) {
+                    case Code.JUMP_IF_FALSE:
+                    case Code.JUMP_IF_TRUE:
+                    case Code.JUMP:
+                    case Code.THROW_EXP:
+                    case Code.END_RETURN:
+                        break;
+                    default:
+                        jumpPc.floorEntry(ep.getCodeIdx() - 1).getValue().addNextPoint(ep);
+                        break;
+                }
             }
         }
     }
 
     private void computeConnection() {
         int[] codes = compiled.getCodes();
-        CodeEnterPoint ep = null;
-        for (int i = 0; i < codes.length; i++) {
-            if (jumpPc.containsKey(i)) {
-                ep = jumpPc.get(i);
-            }
-            assert ep != null;
-            int code = codes[i];
-            switch (code & 0xFF) {
-                case Code.JUMP_IF_FALSE:
-                case Code.JUMP_IF_TRUE:
-                case Code.JUMP:
-                    break;
-                default:
-                    break;
-            }
-        }
-        assert !jumpPc.isEmpty();
         Iterator<Map.Entry<Integer, CodeEnterPoint>> iterator = jumpPc.entrySet().iterator();
         Map.Entry<Integer, CodeEnterPoint> prev = iterator.next();
+        prev.getValue().sortEntries();
         while (iterator.hasNext()) {
             Map.Entry<Integer, CodeEnterPoint> current = iterator.next();
             prev.getValue().setCodeLen(current.getKey() - prev.getKey());
             prev = current;
+            prev.getValue().sortEntries();
         }
         prev.getValue().setCodeLen(codes.length - prev.getKey());
     }
@@ -266,32 +258,32 @@ public class AotClassGenerator {
                     break;
                 }
                 case Code.CALL_FUNC_SPREAD: {
-                    ep.function(clzAssembler.addFunction(code >>> 16), (code >>> 8) & 0xFF, true);
+                    ep.function(clzAssembler.addFunction(code >>> 8), 1, true);
                     break;
                 }
 
                 case Code.CALL_ASYNC_FUNC: {
-                    ep.asyncFunction(clzAssembler.addAsyncFunction(code >>> 16), (code >>> 8) & 0xFF, false);
+                    ep.asyncFunction(clzAssembler.addAsyncFunction(code >>> 16), clzAssembler.addAsyncPoint(), (code >>> 8) & 0xFF, false);
                     break;
                 }
                 case Code.CALL_ASYNC_FUNC_SPREAD: {
-                    ep.asyncFunction(clzAssembler.addAsyncFunction(code >>> 16), (code >>> 8) & 0xFF, true);
+                    ep.asyncFunction(clzAssembler.addAsyncFunction(code >>> 16), clzAssembler.addAsyncPoint(), (code >>> 8) & 0xFF, true);
                     break;
                 }
                 case Code.CALL_CONST:
-                    ep.constant(clzAssembler.addConstant(code >>> 8), false);
+                    ep.constant(clzAssembler.addConstant(code >>> 8), -1);
                     break;
                 case Code.CALL_ASYNC_CONST:
-                    ep.constant(clzAssembler.addAsyncConstant(code >>> 8), true);
+                    ep.constant(clzAssembler.addAsyncConstant(code >>> 8), clzAssembler.addAsyncPoint());
                     break;
                 case Code.JUMP:
                     ep.jump(jumpPc.get(code >>> 8));
                     break;
                 case Code.JUMP_IF_FALSE:
-                    ep.conditionalJump(jumpPc.get(i + 1), jumpPc.get(code >>> 8));
+                    ep.conditionalJump(false, jumpPc.get(code >>> 8));
                     break;
                 case Code.JUMP_IF_TRUE:
-                    ep.conditionalJump(jumpPc.get(code >>> 8), jumpPc.get(i + 1));
+                    ep.conditionalJump(true, jumpPc.get(code >>> 8));
                     break;
                 case Code.ITERATE_INTO:
                     ep.iterateInto(code >>> 8);
@@ -300,16 +292,16 @@ public class AotClassGenerator {
                     ep.iterateNext(code >>> 8);
                     break;
                 case Code.ITERATE_KEY:
-                    ep.iterateVar(code >>> Vm.ITERATOR_OFF,
-                            (code >>> Vm.INSTRUMENT_LEN) & Vm.MAX_ITERATOR_VAR, true);
+                    ep.iterateVar(code >>> InterpreterVm.ITERATOR_OFF,
+                            (code >>> InterpreterVm.INSTRUMENT_LEN) & InterpreterVm.MAX_ITERATOR_VAR, true);
                     break;
                 case Code.ITERATE_VALUE:
-                    ep.iterateVar(code >>> Vm.ITERATOR_OFF,
-                            (code >>> Vm.INSTRUMENT_LEN) & Vm.MAX_ITERATOR_VAR, false);
+                    ep.iterateVar(code >>> InterpreterVm.ITERATOR_OFF,
+                            (code >>> InterpreterVm.INSTRUMENT_LEN) & InterpreterVm.MAX_ITERATOR_VAR, false);
                     break;
 
                 case Code.INTO_CATCH:
-                    ep.intoCatch(code >>> Vm.INSTRUMENT_LEN);
+                    ep.intoCatch(code >>> InterpreterVm.INSTRUMENT_LEN);
                     break;
                 case Code.THROW_EXP:
                     ep.throwExp();
@@ -329,19 +321,21 @@ public class AotClassGenerator {
     }
 
     public Class<?> generateClz() throws Throwable {
-        convertAndPreGenerate();
-        return clzAssembler.asmClz();
+        return loadAsClz(generateClzData());
     }
 
     /**
      * for test;
      *
      * @return data for class file
-     * @throws Exception exp
      */
-    public byte[] generateClzData() throws Throwable {
+    public byte[] generateClzData() {
         convertAndPreGenerate();
         return clzAssembler.asmClzData();
+    }
+
+    public Class<?> loadAsClz(byte[] data) throws Throwable {
+        return clzAssembler.loadAsClz(data);
     }
 
     private void convertAndPreGenerate() {
@@ -349,34 +343,51 @@ public class AotClassGenerator {
         computeConnection();
         convertIR();
 
+        clzAssembler.setExceptionTable(expTableMap);
         clzAssembler.preAms();
         for (Map.Entry<Integer, CodeEnterPoint> entry : jumpPc.entrySet()) {
-            CodeEnterPoint value = entry.getValue();
-            int sp = value.getInitStackSize();
-            for (Instrument code : value.getCodes()) {
-                sp += code.assemble(clzAssembler);
-            }
-            if (CollectionUtils.isEmpty(value.getNextPoints())) {
-                Assert.isTrue(sp == 0);
-            } else {
-                for (CodeEnterPoint nextPoint : value.getNextPoints()) {
-                    Assert.isTrue(sp == nextPoint.getInitStackSize());
-                }
-            }
+            entry.getValue().asmCodes(clzAssembler);
         }
     }
 
     private void convertIR() {
         convertIREnterPointTree(getPoint(0));
 
+        int maxStashStack = 0;
         for (Map.Entry<Integer, CodeEnterPoint> entry : jumpPc.entrySet()) {
             CodeEnterPoint enterPoint = entry.getValue();
-            if (expTableMap.containsKey(entry.getKey())) {
-                // catchPoint
-                convertIREnterPointTree(enterPoint);
-            }
             Assert.isTrue(enterPoint.isInstrumentsFilled());
+            maxStashStack = Integer.max(enterPoint.getStackStashSize(), maxStashStack);
         }
+        clzAssembler.setMaxStashStack(maxStashStack);
+
+        if (compiled.getVarTableSize() == 0) {
+            return;
+        }
+        for (Map.Entry<Integer, CodeEnterPoint> entry : jumpPc.entrySet()) {
+            entry.getValue().dealVarUse();
+        }
+
+        HashSet<CodeEnterPoint> visited = new LinkedHashSet<>();
+        for (Map.Entry<Integer, CodeEnterPoint> entry : jumpPc.entrySet()) {
+            entry.getValue().fixAsyncVar(visited);
+        }
+
+        int maxSyncSize = -1;
+        int maxAsyncSize = -1;
+        VarTable prev = null;
+        for (Map.Entry<Integer, CodeEnterPoint> entry : jumpPc.entrySet()) {
+            CodeEnterPoint value = entry.getValue();
+            VarTable varTable = value.computeVarForFrame();
+            maxSyncSize = Math.max(maxSyncSize, varTable.getMaxSyncSize());
+            maxAsyncSize = Math.max(maxAsyncSize, varTable.getMaxAsyncSize());
+            if (value.isWriteFrame()) {
+                varTable.setPrevTableForFrame(prev);
+                prev = varTable;
+            }
+        }
+        clzAssembler.setMaxLocalVarTableSize(maxSyncSize);
+        clzAssembler.setMaxAsyncVarTableSize(maxAsyncSize);
     }
 
     private void convertIREnterPointTree(CodeEnterPoint point) {
@@ -386,6 +397,9 @@ public class AotClassGenerator {
         do {
             point = points.poll();
             assert point != null;
+            if (point.isInstrumentsFilled()) {
+                continue;
+            }
             convertIREnterPoint(point);
             Assert.isTrue(point.isInstrumentsFilled());
             point.copyStackToNext();

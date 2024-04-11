@@ -7,7 +7,7 @@ import io.fiber.net.common.utils.Assert;
 import io.fiber.net.common.utils.Predictions;
 import io.fiber.net.script.ast.*;
 import io.fiber.net.script.run.Compares;
-import io.fiber.net.script.run.Vm;
+import io.fiber.net.script.run.InterpreterVm;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -92,7 +92,7 @@ public class OptimiserNodeVisitor implements NodeVisitor<Node> {
         if (node instanceof Literal) {
             return (Literal) node;
         }
-        Vm vm = CompiledScript.createVM(CompilerNodeVisitor.compile(node), NullNode.getInstance(), null);
+        InterpreterVm vm = CompiledScript.createVM(CompilerNodeVisitor.compile(node), NullNode.getInstance(), null);
         JsonNode jsonNode;
         try {
             vm.exec();

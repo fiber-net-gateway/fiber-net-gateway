@@ -27,8 +27,9 @@ public interface Script {
         Block block = parser.parseScript(script);
         return CompiledScript.create(script, block);
     }
-    static Script compileExpression(String expression,  boolean allowAssign) throws ParseException {
-        return compileExpression(expression,StdLibrary.getDefInstance(), allowAssign);
+
+    static Script compileExpression(String expression, boolean allowAssign) throws ParseException {
+        return compileExpression(expression, StdLibrary.getDefInstance(), allowAssign);
     }
 
     static Script compileExpression(String expression, Library library, boolean allowAssign) throws ParseException {
@@ -41,5 +42,7 @@ public interface Script {
     }
 
     Maybe<JsonNode> exec(JsonNode root, Object attach);
+
+    Maybe<JsonNode> aotExec(JsonNode root, Object attach) throws Exception;
 
 }

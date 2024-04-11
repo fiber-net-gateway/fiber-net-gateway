@@ -5,7 +5,9 @@ import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.Script;
 import io.fiber.net.script.ast.Block;
-import io.fiber.net.script.run.Vm;
+import io.fiber.net.script.parse.ir.AotClassGenerator;
+import io.fiber.net.script.run.AbstractVm;
+import io.fiber.net.script.run.InterpreterVm;
 
 
 public class CompiledScript implements Script {
@@ -33,20 +35,42 @@ public class CompiledScript implements Script {
 
     private final String expressionString;
     private final Compiled compiled;
+    private Class<?> aotClz;
 
     private CompiledScript(String expressionString, Compiled compiled) {
         this.expressionString = expressionString;
         this.compiled = compiled;
+        try {
+            aotClz = new AotClassGenerator(compiled).generateClz();
+        } catch (Throwable e) {
+            aotClz = null;
+        }
     }
 
 
-    static Vm createVM(Compiled compiled, JsonNode root, Object attach) {
-        return new Vm(root, attach, compiled);
+    static InterpreterVm createVM(Compiled compiled, JsonNode root, Object attach) {
+        return new InterpreterVm(root, attach, compiled);
     }
 
     @Override
     public Maybe<JsonNode> exec(JsonNode root, Object attach) {
         return createVM(compiled, root, attach).exec();
+    }
+
+    @Override
+    public Maybe<JsonNode> aotExec(JsonNode root, Object attach) throws Exception {
+        return createAotVm(root, attach).exec();
+    }
+
+    public InterpreterVm createInterpreterVm(JsonNode root, Object attach) {
+        return createVM(compiled, root, attach);
+    }
+
+    public AbstractVm createAotVm(JsonNode root, Object attach) throws Exception {
+        if (aotClz == null) {
+            throw new IllegalStateException("aot compile failed");
+        }
+        return (AbstractVm) aotClz.getConstructor(JsonNode.class, Object.class).newInstance(root, attach);
     }
 
     public String getExpressionString() {

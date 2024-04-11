@@ -15,7 +15,7 @@ import java.util.Objects;
 
 public class Unaries {
     public static BooleanNode neg(JsonNode operand) {
-        return BooleanNode.valueOf(!Compares.logic(operand));
+        return BooleanNode.valueOf(Compares.neg(operand));
     }
 
     public static JsonNode minus(JsonNode operand) throws ScriptExecException {

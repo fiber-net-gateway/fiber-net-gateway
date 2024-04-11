@@ -13,4 +13,10 @@ class IntoCatch extends VarStore {
     void accept(InstrumentVisitor visitor) {
         visitor.visitIntoCatch(this);
     }
+
+    @Override
+    int assemble(ClzAssembler assembler) {
+        assembler.intoCatch(getStoreVar());
+        return 0;
+    }
 }

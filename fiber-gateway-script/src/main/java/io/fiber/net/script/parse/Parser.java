@@ -1075,7 +1075,7 @@ public class Parser {
      * Compress the start and end of a token into a single int.
      */
     private int toPos(Token t) {
-        return (t.startpos << 16) + t.endpos;
+        return AstUtils.toPos(t.startpos, t.endpos);
     }
 
     private int toPos(int start, int end) {

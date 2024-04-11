@@ -11,11 +11,7 @@ public interface ExecutionContext {
 
     void returnVal(JsonNode value);
 
-    void throwErr(ScriptExceptionNode error);
-
-    default void throwErr(ScriptExecException error) {
-        throwErr(ScriptExceptionNode.of(error));
-    }
+    void throwErr(ScriptExecException error);
 
     JsonNode getArgVal(int idx);
 

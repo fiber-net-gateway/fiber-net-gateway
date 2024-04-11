@@ -2,11 +2,10 @@ package io.fiber.net.script.parse.ir;
 
 import io.fiber.net.common.utils.ArrayUtils;
 import io.fiber.net.common.utils.Assert;
+import io.fiber.net.common.utils.CollectionUtils;
+import org.objectweb.asm.Label;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 
 public class CodeEnterPoint {
@@ -18,22 +17,222 @@ public class CodeEnterPoint {
     private boolean hasInitStackIns;
     private Instrument[] codes;
     private int cl;
+    private final Label startLabel = new Label();
+    private final Label endLabel = new Label();
+    private int stackStashSize;
+    private int varStage;
+
+    private final VarTable varTable;
+    private boolean writeFrame;
+    private boolean catchPoint;
 
 
     private List<CodeEnterPoint> nextPoints;
+    private List<CodeEnterPoint> prevPoints;
+    private List<Instrument> useVarInstruments;
 
-    public CodeEnterPoint(int codeIdx, int stack) {
+    public CodeEnterPoint(int codeIdx, int stack, int varTableSize) {
         this.codeIdx = codeIdx;
         ins = stack > 0 ? new Exp[stack] : EMPTY_EXP;
+        varTable = VarTable.getInstance(varTableSize);
+    }
+
+    public void setWriteFrame(boolean writeFrame) {
+        this.writeFrame = writeFrame;
+    }
+
+    void setCatchPoint() {
+        this.catchPoint = true;
+    }
+
+    public boolean isWriteFrame() {
+        return writeFrame;
     }
 
     public void setCodeLen(int len) {
-        codes = new Instrument[Integer.max(len, 1)];
+        codes = new Instrument[len];
     }
 
     private void addCode(Instrument instrument) {
         codes[cl++] = instrument;
+        if (instrument instanceof VarLoad || instrument instanceof VarStore) {
+            if (useVarInstruments == null) {
+                useVarInstruments = new ArrayList<>();
+            }
+            useVarInstruments.add(instrument);
+            if (instrument instanceof VarLoad) {
+                VarLoad varLoad = (VarLoad) instrument;
+                varLoad.setLoadVarStage(varStage);
+                varLoad.setCodeIdx(cl - 1);
+            }
+            if (instrument instanceof VarStore) {
+                VarStore varStore = (VarStore) instrument;
+                varStore.setStoreVarStage(varStage);
+                varStore.setCodeIdx(cl - 1);
+                varStore.setCodeEnterPoint(this);
+            }
+        }
     }
+
+    public void dealVarUse() {
+        Assert.isTrue(isInstrumentsFilled());
+        if (useVarInstruments != null) {
+            for (Instrument instrument : useVarInstruments) {
+                if (instrument instanceof VarStore) {
+                    findOrDefVarAndStore((VarStore) instrument);
+                }
+                if (instrument instanceof VarLoad) {
+                    VarLoad varLoad = (VarLoad) instrument;
+                    VarTable.VarDef prevDef = findPrevDef(varLoad.getLoadIdx());
+                    Assert.isTrue(prevDef != null, "use uninitialized var???");
+                    varLoad.setLoadVar(prevDef);
+                }
+            }
+        }
+
+        int tableCapacity = varTable.getTableCapacity();
+        int i;
+        for (i = 0; i < tableCapacity; i++) {
+            if (varTable.getDef(i) == null) {
+                VarTable.VarDef def = findPrevDef(i);
+                if (def == null) {
+                    break;
+                }
+                varTable.setDef(def);
+            }
+        }
+
+        while (i < tableCapacity) {
+            Assert.isTrue(varTable.getDef(i) == null, "absent var ???");
+            i++;
+        }
+
+    }
+
+    private void findOrDefVarAndStore(VarStore varStore) {
+        VarTable.VarDef def = findPrevDef(varStore.getStoreIdx());
+        if (def != null) {
+            varTable.addStore(def, varStore);
+        } else {
+            varTable.defAndWrite(varStore);
+        }
+    }
+
+    private VarTable.VarDef findPrevDef(int varIdx) {
+        VarTable.VarDef def = varTable.getDef(varIdx);
+        if (def != null) {
+            return def;
+        }
+
+        if (prevPoints == null) {
+            return null;
+        }
+
+        VarTable.VarDef ld = null;
+        for (CodeEnterPoint prevPoint : prevPoints) {
+            if (getCodeIdx() <= prevPoint.getCodeIdx()) {
+                continue;
+            }
+            def = prevPoint.findPrevDef(varIdx);
+            if (def == null) {
+                return null;
+            }
+            if (ld != null && def != ld) {
+                return null;
+            }
+            ld = def;
+        }
+        if (def != null) {
+            varTable.setDef(def);
+        }
+        return ld;
+    }
+
+
+    public void fixAsyncVar(HashSet<CodeEnterPoint> visited) {
+        if (useVarInstruments == null) {
+            return;
+        }
+
+        for (Instrument instrument : useVarInstruments) {
+            if (instrument instanceof VarLoad) {
+                VarLoad varLoad = (VarLoad) instrument;
+                VarTable.VarDef def = varLoad.getLoadVar();
+                if (!def.isAsync()) {
+                    markAsyncRead(varLoad, visited);
+                }
+            }
+        }
+    }
+
+    private void markAsyncRead(VarLoad varLoad, HashSet<CodeEnterPoint> visited) {
+        int loadVarStage = varLoad.getLoadVarStage();
+        int idx = varLoad.getCodeIdx();
+        VarTable.VarDef def = varLoad.getLoadVar();
+
+        VarStore store = varTable.getStore(def.getIdx());
+        while (store != null) {
+            Assert.isTrue(store.getStoreVar() == def);
+            if (store.getCodeIdx() < idx) {
+                break;
+            }
+            store = store.getPrevStore();
+        }
+
+        if (store != null) {
+            Assert.isTrue(store.getStoreVar() == def);
+            if (store.getStoreVarStage() == loadVarStage) {
+                return;
+            }
+            Assert.isTrue(store.getStoreVarStage() < loadVarStage);
+            def.setAsync();
+            return;
+        }
+
+        if (loadVarStage > 0) {
+            def.setAsync();
+            return;
+        }
+
+        if (markAsyncAccordingPrevStore(def, visited)) {
+            def.setAsync();
+        }
+    }
+
+    private boolean markAsyncAccordingPrevStore(VarTable.VarDef def, HashSet<CodeEnterPoint> visited) {
+        Assert.isTrue(prevPoints != null, "read uninitialized var???");
+        boolean result = false;
+        int idx = def.getIdx();
+        for (CodeEnterPoint prevPoint : prevPoints) {
+            if (prevPoint.varTable.getDef(idx) != def) {
+                continue;
+            }
+
+            VarStore store = prevPoint.varTable.getStore(idx);
+            if (store != null) {
+                result = store.getStoreVarStage() < prevPoint.varStage;
+                if (result) {
+                    break;
+                }
+                continue;
+            }
+            if (prevPoint.varStage > 0) {
+                result = true;
+                break;
+            }
+            if (visited.contains(prevPoint)) {
+                continue;
+            }
+            visited.add(prevPoint);
+            result = prevPoint.markAsyncAccordingPrevStore(def, visited);
+            visited.remove(prevPoint);
+            if (result) {
+                break;
+            }
+        }
+        return result;
+    }
+
 
     public int getCodeIdx() {
         return codeIdx;
@@ -65,6 +264,16 @@ public class CodeEnterPoint {
         }
     }
 
+    VarTable computeVarForFrame() {
+        varTable.fixGlobalId();
+        varTable.setStackSizeForFrame(initStackIns == null ? 0 : initStackIns.length);
+        return varTable;
+    }
+
+    public int getStackStashSize() {
+        return stackStashSize;
+    }
+
     public void setEmptyInitStack() {
         setInitStack(null);
     }
@@ -85,6 +294,23 @@ public class CodeEnterPoint {
             }
         }
         nextPoints.add(next);
+        next.addPrevPoint(this);
+    }
+
+    private void addPrevPoint(CodeEnterPoint prev) {
+        if (prevPoints == null) {
+            prevPoints = new ArrayList<>();
+        }
+        prevPoints.add(prev);
+    }
+
+    public void sortEntries() {
+        if (prevPoints != null) {
+            prevPoints.sort(Comparator.comparing(CodeEnterPoint::getCodeIdx));
+        }
+        if (nextPoints != null) {
+            nextPoints.sort(Comparator.comparing(CodeEnterPoint::getCodeIdx));
+        }
     }
 
     public void copyStackToNext() {
@@ -139,9 +365,21 @@ public class CodeEnterPoint {
     }
 
     public void pop() {
-        Pop pop = Pop.of();
-        ins[--sp] = null;
-        addCode(pop);
+        Exp in = ins[--sp];
+        ins[sp] = null;
+
+        if (in instanceof FunctionCall && ((FunctionCall) in).isAsync()) {
+            in.setDist(ResDist.POP);
+            addCode(Pop.of(false));
+            return;
+        }
+
+        if (in instanceof ConstCall && ((ConstCall) in).isAsync()) {
+            in.setDist(ResDist.POP);
+            addCode(Pop.of(false));
+            return;
+        }
+        addCode(Pop.of(true));
     }
 
     public void loadVar(int varIdx) {
@@ -169,18 +407,21 @@ public class CodeEnterPoint {
     }
 
     public void expObject() {
-
         ExpObjArray instrument = ExpObjArray.of(true, ins[--sp]);
+        ins[sp - 1] = instrument;
         addCode(instrument);
     }
 
     public void expArray() {
         ExpObjArray instrument = ExpObjArray.of(false, ins[--sp]);
+        ins[sp - 1] = instrument;
         addCode(instrument);
     }
 
     public void pushArray() {
-        addCode(PushArray.of(ins[--sp]));
+        PushArray instrument = PushArray.of(ins[--sp]);
+        ins[sp - 1] = instrument;
+        addCode(instrument);
     }
 
     //
@@ -235,36 +476,82 @@ public class CodeEnterPoint {
         addCode(ins[sp - 1] = Unary.of(code, ins[sp - 1]));
     }
 
-    private void function0(int funcId, int argCount, boolean spread, boolean async) {
+    private FunctionCall function0(int funcId, int argCount, boolean spread, int asyncPoint) {
         int sp = this.sp;
         if (spread) {
             Assert.isTrue(argCount == 1);
             Assert.isTrue(sp >= 1);
-            addCode(ins[sp - 1] = FunctionCall.spread(funcId, ins[sp - 1], async));
+            FunctionCall fc = FunctionCall.spread(funcId, ins[sp - 1], asyncPoint);
+            addCode(ins[sp - 1] = fc);
+            return fc;
         } else {
             sp -= argCount;
             Assert.isTrue(sp >= 0);
-            addCode(ins[sp] = FunctionCall.of(funcId, Arrays.copyOfRange(ins, sp, sp + argCount), async));
+            FunctionCall fc = FunctionCall.of(funcId, Arrays.copyOfRange(ins, sp, sp + argCount), asyncPoint);
+            addCode(ins[sp] = fc);
             this.sp = sp + 1;
+            return fc;
         }
     }
 
     void function(int funcId, int argCount, boolean spread) {
-        function0(funcId, argCount, spread, false);
+        int stashSize = spread ? 1 : argCount;
+        stackStashSize = Integer.max(stackStashSize, stashSize);
+        FunctionCall fc = function0(funcId, argCount, spread, -1);
+        fc.setStashStackSize(stashSize);
     }
 
-
-    public void asyncFunction(int asyncFuncId, int argCount, boolean spread) {
-        function0(asyncFuncId, argCount, spread, true);
+    public void asyncFunction(int asyncFuncId, int asyncPoint, int argCount, boolean spread) {
+        Assert.isTrue(asyncPoint >= 0);
+        varStage++;
+        int sp = this.sp;
+        stackStashSize = Integer.max(stackStashSize, sp);
+        FunctionCall fc = function0(asyncFuncId, argCount, spread, asyncPoint);
+        fc.setRestoreStackSize(this.sp - 1);
+        fc.setStashStackSize(sp);
     }
 
-    public void constant(int constId, boolean async) {
+    public void constant(int constId, int asyncPoint) {
+        if (asyncPoint >= 0) {
+            varStage++;
+        }
         Assert.isTrue(sp >= 0);
-        addCode(ins[sp++] = ConstCall.of(constId, async));
+        ConstCall constCall = ConstCall.of(constId, asyncPoint);
+        constCall.setPrevStackSize(sp);
+        addCode(ins[sp++] = constCall);
     }
 
-    public void conditionalJump(CodeEnterPoint truePoint, CodeEnterPoint falsePoint) {
-        addCode(ConditionalJump.of(ins[--sp], truePoint, falsePoint));
+    private boolean optimizeConditionJump(Exp in) {
+        if (cl < 1 || codes[cl - 1] != in) {
+            return false;
+        }
+        if ((in instanceof Binary)) {
+            if (((Binary) in).canOptimiseIf()) {
+                ((Binary) in).setOptimiseIf();
+                return true;
+            }
+            return false;
+        }
+
+        if (in instanceof Unary && ((Unary) in).getType() == Unary.Type.NEG) {
+            ((Unary) in).setOptimiseIf();
+        }
+
+        if(in instanceof IterateNext){
+            ((IterateNext) in).setOptimiseIf();
+            return true;
+        }
+
+        return false;
+    }
+
+    public void conditionalJump(boolean trueJump, CodeEnterPoint target) {
+        Exp in = ins[--sp];
+        ConditionalJump instrument = ConditionalJump.of(in, target, trueJump);
+        if (optimizeConditionJump(in)) {
+            instrument.setOptimiseIf();
+        }
+        addCode(instrument);
     }
 
     public void jump(CodeEnterPoint target) {
@@ -306,4 +593,35 @@ public class CodeEnterPoint {
     Instrument[] getCodes() {
         return codes;
     }
+
+    void asmCodes(ClzAssembler clzAssembler) {
+        clzAssembler.visitLabel(getStartLabel());
+
+        if (writeFrame) {
+            clzAssembler.writeFrame(varTable, catchPoint);
+        }
+
+        int sp = getInitStackSize();
+        for (Instrument code : getCodes()) {
+            sp += code.assemble(clzAssembler);
+        }
+        clzAssembler.visitLabel(getEndLabel());
+        if (CollectionUtils.isEmpty(getNextPoints())) {
+            Assert.isTrue(sp == 0);
+        } else {
+            for (CodeEnterPoint nextPoint : getNextPoints()) {
+                Assert.isTrue(sp == nextPoint.getInitStackSize());
+            }
+        }
+    }
+
+    Label getEndLabel() {
+        return endLabel;
+    }
+
+    Label getStartLabel() {
+        return startLabel;
+    }
+
+
 }

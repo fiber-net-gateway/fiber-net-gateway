@@ -49,6 +49,11 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
         testScript("/for.js");
     }
 
+    @Test
+    public void s() throws Throwable {
+        testScript("/sleep.js");
+    }
+
 
     private void testScript(String file) throws Throwable {
         String resourceStr = getResourceStr(file);

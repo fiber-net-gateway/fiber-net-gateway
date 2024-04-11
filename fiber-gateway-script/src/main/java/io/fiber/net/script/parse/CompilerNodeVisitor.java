@@ -2,13 +2,13 @@ package io.fiber.net.script.parse;
 
 import io.fiber.net.common.json.ContainerNode;
 import io.fiber.net.common.json.JsonNode;
-import io.fiber.net.common.json.NullNode;
+import io.fiber.net.common.json.MissingNode;
 import io.fiber.net.common.json.ValueNode;
 import io.fiber.net.common.utils.Assert;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ast.*;
 import io.fiber.net.script.run.Code;
-import io.fiber.net.script.run.Vm;
+import io.fiber.net.script.run.InterpreterVm;
 
 import java.util.*;
 
@@ -32,15 +32,17 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         Map<String, Integer> varIdx = new HashMap<>();
         final int outVarIdx;
         final int type;
+        final int codeIdx;
 
         int iteratePc;
         List<Integer> breakJumpPc;
         int terminal = TERMINAL_TYPE_NONE;
 
-        public Scope(Scope outer, int outVarIdx, int type) {
+        public Scope(Scope outer, int outVarIdx, int type, int codeIdx) {
             this.outer = outer;
             this.outVarIdx = outVarIdx;
             this.type = type;
+            this.codeIdx = codeIdx;
         }
 
         void addBreakJump(int pc) {
@@ -86,13 +88,13 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         return el;
     }
 
-    private void patchExpMapping(int el, int tryEnd, int catchPc) {
-        expMapping[el + 1] = tryEnd;
-        expMapping[el + 2] = catchPc;
+    private void patchExpMapping(int el, int catchBegin, int catchEnd) {
+        expMapping[el + 1] = catchBegin;
+        expMapping[el + 2] = catchEnd;
     }
 
     private Scope enterScope(int type) {
-        Scope c = new Scope(scopes.empty() ? null : scopes.peek(), varLength, type);
+        Scope c = new Scope(scopes.empty() ? null : scopes.peek(), varLength, type, len);
         scopes.add(c);
         return c;
     }
@@ -549,6 +551,9 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
                 if ((t & TERMINAL_BIT_SCRIPT) != 0 && !scopes.empty()) {
                     getCurrentScope().terminal |= TERMINAL_TYPE_SCRIPT;
                 }
+                if (scopes.empty() && (t & TERMINAL_BIT_SCRIPT) == 0) {
+                    push(Code.END_RETURN, AstUtils.toPos(block.getEndPosition(), block.getEndPosition()), 0);
+                }
             } else {
                 lastIfBlockTerminal = t;
             }
@@ -573,7 +578,7 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         // continue
         int jElse = -1;
         Block elseBlock = ifStatement.getElseBlock();
-        if (elseBlock != null) {
+        if (elseBlock != null && (trueTerminal & TERMINAL_BIT_ITERATOR) == 0) {
             jElse = pushJump(trueBlock.getPos());
         }
         patchJumpPC(i);
@@ -582,8 +587,9 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
             elseBlock.accept(this);
             int falseTerminal = lastIfBlockTerminal;
             lastIfBlockTerminal = TERMINAL_TYPE_NONE;
-            assert jElse > 0;
-            patchJumpPC(jElse);
+            if (jElse >= 0) {
+                patchJumpPC(jElse);
+            }
             getCurrentScope().terminal |= TERMINAL_BIT_SCRIPT & trueTerminal & falseTerminal;
             getCurrentScope().terminal |= TERMINAL_BIT_ITERATOR & trueTerminal & falseTerminal;
         }
@@ -606,7 +612,7 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         collection.accept(this);
         final Scope scope = enterScope(SCOPE_TYPE_FOR);
         int i = defVar("__iterator__var_" + (iteratorVarIdx++));
-        if (i > Vm.MAX_ITERATOR_VAR) {
+        if (i > InterpreterVm.MAX_ITERATOR_VAR) {
             throw new IllegalStateException("too many variables");
         }
         push(Code.ITERATE_INTO | (i << 8), foreachStatement.getPos(), -1);
@@ -614,26 +620,28 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         try {
             int k = defIterateVar(foreachStatement.getKeyVarName().getName());
             int v = defIterateVar(foreachStatement.getValVarName().getName());
-            if (k >= Vm.MAX_ITERATOR_VAR || v >= Vm.MAX_ITERATOR_VAR) {
+            if (k >= InterpreterVm.MAX_ITERATOR_VAR || v >= InterpreterVm.MAX_ITERATOR_VAR) {
                 throw new IllegalStateException("too many variables");
             }
 
-            push(Code.ITERATE_NEXT | (i << Vm.INSTRUMENT_LEN), foreachStatement.getPos(), 1);
+            push(Code.ITERATE_NEXT | (i << InterpreterVm.INSTRUMENT_LEN), foreachStatement.getPos(), 1);
             scope.addBreakJump(pushLogicJump(Code.JUMP_IF_FALSE, foreachStatement.getPos())); // jump to end
 
             // assign key value;
             if (k >= 0) {
-                push((i << Vm.ITERATOR_OFF) | (k << Vm.INSTRUMENT_LEN) | Code.ITERATE_KEY,
+                push((i << InterpreterVm.ITERATOR_OFF) | (k << InterpreterVm.INSTRUMENT_LEN) | Code.ITERATE_KEY,
                         foreachStatement.getKeyVarName().getPos(), 0);
             }
             if (v >= 0) {
-                push((i << Vm.ITERATOR_OFF) | (v << Vm.INSTRUMENT_LEN) | Code.ITERATE_VALUE,
+                push((i << InterpreterVm.ITERATOR_OFF) | (v << InterpreterVm.INSTRUMENT_LEN) | Code.ITERATE_VALUE,
                         foreachStatement.getValVarName().getPos(), 0);
             }
             for (Statement statement : foreachStatement.getIterableBlock().getStatements()) {
                 statement.accept(this);
             }
-            push(Code.JUMP | (scope.iteratePc << 8), foreachStatement.getPos(), 0); // jump to end
+            if (getCurrentScope().terminal == TERMINAL_TYPE_NONE) {
+                push(Code.JUMP | (scope.iteratePc << 8), foreachStatement.getPos(), 0); // jump to end
+            }
         } finally {
             if ((exitScope() & TERMINAL_BIT_SCRIPT) != 0 && mustHasIterate(collection)) {
                 getCurrentScope().terminal |= TERMINAL_TYPE_SCRIPT;
@@ -651,7 +659,7 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         if (initialExp != null) {
             initialExp.accept(this);
         } else {
-            pushLoadConst(variableDeclareStatement.getPos(), NullNode.getInstance());
+            pushLoadConst(variableDeclareStatement.getPos(), MissingNode.getInstance());
         }
 
         push(Code.STORE_VAR | (i << 8), variableDeclareStatement.getPos(), -1);
@@ -683,7 +691,7 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
             throw new ParseException("continue statement not in foreach");
         }
 
-        pushJump(scope.iteratePc << 8, continueStatement.getPos());
+        pushJump(scope.iteratePc, continueStatement.getPos());
         return null;
     }
 
@@ -746,11 +754,13 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         }
 
         int tryTerminal = exitScope();
-        int tryEndPc = getCpc();
-        int patchJump = pushJump(tryBlock.getPos());
+        int patchJump = -1;
+        if (tryTerminal == TERMINAL_TYPE_NONE) {
+            patchJump = pushJump(tryBlock.getPos());
+        }
         enterScope(SCOPE_TYPE_CATCH);
-        patchExpMapping(tryPoint, tryEndPc, patchJump);
         int i = defVar(expVarName.getName());
+        int catchBegin = getCpc();
         push(Code.INTO_CATCH | (i << 8), expVarName.getPos(), 0);
         if (catchBlock instanceof Block) {
             for (Statement statement : ((Block) catchBlock).getStatements()) {
@@ -760,9 +770,12 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
             catchBlock.accept(this);
         }
         int catchTerminal = exitScope();
-        patchJumpPC(patchJump);
+        if (patchJump != -1) {
+            patchJumpPC(patchJump);
+        }
         getCurrentScope().terminal |= TERMINAL_BIT_SCRIPT & tryTerminal & catchTerminal;
         getCurrentScope().terminal |= TERMINAL_BIT_ITERATOR & tryTerminal & catchTerminal;
+        patchExpMapping(tryPoint, catchBegin, getCpc());
         return null;
     }
 
@@ -791,5 +804,11 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         compiled.init();
         return compiled;
     }
+
+    public static Compiled compileFromScript(String script, Library library) {
+        Block block = new Parser(library, true).parseScript(script);
+        return compile(block);
+    }
+
 
 }

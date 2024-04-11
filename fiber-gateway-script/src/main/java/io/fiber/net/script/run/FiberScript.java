@@ -16,8 +16,10 @@ public class FiberScript implements Script {
         return null;
     }
 
-
-
+    @Override
+    public Maybe<JsonNode> aotExec(JsonNode root, Object attach) throws Exception {
+        return null;
+    }
 
 
 }

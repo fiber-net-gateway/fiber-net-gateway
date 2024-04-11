@@ -1,11 +1,13 @@
 package io.fiber.net.script.run;
 
 import io.fiber.net.common.async.Maybe;
+import io.fiber.net.common.async.internal.MaybeSubject;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.MissingNode;
 import io.fiber.net.common.json.NullNode;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
+import io.fiber.net.script.ScriptExecException;
 
 public abstract class AbstractVm implements ExecutionContext {
 
@@ -21,12 +23,22 @@ public abstract class AbstractVm implements ExecutionContext {
 
     public static final int STAT_END_SEC = 7;
     public static final int STAT_END_ERR = 8;
+    public static final int STAT_ABORT = 9;
+
+
+    protected static class ResultSubject extends MaybeSubject<JsonNode> {
+        @Override
+        protected void onDismissClear(JsonNode value) {
+        }
+    }
+
+    private final ResultSubject result = new ResultSubject();
 
     protected final JsonNode root;
     protected final Object attach;
 
     protected int state;
-    protected ScriptExceptionNode rtError;
+    protected ScriptExecException rtError;
     protected JsonNode rtValue;
 
     protected AbstractVm(JsonNode root, Object attach) {
@@ -34,9 +46,12 @@ public abstract class AbstractVm implements ExecutionContext {
         this.attach = attach;
     }
 
-    public abstract Maybe<JsonNode> exec();
+    public final Maybe<JsonNode> exec() {
+        iterate();
+        return result;
+    }
 
-    public boolean isEnd() {
+    public final boolean isEnd() {
         int state = this.state;
         return state == STAT_END_SEC || state == STAT_END_ERR;
     }
@@ -72,7 +87,7 @@ public abstract class AbstractVm implements ExecutionContext {
     }
 
     @Override
-    public void returnVal(JsonNode value) {
+    public final void returnVal(JsonNode value) {
         int s = state;
         if (s != STAT_INVOKING && s != STAT_ASYNC) {
             throw new IllegalStateException("vm not in resume");
@@ -81,12 +96,13 @@ public abstract class AbstractVm implements ExecutionContext {
         rtError = null;
         rtValue = value == null ? MissingNode.getInstance() : value;
         if (s == STAT_ASYNC) {
-            resume();
+            resumeForIterate();
+            iterate();
         }
     }
 
     @Override
-    public void throwErr(ScriptExceptionNode node) {
+    public final void throwErr(ScriptExecException node) {
         int s = state;
         if (s != STAT_INVOKING && s != STAT_ASYNC) {
             throw new IllegalStateException("vm not in resume");
@@ -97,22 +113,91 @@ public abstract class AbstractVm implements ExecutionContext {
         rtValue = null;
 
         if (s == STAT_ASYNC) {
-            resume();
+            resumeForIterate();
+            iterate();
         }
     }
 
 
-    protected abstract void resume();
+    protected final void iterate() {
+        int state = this.state;
+        assert state != STAT_ASYNC;
+        if (state == STAT_INIT) {
+            this.state = state = STAT_RUNNING;
+        }
+
+        if (state == STAT_RUNNING) {
+            try {
+                run();
+            } catch (ScriptExecException e) {
+                this.state = STAT_END_ERR;
+                rtError = e;
+            } catch (Throwable e) {
+                this.state = STAT_ABORT;
+                result.onError(e);
+                return;
+            }
+        }
+        if (this.state == STAT_END_SEC) {
+            JsonNode v = rtValue;
+            if (v != null) {
+                result.onSuccess(v);
+            } else {
+                result.onComplete();
+            }
+        } else if (this.state == STAT_END_ERR) {
+            assert rtError != null;
+            result.onError(rtError);
+        }
+    }
+
+    protected final JsonNode errorToObj() {
+        ScriptExecException e = rtError;
+        assert e != null;
+        rtError = null;
+        JsonNode errorNode = e.getErrorNode();
+        if (errorNode != null) {
+            return errorNode;
+        }
+        return ScriptExceptionNode.of(e);
+    }
+
+    protected final ScriptExecException objToError(JsonNode node) {
+        if (node instanceof ScriptExceptionNode) {
+            return ((ScriptExceptionNode) node).getException();
+        }
+        String name = "EXEC_UNKNOWN_ERROR", msg = "execute scripe error";
+        int code = 500;
+        JsonNode v;
+        if ((v = node.get("name")) != null) {
+            name = v.asText(name);
+        }
+        if ((v = node.get("message")) != null) {
+            msg = v.asText(msg);
+        }
+        if ((v = node.get("status")) != null) {
+            code = v.asInt(code);
+        }
+        ScriptExecException exception = new ScriptExecException(name, code, msg);
+        exception.setErrorNode(node);
+        return exception;
+    }
+
+    protected void resumeForIterate() {
+        state = STAT_RUNNING;
+    }
+
+    protected abstract void run() throws ScriptExecException;
 
 
     @Override
-    public JsonNode root() {
+    public final JsonNode root() {
         return root;
     }
 
 
     @Override
-    public Object attach() {
+    public final Object attach() {
         return attach;
     }
 

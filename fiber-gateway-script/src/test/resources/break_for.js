@@ -1,7 +1,8 @@
 let b = sleep(0) + 1;
+// 1
 for(let _,c  of [1,2,3,4]) {
     try {
-       b = b + sleep(c);
+       b = b + sleep(c); // 2
        print("结束了:"+b);
        if(b > 10) {
             print("结束了：...")

@@ -1,8 +1,14 @@
 package io.fiber.net.script.parse.ir;
 
 public class Pop extends Instrument {
-    public static Pop of() {
-        return new Pop();
+    private boolean requirePop;
+
+    public Pop(boolean requirePop) {
+        this.requirePop = requirePop;
+    }
+
+    static Pop of(boolean requirePop) {
+        return new Pop(requirePop);
     }
 
     @Override
@@ -12,7 +18,9 @@ public class Pop extends Instrument {
 
     @Override
     int assemble(ClzAssembler assembler) {
-        assembler.pop();
+        if (requirePop) {
+            assembler.pop();
+        }
         return -1;
     }
 }

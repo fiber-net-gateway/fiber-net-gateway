@@ -17,7 +17,9 @@ public class ScriptExceptionNode extends ExceptionNode {
     }
 
     public static ScriptExceptionNode of(ScriptExecException e) {
-        return new ScriptExceptionNode(e);
+        ScriptExceptionNode node = new ScriptExceptionNode(e);
+        e.setErrorNode(node);
+        return node;
     }
 
     public static ScriptExceptionNode of(String msg, long pos) {

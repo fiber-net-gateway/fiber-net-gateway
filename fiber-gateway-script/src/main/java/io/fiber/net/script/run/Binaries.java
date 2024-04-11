@@ -187,30 +187,22 @@ public class Binaries {
     }
 
     public static BooleanNode seq(JsonNode a, JsonNode b) {
-        return BooleanNode.valueOf(Compares.strictEqual(a, b));
+        return BooleanNode.valueOf(Compares.seq(a, b));
     }
 
     public static BooleanNode eq(JsonNode a, JsonNode b) {
-        return BooleanNode.valueOf(Compares.equals(a, b));
+        return BooleanNode.valueOf(Compares.eq(a, b));
     }
 
     public static BooleanNode ne(JsonNode a, JsonNode b) {
-        return BooleanNode.valueOf(Compares.notEquals(a, b));
+        return BooleanNode.valueOf(Compares.ne(a, b));
     }
 
     public static BooleanNode sne(JsonNode a, JsonNode b) {
-        return BooleanNode.valueOf(Compares.notStrictEqual(a, b));
+        return BooleanNode.valueOf(Compares.sne(a, b));
     }
 
     public static BooleanNode in(JsonNode key, JsonNode obj) {
-        if (obj.isArray()) {
-            int i;
-            return BooleanNode.valueOf(key.isIntegralNumber() && (i = key.intValue()) >= 0 && i < obj.size());
-        }
-
-        if (obj.isObject()) {
-            return BooleanNode.valueOf(key.isTextual() && obj.get(key.textValue()) != null);
-        }
-        return BooleanNode.FALSE;
+        return BooleanNode.valueOf(Compares.in(key, obj));
     }
 }

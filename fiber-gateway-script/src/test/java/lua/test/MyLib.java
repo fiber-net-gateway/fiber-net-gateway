@@ -44,7 +44,7 @@ public class MyLib extends StdLibrary {
                     System.out.println("print: " + context.getArgVal(j));
 
                 }
-                return NullNode.getInstance();
+                return IntNode.valueOf(len);
             }
         });
         putFunc("panic", new Function() {

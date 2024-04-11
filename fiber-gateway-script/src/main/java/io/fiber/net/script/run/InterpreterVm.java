@@ -1,7 +1,5 @@
 package io.fiber.net.script.run;
 
-import io.fiber.net.common.async.Maybe;
-import io.fiber.net.common.async.internal.MaybeSubject;
 import io.fiber.net.common.json.ArrayNode;
 import io.fiber.net.common.json.BooleanNode;
 import io.fiber.net.common.json.IteratorNode;
@@ -11,20 +9,14 @@ import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.parse.Compiled;
 
-public class Vm extends AbstractVm {
+public class InterpreterVm extends AbstractVm {
 
     public static final int INSTRUMENT_LEN = 8;
     public static final int ITERATOR_LEN = 12;
     public static final int ITERATOR_OFF = INSTRUMENT_LEN + ITERATOR_LEN;
     public static final int MAX_ITERATOR_VAR = (1 << ITERATOR_LEN) - 1;
 
-    private static class ResultSubject extends MaybeSubject<JsonNode> {
-        @Override
-        protected void onDismissClear(JsonNode value) {
-        }
-    }
 
-    private final MaybeSubject<JsonNode> result = new ResultSubject();
     private final int[] code;
     private final JsonNode[] stack;
     private final JsonNode[] varTable;
@@ -72,7 +64,7 @@ public class Vm extends AbstractVm {
         return pc - 1;
     }
 
-    public Vm(JsonNode root, Object attach, Compiled compiled) {
+    public InterpreterVm(JsonNode root, Object attach, Compiled compiled) {
         super(root, attach);
         this.code = compiled.getCodes();
         this.extVal = compiled.getOperands();
@@ -82,15 +74,10 @@ public class Vm extends AbstractVm {
         this.expIns = compiled.getExpIns();
     }
 
-    public Maybe<JsonNode> exec() {
-        iterate();
-        return result;
-    }
 
     @Override
-    protected void resume() {
+    protected void resumeForIterate() {
         fillParamForResume();
-        iterate();
     }
 
     /**
@@ -111,29 +98,6 @@ public class Vm extends AbstractVm {
         }
     }
 
-    protected void iterate() {
-        int state = this.state;
-        assert state != STAT_ASYNC;
-        if (state == STAT_INIT) {
-            this.state = state = STAT_RUNNING;
-        }
-
-        if (state == STAT_RUNNING) {
-            run();
-        }
-        if (this.state == STAT_END_SEC) {
-            int sp = this.sp;
-            if (sp > 0) {
-                result.onSuccess(stack[sp - 1]);
-            } else {
-                result.onComplete();
-            }
-        } else if (this.state == STAT_END_ERR) {
-            assert rtError != null;
-            result.onError(rtError.getException());
-        }
-    }
-
     public JsonNode getResultNow() throws Throwable {
         switch (this.state) {
             case STAT_END_SEC: {
@@ -142,13 +106,14 @@ public class Vm extends AbstractVm {
             }
             case STAT_END_ERR:
                 assert rtError != null;
-                throw rtError.getException();
+                throw rtError;
             default:
                 throw new IllegalStateException("vm not end");
         }
     }
 
-    private void run() {
+    @Override
+    protected void run() {
         int[] code = this.code;
         Object[] extVal = this.extVal;
         JsonNode[] stack = this.stack;
@@ -389,28 +354,29 @@ public class Vm extends AbstractVm {
                         }
 
                         case Code.ITERATE_INTO: {
-                            varTable[i >>> Vm.INSTRUMENT_LEN] = Unaries.iterate(stack[--sp]);
+                            varTable[i >>> InterpreterVm.INSTRUMENT_LEN] = Unaries.iterate(stack[--sp]);
                             break;
                         }
                         case Code.ITERATE_NEXT: {
-                            stack[sp++] = BooleanNode.valueOf(((IteratorNode) varTable[i >>> Vm.INSTRUMENT_LEN]).next());
+                            stack[sp++] = BooleanNode.valueOf(((IteratorNode) varTable[i >>> InterpreterVm.INSTRUMENT_LEN]).next());
                             break;
                         }
                         case Code.ITERATE_KEY: {
-                            varTable[(i >>> Vm.INSTRUMENT_LEN) & MAX_ITERATOR_VAR] = ((IteratorNode) varTable[i >>> Vm.ITERATOR_OFF]).currentKey();
+                            varTable[(i >>> InterpreterVm.INSTRUMENT_LEN) & MAX_ITERATOR_VAR] = ((IteratorNode) varTable[i >>> InterpreterVm.ITERATOR_OFF]).currentKey();
                             break;
                         }
                         case Code.ITERATE_VALUE: {
-                            varTable[(i >>> Vm.INSTRUMENT_LEN) & MAX_ITERATOR_VAR] = ((IteratorNode) varTable[i >>> Vm.ITERATOR_OFF]).currentValue();
+                            varTable[(i >>> InterpreterVm.INSTRUMENT_LEN) & MAX_ITERATOR_VAR] = ((IteratorNode) varTable[i >>> InterpreterVm.ITERATOR_OFF]).currentValue();
                             break;
                         }
 
                         case Code.INTO_CATCH: {
-                            varTable[i >>> Vm.INSTRUMENT_LEN] = errorToObj();
+                            varTable[i >>> InterpreterVm.INSTRUMENT_LEN] = errorToObj();
                             break;
                         }
 
                         case Code.END_RETURN: {
+                            rtValue = sp > 0 ? stack[sp - 1] : null;
                             state = STAT_END_SEC;
                             return;
                         }
@@ -421,14 +387,15 @@ public class Vm extends AbstractVm {
                                 return;
                             }
                             pc = this.pc;
+                            sp = this.sp;
                             break;
                         }
                         default:
                             throw new Error("unknown code:" + i);
                     }
                 } catch (ScriptExecException e) {
-                    rtError = ScriptExceptionNode.of(e, pos[pc - 1]);
                     sp = 0;
+                    rtError = e;
                     if (catchForException(pc - 1)) {
                         return;
                     }
@@ -439,34 +406,9 @@ public class Vm extends AbstractVm {
             this.pc = pc;
             this.sp = sp;
         }
-        state = STAT_END_SEC;
+        throw new IllegalStateException("[BUG] no return ???");
     }
 
-    private ScriptExceptionNode objToError(JsonNode node) {
-        if (node instanceof ScriptExceptionNode) {
-            return (ScriptExceptionNode) node;
-        }
-        String name = "EXEC_UNKNOWN_ERROR", msg = "execute scripe error";
-        int code = 500;
-        JsonNode v;
-        if ((v = node.get("name")) != null) {
-            name = v.asText(name);
-        }
-        if ((v = node.get("message")) != null) {
-            msg = v.asText(msg);
-        }
-        if ((v = node.get("status")) != null) {
-            code = v.asInt(code);
-        }
-        return ScriptExceptionNode.of(new ScriptExecException(name, code, msg), pos[pc - 1]);
-    }
-
-    private JsonNode errorToObj() {
-        ScriptExceptionNode e = rtError;
-        assert e != null;
-        rtError = null;
-        return e;
-    }
 
     private int searchCatch(int epc) {
         int[] expIns;
@@ -500,7 +442,7 @@ public class Vm extends AbstractVm {
 
     private boolean catchForException(int epc) {
         assert rtError != null;
-        rtError.getException().setPos(pos[epc]);
+        rtError.setPos(pos[epc]);
         sp = 0;
         int cpc;
         if ((cpc = searchCatch(epc)) < 0) {
@@ -512,4 +454,7 @@ public class Vm extends AbstractVm {
         return false;
     }
 
+    public static InterpreterVm createFromCompiled(Compiled compiled, JsonNode root, Object attach) {
+        return new InterpreterVm(root, attach, compiled);
+    }
 }

@@ -53,4 +53,8 @@ public class AstUtils {
     public static int endPos(long pos) {
         return ((int) pos) & 0xFFFF;
     }
+
+    public static int toPos(int startPos, int endPos) {
+        return (startPos << 16) + endPos;
+    }
 }

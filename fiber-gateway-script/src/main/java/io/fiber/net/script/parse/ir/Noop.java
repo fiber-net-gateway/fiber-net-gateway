@@ -7,4 +7,9 @@ class Noop extends Instrument {
     void accept(InstrumentVisitor visitor) {
         visitor.visitNoop(this);
     }
+
+    @Override
+    int assemble(ClzAssembler assembler) {
+        return 0;
+    }
 }

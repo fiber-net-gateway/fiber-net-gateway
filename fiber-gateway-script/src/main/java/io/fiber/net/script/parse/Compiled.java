@@ -1,7 +1,10 @@
 package io.fiber.net.script.parse;
 
+import io.fiber.net.common.utils.Assert;
+
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 public class Compiled {
     int stackSize;
@@ -25,37 +28,44 @@ public class Compiled {
     }
 
     void init() {
-        // [1,100, 3] [2,97,5],[1,2,97,]
+        // [1,100, 200] [2,97,5],[1,2,97,]
         if (exceptionTable != null) {
             TreeMap<Integer, Integer> ranges = new TreeMap<>();
-            int l = -1, le = 0;
+            TreeSet<Integer> catches = new TreeSet<>();
+            int lt = -1;
             for (int i = 0; i < exceptionTable.length; i += 3) {
-                int s = exceptionTable[i];
-                int e = exceptionTable[i + 1];
-                int c = exceptionTable[i + 2];
-                if (s < l || l == s && e >= le) {
-                    throw new IllegalStateException("invalid exception table");
-                }
-                Map.Entry<Integer, Integer> ceilingEntry = ranges.ceilingEntry(s);
-                if (ceilingEntry == null) {
-                    ranges.put(s, c);
-                    ranges.put(e, -1);
-                } else {
-                    int oldValue = ceilingEntry.getValue();
-                    ranges.put(s, c);
-                    ranges.put(e, oldValue);
-                    int next = e + 1;
-                    while ((ceilingEntry = ranges.ceilingEntry(next)) != null) {
-                        if (ceilingEntry.getValue() != oldValue) {
-                            break;
-                        }
-                        next = ceilingEntry.getKey() + 1;
-                        ranges.remove(ceilingEntry.getKey());
-                    }
-                }
+                int tryBegin = exceptionTable[i];
+                int catchBegin = exceptionTable[i + 1];
+                int catchEnd = exceptionTable[i + 2];
+                Assert.isTrue(tryBegin >= lt && tryBegin < catchBegin && catchBegin < catchEnd);
+                ranges.put(tryBegin, catchBegin);
+                catches.add(catchBegin);
 
-                l = s;
-                le = e;
+                Integer latter = catches.ceiling(catchEnd);
+                if (latter != null) {
+                    /*
+                     * try {
+                     *  -> try {} catch() {}
+                     * }catch(){
+                     *
+                     * }
+                     */
+                    ranges.put(catchBegin, latter);
+                } else {
+                    /*
+                     * try {
+                     * }catch(){
+                     *  -> try {} catch() {}
+                     * }
+                     * // =====================
+                     * try {
+                     * }catch(){
+                     * }
+                     * -> try {} catch() {}
+                     */
+                    ranges.put(catchBegin, -1);
+                }
+                lt = tryBegin;
             }
             int size = ranges.size();
             expIns = new int[size * 2];

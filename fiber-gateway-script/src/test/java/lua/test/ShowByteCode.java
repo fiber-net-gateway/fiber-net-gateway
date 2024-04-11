@@ -1,20 +1,20 @@
 package lua.test;
 
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.script.run.UnsafeUtil;
+
 public class ShowByteCode {
     public static void t() {
+        int a = 1;
+        long b = 1;
 
-        try {
-            System.out.println(111);
-            try {
-                int i = 2;
-                long p = System.currentTimeMillis() / i;
-                System.out.println(p);
-            } catch (RuntimeException e) {
-                System.out.println(222);
-            }
-        } catch (RuntimeException e) {
-            System.out.println(333);
+        for (int i = 0; i < 10; i++) {
+            int c = 0;
+            System.out.println(i + c);
         }
+
+//        String c = "1";
+        System.out.println(1);
     }
 
     public static void main(String[] args) {

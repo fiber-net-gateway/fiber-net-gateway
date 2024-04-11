@@ -4,6 +4,7 @@ import io.fiber.net.script.run.Code;
 
 class Unary extends Exp {
 
+
     enum Type {
         //int\s+UNARY_(\w+)\s*=\s*\d+;
         PLUS,
@@ -25,6 +26,7 @@ class Unary extends Exp {
 
     private final Type type;
     private final Exp exp;
+    private boolean optimiseIf;
 
     Unary(Type type, Exp exp) {
         this.type = type;
@@ -50,7 +52,15 @@ class Unary extends Exp {
 
     @Override
     int assemble(ClzAssembler assembler) {
-        assembler.unary(getType());
+        assembler.unary(getType(), isOptimiseIf());
         return 0;
+    }
+
+    void setOptimiseIf() {
+        this.optimiseIf = true;
+    }
+
+    boolean isOptimiseIf() {
+        return optimiseIf;
     }
 }

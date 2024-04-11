@@ -18,4 +18,10 @@ class Throw extends Instrument {
     void accept(InstrumentVisitor visitor) {
         visitor.visitThrow(this);
     }
+
+    @Override
+    int assemble(ClzAssembler assembler) {
+        assembler.throwExp();
+        return -1;
+    }
 }

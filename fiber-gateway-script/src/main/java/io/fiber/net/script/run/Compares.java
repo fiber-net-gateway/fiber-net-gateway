@@ -7,6 +7,9 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 public class Compares {
+    public static boolean neg(JsonNode a) {
+        return !logic(a);
+    }
 
     public static boolean logic(JsonNode a) {
         if (a == null || a.isNull() || a.isMissingNode()) {
@@ -35,7 +38,7 @@ public class Compares {
      * @param b s
      * @return true/false
      */
-    public static boolean equals(JsonNode a, JsonNode b) {
+    public static boolean eq(JsonNode a, JsonNode b) {
 
         boolean an = JsonUtil.isNull(a);
         boolean bn = JsonUtil.isNull(b);
@@ -59,7 +62,7 @@ public class Compares {
      * @param b s
      * @return true/false
      */
-    public static boolean strictEqual(JsonNode a, JsonNode b) {
+    public static boolean seq(JsonNode a, JsonNode b) {
         if (a == b) {
             return true;
         }
@@ -90,8 +93,8 @@ public class Compares {
      * @param b s
      * @return true/false
      */
-    public static boolean notEquals(JsonNode a, JsonNode b) {
-        return !equals(a, b);
+    public static boolean ne(JsonNode a, JsonNode b) {
+        return !eq(a, b);
     }
 
     /**
@@ -101,8 +104,8 @@ public class Compares {
      * @param b s
      * @return true/false
      */
-    public static boolean notStrictEqual(JsonNode a, JsonNode b) {
-        return !strictEqual(a, b);
+    public static boolean sne(JsonNode a, JsonNode b) {
+        return !seq(a, b);
     }
 
     /**
@@ -160,7 +163,14 @@ public class Compares {
      * @return true/false
      */
     public static boolean gte(JsonNode a, JsonNode b) {
-        return !lt(a, b);
+        if (notComparable(a, b)) return false;
+        if (a.isNumber()) {
+            return a.asLong() >= b.asLong();
+        }
+        if (a.isTextual()) {
+            return a.asText().compareTo(b.asText()) >= 0;
+        }
+        return false;
     }
 
     /**
@@ -242,7 +252,7 @@ public class Compares {
         }
 
         for (JsonNode jsonNode : a) {
-            if (strictEqual(jsonNode, b)) {
+            if (seq(jsonNode, b)) {
                 return true;
             }
         }

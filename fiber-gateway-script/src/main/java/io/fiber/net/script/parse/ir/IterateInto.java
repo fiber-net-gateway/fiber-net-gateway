@@ -21,4 +21,10 @@ class IterateInto extends VarStore {
     void accept(InstrumentVisitor visitor) {
         visitor.visitIterateInto(this);
     }
+
+    @Override
+    int assemble(ClzAssembler assembler) {
+        assembler.iterateInto(getStoreVar());
+        return -1;
+    }
 }

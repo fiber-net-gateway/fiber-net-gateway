@@ -20,4 +20,9 @@ public class Jump extends Instrument {
         visitor.visitJump(this);
     }
 
+    @Override
+    int assemble(ClzAssembler assembler) {
+        assembler.jump(getTarget());
+        return 0;
+    }
 }

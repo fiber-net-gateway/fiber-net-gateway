@@ -368,13 +368,13 @@ public class CodeEnterPoint {
         Exp in = ins[--sp];
         ins[sp] = null;
 
-        if (in instanceof FunctionCall && ((FunctionCall) in).isAsync()) {
+        if (in instanceof FunctionCall) {
             in.setDist(ResDist.POP);
             addCode(Pop.of(false));
             return;
         }
 
-        if (in instanceof ConstCall && ((ConstCall) in).isAsync()) {
+        if (in instanceof ConstCall) {
             in.setDist(ResDist.POP);
             addCode(Pop.of(false));
             return;

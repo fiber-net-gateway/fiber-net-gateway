@@ -1186,6 +1186,17 @@ public class ClzAssembler {
                 "(Lio/fiber/net/script/ExecutionContext;)Lio/fiber/net/common/json/JsonNode;",
                 true
         );
+        if (fc.getDist() != ResDist.POP) {
+            visitor.visitMethodInsn(
+                    Opcodes.INVOKESTATIC,
+                    internalClzName,
+                    "nullNode",
+                    "(Lio/fiber/net/common/json/JsonNode;)Lio/fiber/net/common/json/JsonNode;",
+                    false
+            );
+        } else {
+            pop();
+        }
     }
 
 
@@ -1222,6 +1233,17 @@ public class ClzAssembler {
                 "(Lio/fiber/net/script/ExecutionContext;)Lio/fiber/net/common/json/JsonNode;",
                 true
         );
+        if (cc.getDist() != ResDist.POP) {
+            visitor.visitMethodInsn(
+                    Opcodes.INVOKESTATIC,
+                    internalClzName,
+                    "nullNode",
+                    "(Lio/fiber/net/common/json/JsonNode;)Lio/fiber/net/common/json/JsonNode;",
+                    false
+            );
+        } else {
+            pop();
+        }
     }
 
     void loadVar(VarTable.VarDef loadVar) {

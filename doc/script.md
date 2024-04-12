@@ -16,7 +16,7 @@ print(a);
 const 10
 store 0;
 const 20;
-store 1 20;
+store 1;
 load 0;
 load 1;
 add;
@@ -61,7 +61,7 @@ putAsyncFunc(
 ```
 通过定时器来定时，当时间到后 `context.returnVal(null);` 来通知脚本继续往下运行。
 
-### 解释器模式的携程
+### 解释器模式的协程
 解释器的栈和变量表都是在 java 代码中通过数组来模拟的。
 所以当调用异步函数的时候，直接退出，当 context.returnVal(null); 调用，继续往下执行。
 
@@ -74,7 +74,7 @@ AOT 模式下， 脚本会被转成 一个 class 文件。
 protected void run() throws ScriptExecException {
     switch (this.asyncState) {
         case 0:
-            this._async_var_0 = _LITERAL_0; // 变量 a
+            this._async_var_0 = _LITERAL_0; // 变量 a 异步函数的变量，所以变成 field
             ValueNode _local_1 = _LITERAL_1; // 变量 b
             this._stack_0 = Binaries.plus(this._async_var_0, _local_1);
             this.funcParamSP = 0;
@@ -96,7 +96,7 @@ protected void run() throws ScriptExecException {
                 throw this.rtError;
             }
 
-            this._stack_0 = this._async_var_0; // 变量 a 是一个跨越 异步函数的变量，所以变成 field
+            this._stack_0 = this._async_var_0; // 变量 a
             this.funcParamSP = 0;
             this.funcArgc = 1;
             this.spread = false;

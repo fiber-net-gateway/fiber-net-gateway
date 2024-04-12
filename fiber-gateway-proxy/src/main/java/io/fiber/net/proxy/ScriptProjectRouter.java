@@ -1,10 +1,10 @@
 package io.fiber.net.proxy;
 
-import io.fiber.net.common.json.NullNode;
 import io.fiber.net.common.FiberException;
 import io.fiber.net.common.HttpExchange;
 import io.fiber.net.common.RequestHandlerRouter;
 import io.fiber.net.common.ioc.Injector;
+import io.fiber.net.common.json.NullNode;
 import io.fiber.net.common.utils.ErrorInfo;
 import io.fiber.net.script.Script;
 import io.netty.buffer.Unpooled;
@@ -32,7 +32,7 @@ public class ScriptProjectRouter implements RequestHandlerRouter {
 
     @Override
     public void invoke(HttpExchange httpExchange) throws Exception {
-        script.exec(NullNode.getInstance(), httpExchange).subscribe((node, throwable) -> {
+        script.aotExec(NullNode.getInstance(), httpExchange).subscribe((node, throwable) -> {
             if (httpExchange.isResponseWrote()) {
                 return;
             }

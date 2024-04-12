@@ -9,6 +9,10 @@ import io.fiber.net.script.parse.ir.AotClassGenerator;
 import io.fiber.net.script.run.AbstractVm;
 import io.fiber.net.script.run.InterpreterVm;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+
 
 public class CompiledScript implements Script {
 
@@ -35,15 +39,17 @@ public class CompiledScript implements Script {
 
     private final String expressionString;
     private final Compiled compiled;
-    private Class<?> aotClz;
+    private MethodHandle handle;
 
     private CompiledScript(String expressionString, Compiled compiled) {
         this.expressionString = expressionString;
         this.compiled = compiled;
         try {
-            aotClz = new AotClassGenerator(compiled).generateClz();
-        } catch (Throwable e) {
-            aotClz = null;
+            Class<?> aotClz = new AotClassGenerator(compiled).generateClz();
+            MethodType type = MethodType.methodType(void.class, JsonNode.class, Object.class);
+            handle = MethodHandles.lookup().findConstructor(aotClz, type);
+        } catch (Throwable ignore) {
+            handle = null;
         }
     }
 
@@ -67,10 +73,16 @@ public class CompiledScript implements Script {
     }
 
     public AbstractVm createAotVm(JsonNode root, Object attach) throws Exception {
-        if (aotClz == null) {
+        if (handle == null) {
             throw new IllegalStateException("aot compile failed");
         }
-        return (AbstractVm) aotClz.getConstructor(JsonNode.class, Object.class).newInstance(root, attach);
+        try {
+            return (AbstractVm) handle.invoke(root, attach);
+        } catch (Exception e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new IllegalStateException("cannot create aot vm", e);
+        }
     }
 
     public String getExpressionString() {

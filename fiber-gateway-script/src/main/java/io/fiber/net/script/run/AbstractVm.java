@@ -4,7 +4,6 @@ import io.fiber.net.common.async.Maybe;
 import io.fiber.net.common.async.internal.MaybeSubject;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.MissingNode;
-import io.fiber.net.common.json.NullNode;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
@@ -202,7 +201,7 @@ public abstract class AbstractVm implements ExecutionContext {
     }
 
     public static JsonNode nullNode(JsonNode node) {
-        return node != null ? node : NullNode.getInstance();
+        return node != null ? node : MissingNode.getInstance();
     }
 
     public int getCurrentPc() {

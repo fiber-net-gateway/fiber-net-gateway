@@ -111,7 +111,7 @@ public class Access {
     public static JsonNode propSet1(JsonNode parent, JsonNode alien, String key) throws ScriptExecException {
         if (parent.isObject()) {
             ((ObjectNode) parent).set(key, alien);
-            return alien;
+            return parent;
         }
 
         throw new ScriptExecException(SpelMessage.INDEXING_NOT_SUPPORTED_FOR_TYPE

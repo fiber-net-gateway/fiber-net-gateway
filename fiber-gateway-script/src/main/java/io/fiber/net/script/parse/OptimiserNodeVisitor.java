@@ -92,7 +92,9 @@ public class OptimiserNodeVisitor implements NodeVisitor<Node> {
         if (node instanceof Literal) {
             return (Literal) node;
         }
-        InterpreterVm vm = CompiledScript.createVM(CompilerNodeVisitor.compile(node), NullNode.getInstance(), null);
+
+        Block block = new Block(0, Collections.singletonList(new ReturnStatement(0, node)), Block.Type.SCRIPT);
+        InterpreterVm vm = CompiledScript.createVM(CompilerNodeVisitor.compile(block), NullNode.getInstance(), null);
         JsonNode jsonNode;
         try {
             vm.exec();

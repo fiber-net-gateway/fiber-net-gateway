@@ -9,6 +9,9 @@ import lua.test.MyLib;
 import org.apache.commons.io.IOUtils;
 
 import java.io.InputStream;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 
 public class Benchmark {
@@ -22,8 +25,8 @@ public class Benchmark {
             Class<?> clz = generator.generateClz();
 
             long l = System.currentTimeMillis();
-//            run(compiled);
-            aotRun(clz);
+            run(compiled);
+//            aotRun(clz);
             System.out.println(System.currentTimeMillis() - l);
         }
     }
@@ -35,11 +38,11 @@ public class Benchmark {
         }
     }
 
-    private static void aotRun(Class<?> clz) throws Exception {
-
-        for (int i = 0; i < 100000000; i++) {
-            Constructor<?> constructor = clz.getConstructor(JsonNode.class, Object.class);
-            AbstractVm abstractVm = (AbstractVm) constructor.newInstance(NullNode.getInstance(), null);
+    private static void aotRun(Class<?> clz) throws Throwable {
+        MethodHandles.Lookup lookup = MethodHandles.lookup();
+        MethodHandle handle = lookup.findConstructor(clz, MethodType.methodType(void.class, JsonNode.class, Object.class));
+        for (int i = 0; i < 1000000000; i++) {
+            AbstractVm abstractVm = (AbstractVm) handle.invoke((JsonNode) NullNode.getInstance(), (Object) null);
             abstractVm.exec();
         }
     }

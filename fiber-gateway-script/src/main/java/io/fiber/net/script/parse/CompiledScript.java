@@ -8,6 +8,8 @@ import io.fiber.net.script.ast.Block;
 import io.fiber.net.script.parse.ir.AotClassGenerator;
 import io.fiber.net.script.run.AbstractVm;
 import io.fiber.net.script.run.InterpreterVm;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -37,6 +39,9 @@ public class CompiledScript implements Script {
         return new CompiledScript(script, cpd);
     }
 
+    private static final Logger log = LoggerFactory.getLogger(CompiledScript.class);
+    private static final MethodType METHOD_TYPE = MethodType.methodType(void.class, JsonNode.class, Object.class);
+
     private final String expressionString;
     private final Compiled compiled;
     private MethodHandle handle;
@@ -46,9 +51,9 @@ public class CompiledScript implements Script {
         this.compiled = compiled;
         try {
             Class<?> aotClz = new AotClassGenerator(compiled).generateClz();
-            MethodType type = MethodType.methodType(void.class, JsonNode.class, Object.class);
-            handle = MethodHandles.lookup().findConstructor(aotClz, type);
-        } catch (Throwable ignore) {
+            handle = MethodHandles.lookup().findConstructor(aotClz, METHOD_TYPE);
+        } catch (Throwable e) {
+            log.warn("error create aot VM", e);
             handle = null;
         }
     }

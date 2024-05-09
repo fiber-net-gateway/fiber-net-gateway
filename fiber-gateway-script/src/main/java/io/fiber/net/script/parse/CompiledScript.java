@@ -2,6 +2,7 @@ package io.fiber.net.script.parse;
 
 import io.fiber.net.common.async.Maybe;
 import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.utils.SystemPropertyUtil;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.Script;
 import io.fiber.net.script.ast.Block;
@@ -11,12 +12,16 @@ import io.fiber.net.script.run.InterpreterVm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
+import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.nio.file.Files;
 
 
 public class CompiledScript implements Script {
+    private static final String ERROR_PATH = SystemPropertyUtil.get("fiber.aotErrorClzDumpPath", "/tmp/fiber_err_clz");
 
     public static CompiledScript create(String script, Library library) throws ParseException {
         Parser parser = new Parser(library, true);
@@ -49,11 +54,23 @@ public class CompiledScript implements Script {
     private CompiledScript(String expressionString, Compiled compiled) {
         this.expressionString = expressionString;
         this.compiled = compiled;
+        AotClassGenerator generator = new AotClassGenerator(compiled);
         try {
-            Class<?> aotClz = new AotClassGenerator(compiled).generateClz();
+            Class<?> aotClz = generator.generateClz();
             handle = MethodHandles.lookup().findConstructor(aotClz, METHOD_TYPE);
         } catch (Throwable e) {
-            log.warn("error create aot VM", e);
+            String clzName = generator.getClzName();
+            log.error("error create aot VM: clz->{}", clzName, e);
+            int fsp = clzName.lastIndexOf('/');
+            File file = new File(ERROR_PATH, clzName.substring(0, fsp));
+            try {
+                file.mkdirs();
+                File clzFile = new File(file, clzName.substring(fsp + 1) + ".class");
+                Files.write(clzFile.toPath(), generator.generateClzData());
+                log.info("dumped class file:{}", clzFile.getAbsolutePath());
+            } catch (IOException ex) {
+                log.warn("error write class data", ex);
+            }
             handle = null;
         }
     }

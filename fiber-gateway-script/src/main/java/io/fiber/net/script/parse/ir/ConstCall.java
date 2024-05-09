@@ -36,11 +36,6 @@ class ConstCall extends Exp {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitConstCall(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         if (isAsync()) {
             for (int i = getPrevStackSize() - 1; i >= 0; i--) {

@@ -5,11 +5,6 @@ import io.fiber.net.script.run.Code;
 class Binary extends Exp {
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitBinary(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         assembler.binary(getType(), isOptimiseIf());
         return -1;

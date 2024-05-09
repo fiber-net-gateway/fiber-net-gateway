@@ -1,6 +1,6 @@
 package io.fiber.net.proxy.lib;
 
-import io.fiber.net.common.HttpExchange;
+import io.fiber.net.server.HttpExchange;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.NullNode;
 import io.fiber.net.common.utils.Constant;

@@ -316,9 +316,10 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
     @Override
     public Void visit(LogicRelationalExpression exp) {
         exp.getLeft().accept(this);
-        push(Code.JUMP, exp.getLeft().getPos(), 1);
+        push(Code.DUMP, exp.getLeft().getPos(), 1);
         int i = pushLogicJump(exp.getOperator() == Operator.AND ? Code.JUMP_IF_FALSE : Code.JUMP_IF_TRUE,
                 exp.getPos());
+        push(Code.POP, exp.getRight().getPos(), -1);
         exp.getRight().accept(this);
         patchJumpPC(i);
         return null;
@@ -653,15 +654,14 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
     @Override
     public Void visit(VariableDeclareStatement variableDeclareStatement) {
         checkDeadCode(variableDeclareStatement.getPos());
-        Identifier variableName = variableDeclareStatement.getVariableName();
-        int i = defVar(variableName.getName());
         ExpressionNode initialExp = variableDeclareStatement.getInitialExp();
         if (initialExp != null) {
             initialExp.accept(this);
         } else {
             pushLoadConst(variableDeclareStatement.getPos(), MissingNode.getInstance());
         }
-
+        Identifier variableName = variableDeclareStatement.getVariableName();
+        int i = defVar(variableName.getName());
         push(Code.STORE_VAR | (i << 8), variableDeclareStatement.getPos(), -1);
         return null;
     }
@@ -670,12 +670,15 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
     public Void visit(ExpressionStatement expressionStatement) {
         checkDeadCode(expressionStatement.getPos());
         ExpressionNode expression = expressionStatement.getExpression();
-        if (expression instanceof Assign && visitAssign((Assign) expression, false)) {
+        if (expression instanceof Assign) {
+            if (!visitAssign((Assign) expression, false)) {
+                push(Code.POP, expressionStatement.getPos(), -1);
+            }
             return null;
-        } else {
-            expression.accept(this);
-            push(Code.POP, expressionStatement.getPos(), -1);
         }
+
+        expression.accept(this);
+        push(Code.POP, expressionStatement.getPos(), -1);
         return null;
     }
 

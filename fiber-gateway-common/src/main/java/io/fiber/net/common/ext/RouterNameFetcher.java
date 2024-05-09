@@ -1,11 +1,7 @@
 package io.fiber.net.common.ext;
 
-import io.fiber.net.common.HttpExchange;
-
-public interface RouterNameFetcher {
+public interface RouterNameFetcher<E> {
     String DEF_ROUTER_NAME = "fiber-net";
 
-    RouterNameFetcher DEF_NAME = httpExchange -> DEF_ROUTER_NAME;
-
-    String fetchName(HttpExchange httpExchange);
+    String fetchName(E exchange);
 }

@@ -8,6 +8,8 @@ import io.fiber.net.common.ioc.Module;
 import io.fiber.net.http.DefaultHttpClient;
 import io.fiber.net.http.HttpClient;
 import io.fiber.net.server.EngineModule;
+import io.fiber.net.server.HttpEngine;
+import io.fiber.net.server.HttpExchange;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,7 +32,8 @@ public class LibProxyMainModule implements Module {
             binder.bindPrototype(ProjectRouterBuilder.class, ProjectRouterBuilder::new);
         }
 
-        synchronized void createProject(String projectName, String code) throws Exception {
+        @SuppressWarnings("unchecked")
+        synchronized ScriptHandler createProject(String projectName, String code) throws Exception {
             Injector injector;
             if (projectInjector != null) {
                 injector = projectInjector.fork();
@@ -42,7 +45,7 @@ public class LibProxyMainModule implements Module {
                 ProjectRouterBuilder builder = injector.getInstance(ProjectRouterBuilder.class);
                 builder.setCode(code);
                 builder.setName(projectName);
-                injector.getInstance(Engine.class).addHandlerRouter(builder.build());
+                return builder.build();
             } catch (Throwable e) {
                 injector.destroy();
                 throw e;
@@ -50,9 +53,9 @@ public class LibProxyMainModule implements Module {
         }
     }
 
-    private static class ProxyStartListener implements StartListener {
+    private static class ProxyStartListener implements StartListener<HttpExchange, HttpEngine> {
         @Override
-        public void onStart(Engine engine) throws Exception {
+        public void onStart(HttpEngine engine) throws Exception {
             ConfigWatcher watcher = engine.getInjector().getInstance(ConfigWatcher.class);
             watcher.startWatch(engine);
         }
@@ -71,23 +74,23 @@ public class LibProxyMainModule implements Module {
         binder.bind(ConfigWatcher.class, ConfigWatcher.NOOP_WATCHER);
     }
 
-    public static void createProject(Engine engine, String projectName, String code) throws Exception {
-        SubModule subModule = engine.getInjector().getInstance(SubModule.class);
-        assert subModule.engineInjector == engine.getInjector();
-        subModule.createProject(projectName, code);
+    public static ScriptHandler createProject(Injector injector, String projectName, String code) throws Exception {
+        SubModule subModule = injector.getInstance(SubModule.class);
+        assert subModule.engineInjector == injector;
+        return subModule.createProject(projectName, code);
     }
 
-    public static Engine createEngineWithSPI(ClassLoader loader) throws Exception {
+    public static HttpEngine createEngineWithSPI(ClassLoader loader) throws Exception {
         ServiceLoader<Module> serviceLoader = ServiceLoader.load(Module.class,
                 loader == null ? Thread.currentThread().getContextClassLoader() : loader);
         return createEngine(serviceLoader);
     }
 
-    public static Engine createEngine(Module... extModules) throws Exception {
+    public static HttpEngine createEngine(Module... extModules) throws Exception {
         return createEngine(Arrays.asList(extModules));
     }
 
-    public static Engine createEngine(Iterable<Module> extModules) throws Exception {
+    public static HttpEngine createEngine(Iterable<Module> extModules) throws Exception {
         List<Module> modules = new ArrayList<>();
         modules.add(new EngineModule());
         modules.add(new LibProxyMainModule());
@@ -96,7 +99,7 @@ public class LibProxyMainModule implements Module {
         }
 
         Injector injector = Injector.getRoot().createChild(modules);
-        Engine engine = injector.getInstance(Engine.class);
+        HttpEngine engine = (HttpEngine) injector.getInstance(Engine.class);
         try {
             engine.installExt();
         } catch (Throwable e) {

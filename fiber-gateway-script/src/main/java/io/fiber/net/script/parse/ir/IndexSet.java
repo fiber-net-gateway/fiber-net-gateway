@@ -28,11 +28,6 @@ class IndexSet extends Exp {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitIndexSet(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         assembler.indexSet();
         return -2;

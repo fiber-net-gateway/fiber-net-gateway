@@ -60,11 +60,6 @@ class FunctionCall extends Exp {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitFunctionCall(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         for (int i = getStashStackSize() - 1; i >= 0; i--) {
             assembler.stashStack(i);

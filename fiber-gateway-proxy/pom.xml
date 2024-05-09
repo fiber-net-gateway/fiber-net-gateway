@@ -29,5 +29,10 @@
             <artifactId>netty-resolver-dns-native-macos</artifactId>
             <classifier>osx-x86_64</classifier>
         </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>fiber-gateway-test</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

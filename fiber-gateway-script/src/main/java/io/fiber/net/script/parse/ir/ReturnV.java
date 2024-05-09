@@ -7,11 +7,6 @@ class ReturnV extends Instrument {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitReturnV(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         assembler.returnV();
         return 0;

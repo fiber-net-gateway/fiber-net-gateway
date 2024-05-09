@@ -22,11 +22,6 @@ class ExpObjArray extends Exp {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitExpObjArray(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         if (isObj()) {
             assembler.expObject();

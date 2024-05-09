@@ -22,11 +22,6 @@ class PropGet extends Exp {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitPropGet(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         assembler.propGet(getKeyId());
         return 0;

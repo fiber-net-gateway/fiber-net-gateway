@@ -33,10 +33,10 @@ public class EngineModule implements Module {
 
     @Override
     public void install(Binder binder) {
-        binder.bindFactory(Engine.class, Engine::new);
-        binder.bind(RouterNameFetcher.class, httpExchange -> {
-            String header = httpExchange.getRequestHeader("X-Fiber-Project");
-            if(StringUtils.isEmpty(header)){
+        binder.bindFactory(Engine.class, HttpEngine::new);
+        binder.bind(RouterNameFetcher.class, (RouterNameFetcher<HttpExchange>) exchange -> {
+            String header = exchange.getRequestHeader("X-Fiber-Project");
+            if (StringUtils.isEmpty(header)) {
                 return RouterNameFetcher.DEF_ROUTER_NAME;
             }
             return header;

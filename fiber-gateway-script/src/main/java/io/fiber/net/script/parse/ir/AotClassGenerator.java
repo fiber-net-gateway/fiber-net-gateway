@@ -15,6 +15,7 @@ public class AotClassGenerator {
 
     private final Compiled compiled;
     private final ClzAssembler clzAssembler;
+    private byte[] clzData;
 
     public AotClassGenerator(Compiled compiled) {
         this.compiled = compiled;
@@ -321,7 +322,11 @@ public class AotClassGenerator {
     }
 
     public Class<?> generateClz() throws Throwable {
-        return loadAsClz(generateClzData());
+        return loadAsClz();
+    }
+
+    public String getClzName() {
+        return clzAssembler.getInternalClzName();
     }
 
     /**
@@ -330,12 +335,15 @@ public class AotClassGenerator {
      * @return data for class file
      */
     public byte[] generateClzData() {
+        if (clzData != null) {
+            return clzData;
+        }
         convertAndPreGenerate();
-        return clzAssembler.asmClzData();
+        return clzData = clzAssembler.asmClzData();
     }
 
-    public Class<?> loadAsClz(byte[] data) throws Throwable {
-        return clzAssembler.loadAsClz(data);
+    public Class<?> loadAsClz() throws Throwable {
+        return clzAssembler.loadAsClz(generateClzData());
     }
 
     private void convertAndPreGenerate() {

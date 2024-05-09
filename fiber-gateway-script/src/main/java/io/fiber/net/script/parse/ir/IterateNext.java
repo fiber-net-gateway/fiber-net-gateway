@@ -60,11 +60,6 @@ class IterateNext extends Exp implements VarLoad {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitIterateNext(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         assembler.iterateNext(getLoadVar(), isOptimiseIf());
         return 1;

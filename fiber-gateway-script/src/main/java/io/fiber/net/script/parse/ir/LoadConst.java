@@ -16,11 +16,6 @@ class LoadConst extends Exp {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitLoadConst(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         assembler.loadConst(getConstValIdx());
         return 1;

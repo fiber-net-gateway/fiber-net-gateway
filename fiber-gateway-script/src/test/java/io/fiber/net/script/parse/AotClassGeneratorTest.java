@@ -76,7 +76,7 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
         File path = new File("dist/" + clzFile.substring(0, i));
         path.mkdirs();
         Files.write(new File(path, clzFile.substring(i + 1) + ".class").toPath(), bytes);
-        return generator.loadAsClz(bytes);
+        return generator.loadAsClz();
     }
 
     private static void generateAndInvoke(Compiled compiled, String name) throws Throwable {

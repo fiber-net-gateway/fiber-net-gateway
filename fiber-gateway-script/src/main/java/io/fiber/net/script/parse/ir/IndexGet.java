@@ -22,10 +22,6 @@ class IndexGet extends Exp {
         return new IndexGet(parent, key);
     }
 
-    @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitIndexGet(this);
-    }
 
     @Override
     int assemble(ClzAssembler assembler) {

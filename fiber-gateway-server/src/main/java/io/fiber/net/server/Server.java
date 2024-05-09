@@ -10,7 +10,9 @@ import io.netty.handler.codec.http.HttpServerKeepAliveHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.management.ManagementFactory;
 import java.net.SocketAddress;
+import java.text.DecimalFormat;
 
 public class Server implements HttpServer {
     private static final Logger log = LoggerFactory.getLogger(Server.class);
@@ -57,7 +59,11 @@ public class Server implements HttpServer {
             throw new Exception("bind error", future.cause());
         }
         listenCh = future.channel();
-        log.info("netty server({}) started", listenCh.localAddress());
+        log.info("netty server({}) started at {}s", listenCh.localAddress(),
+                new DecimalFormat("#.000").format((
+                        System.currentTimeMillis() -
+                                ManagementFactory.getRuntimeMXBean().getStartTime()
+                ) / 1000.0));
     }
 
     @Override

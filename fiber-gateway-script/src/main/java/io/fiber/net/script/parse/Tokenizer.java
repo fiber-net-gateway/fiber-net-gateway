@@ -19,7 +19,8 @@ package io.fiber.net.script.parse;
 import io.fiber.net.common.utils.Assert;
 import io.fiber.net.script.ast.Literal;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Lex some input data into a stream of tokens that can then be parsed.
@@ -31,7 +32,7 @@ import java.util.*;
 public class Tokenizer {
 
     String expressionString;
-    char[] toProcess;
+    String toProcess;
     int pos;
     int max;
     List<Token> tokens = new ArrayList<>();
@@ -39,15 +40,13 @@ public class Tokenizer {
     public Tokenizer(String inputdata) {
         this.expressionString = inputdata;
         this.pos = 0;
-        int length = inputdata.length();
-        this.max = length + 1;
-        this.toProcess = new char[max];
-        inputdata.getChars(0, length, toProcess, 0);
+        this.max = inputdata.length();
+        this.toProcess = inputdata;
     }
 
     public void process() {
         while (pos < max) {
-            char ch = toProcess[pos];
+            char ch = toProcess.charAt(pos);
             if (isAlphabetic(ch)) {
                 lexIdentifier();
             } else {
@@ -210,10 +209,6 @@ public class Tokenizer {
                     case '"':
                         scanString();
                         break;
-                    case 0:
-                        // hit sentinel at end of value
-                        pos++; // will take us to the end
-                        break;
                     case '\\':
                         throw new ParseException(expressionString, pos, SpelMessage.UNEXPECTED_ESCAPE_CHAR.formatMessagePos(pos));
                     default:
@@ -233,21 +228,21 @@ public class Tokenizer {
     private boolean skipComment() {
         int p = this.pos;
         int max = this.max;
-        char[] toProcess = this.toProcess;
+        String toProcess = this.toProcess;
         if (++p < max) {
-            char c = toProcess[p++];
+            char c = toProcess.charAt(p++);
             if (c == '/') {
-                while (p < max && !isJSEOL(toProcess[p])) {
+                while (p < max && !isJSEOL(toProcess.charAt(p))) {
                     p++;
                 }
-                if (p + 1 < max && toProcess[p + 1] == '\n') {
+                if (p + 1 < max && toProcess.charAt(p + 1) == '\n') {
                     p++;
                 }
                 this.pos = p + 1;
                 return true;
             } else if (c == '*') {
                 while (p < max) {
-                    if (toProcess[p] == '*' && p + 1 < max && toProcess[p + 1] == '/') {
+                    if (toProcess.charAt(p) == '*' && p + 1 < max && toProcess.charAt(p + 1) == '/') {
                         break;
                     }
                     p++;
@@ -279,7 +274,7 @@ public class Tokenizer {
     }
 
     private int scanEscape(char quote) {
-        char chr = toProcess[pos];
+        char chr = toProcess.charAt(pos);
         char tChar;
         int length, base;
         int p = pos;
@@ -311,7 +306,7 @@ public class Tokenizer {
             case '\u2029':
                 return 1;
             case '\r':
-                if (toProcess[pos + 1] == '\n') {
+                if (toProcess.charAt(pos + 1) == '\n') {
                     return 2;
                 }
                 return 1;
@@ -331,13 +326,13 @@ public class Tokenizer {
 
         int l = length;
         int value = 0;
-        for (tChar = toProcess[p]; l > 0 && tChar != quote; l--) {
+        for (tChar = toProcess.charAt(p); l > 0 && tChar != quote; l--) {
             int digit = digitValue(tChar);
             if (digit >= base) {
                 throw new ParseException(expressionString, p, SpelMessage.UNEXPECTED_ESCAPE_CHAR);
             }
             value = value * base + digit;
-            tChar = toProcess[++p];
+            tChar = toProcess.charAt(++p);
         }
         if (l != 0) {
             throw new ParseException(expressionString, p, SpelMessage.UNEXPECTED_ESCAPE_CHAR);
@@ -347,19 +342,19 @@ public class Tokenizer {
 
     private void scanString() {
         // " ' /
-        char quote = toProcess[pos];
+        char quote = toProcess.charAt(pos);
         int start = pos;
-        char tChr = toProcess[++pos];
+        char tChr = toProcess.charAt(++pos);
         try {
             while (tChr != quote) {
                 char chr = tChr;
                 if (chr == '\n' || chr == '\r' || chr == '\u2028' || chr == '\u2029') {
                     throw new ParseException(expressionString, pos, SpelMessage.NON_TERMINATING_DOUBLE_QUOTED_STRING);
                 }
-                tChr = toProcess[++pos];
+                tChr = toProcess.charAt(++pos);
                 if (chr == '\\') {
                     pos += scanEscape(quote);
-                    tChr = toProcess[pos];
+                    tChr = toProcess.charAt(pos);
                 }
             }
         } catch (ArrayIndexOutOfBoundsException e) {
@@ -389,7 +384,7 @@ public class Tokenizer {
     private void lexNumericLiteral(boolean firstCharIsZero) {
         boolean isReal = false;
         int start = pos;
-        char ch = toProcess[pos + 1];
+        char ch = toProcess.charAt(pos + 1);
         boolean isHex = ch == 'x' || ch == 'X';
 
         // deal with hexadecimal
@@ -397,7 +392,7 @@ public class Tokenizer {
             pos = pos + 1;
             do {
                 pos++;
-            } while (isHexadecimalDigit(toProcess[pos]));
+            } while (isHexadecimalDigit(toProcess.charAt(pos)));
             if (isChar('L', 'l')) {
                 pushHexIntToken(subarray(start + 2, pos), true, start, pos);
                 pos++;
@@ -412,17 +407,17 @@ public class Tokenizer {
         // Consume first part of number
         do {
             pos++;
-        } while (isDigit(toProcess[pos]));
+        } while (isDigit(toProcess.charAt(pos)));
 
         // a '.' indicates this number is a real
-        ch = toProcess[pos];
+        ch = toProcess.charAt(pos);
         if (ch == '.') {
             isReal = true;
             int dotpos = pos;
             // carry on consuming digits
             do {
                 pos++;
-            } while (isDigit(toProcess[pos]));
+            } while (isDigit(toProcess.charAt(pos)));
             if (pos == dotpos + 1) {
                 // the number is something like '3.'. It is really an int but may be
                 // part of something like '3.toString()'. In this case process it as
@@ -444,10 +439,10 @@ public class Tokenizer {
             }
             pushIntToken(subarray(start, endOfNumber), true, start, endOfNumber);
             pos++;
-        } else if (isExponentChar(toProcess[pos])) {
+        } else if (isExponentChar(toProcess.charAt(pos))) {
             isReal = true; // if it wasn't before, it is now
             pos++;
-            char possibleSign = toProcess[pos];
+            char possibleSign = toProcess.charAt(pos);
             if (isSign(possibleSign)) {
                 pos++;
             }
@@ -455,17 +450,17 @@ public class Tokenizer {
             // exponent digits
             do {
                 pos++;
-            } while (isDigit(toProcess[pos]));
+            } while (isDigit(toProcess.charAt(pos)));
             boolean isFloat = false;
-            if (isFloatSuffix(toProcess[pos])) {
+            if (isFloatSuffix(toProcess.charAt(pos))) {
                 isFloat = true;
                 endOfNumber = ++pos;
-            } else if (isDoubleSuffix(toProcess[pos])) {
+            } else if (isDoubleSuffix(toProcess.charAt(pos))) {
                 endOfNumber = ++pos;
             }
             pushRealToken(subarray(start, pos), isFloat, start, pos);
         } else {
-            ch = toProcess[pos];
+            ch = toProcess.charAt(pos);
             boolean isFloat = false;
             if (isFloatSuffix(ch)) {
                 isReal = true;
@@ -490,7 +485,7 @@ public class Tokenizer {
         int start = pos;
         do {
             pos++;
-        } while (isIdentifier(toProcess[pos]));
+        } while (isIdentifier(toProcess.charAt(pos)));
         char[] subarray = subarray(start, pos);
         tokens.add(new Token(TokenKind.IDENTIFIER, subarray, start, pos));
     }
@@ -534,7 +529,7 @@ public class Tokenizer {
 
     private char[] subarray(int start, int end) {
         char[] result = new char[end - start];
-        System.arraycopy(toProcess, start, result, 0, end - start);
+        toProcess.getChars(start, end, result, 0);
         return result;
     }
 
@@ -543,9 +538,9 @@ public class Tokenizer {
      */
     private boolean isThreeCharToken(TokenKind kind) {
         Assert.isTrue(kind.tokenChars.length == 3);
-        Assert.isTrue(toProcess[pos] == kind.tokenChars[0]);
-        return toProcess[pos + 1] == kind.tokenChars[1]
-                && toProcess[pos + 2] == kind.tokenChars[2];
+        Assert.isTrue(toProcess.charAt(pos) == kind.tokenChars[0]);
+        return toProcess.charAt(pos + 1) == kind.tokenChars[1]
+                && toProcess.charAt(pos + 2) == kind.tokenChars[2];
     }
 
     /**
@@ -553,8 +548,8 @@ public class Tokenizer {
      */
     private boolean isTwoCharToken(TokenKind kind) {
         Assert.isTrue(kind.tokenChars.length == 2);
-        Assert.isTrue(toProcess[pos] == kind.tokenChars[0]);
-        return toProcess[pos + 1] == kind.tokenChars[1];
+        Assert.isTrue(toProcess.charAt(pos) == kind.tokenChars[0]);
+        return toProcess.charAt(pos + 1) == kind.tokenChars[1];
     }
 
     /**
@@ -591,7 +586,7 @@ public class Tokenizer {
     }
 
     private boolean isChar(char a, char b) {
-        char ch = toProcess[pos];
+        char ch = toProcess.charAt(pos);
         return ch == a || ch == b;
     }
 

@@ -17,6 +17,7 @@ public class StdLibrary implements Library {
         DEF_FUNC_MAP.put("canary", new CanaryFunc());
         DEF_FUNC_MAP.put("crc32", new Crc32Func());
         DEF_FUNC_MAP.put("includes", new IncludesFunc());
+        DEF_FUNC_MAP.put("length", LengthFunc.INSTANCE);
         DEF_FUNC_MAP.putAll(ArrayFuncs.FUNC);
         DEF_FUNC_MAP.putAll(ObjectsFuncs.FUNC);
         DEF_FUNC_MAP.putAll(StringsFuncs.FUNC);

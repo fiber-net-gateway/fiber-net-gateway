@@ -15,10 +15,6 @@ public class Jump extends Instrument {
         return new Jump(target);
     }
 
-    @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitJump(this);
-    }
 
     @Override
     int assemble(ClzAssembler assembler) {

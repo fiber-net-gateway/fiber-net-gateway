@@ -1,22 +1,23 @@
 package io.fiber.net.proxy;
 
 import io.fiber.net.common.FiberException;
-import io.fiber.net.common.HttpExchange;
-import io.fiber.net.common.RequestHandlerRouter;
+import io.fiber.net.common.RouterHandler;
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.json.NullNode;
 import io.fiber.net.common.utils.ErrorInfo;
 import io.fiber.net.script.Script;
+import io.fiber.net.server.HttpExchange;
 import io.netty.buffer.Unpooled;
 
-public class ScriptProjectRouter implements RequestHandlerRouter {
+public class ScriptHandler implements RouterHandler<HttpExchange> {
 
     private final Injector injector;
     private final String name;
     private Script script;
 
-    public ScriptProjectRouter(Injector injector,
-                               String name) {
+
+    public ScriptHandler(Injector injector,
+                         String name) {
         this.injector = injector;
         this.name = name;
     }
@@ -25,25 +26,26 @@ public class ScriptProjectRouter implements RequestHandlerRouter {
         this.script = script;
     }
 
+
     @Override
     public String getRouterName() {
         return name;
     }
 
     @Override
-    public void invoke(HttpExchange httpExchange) throws Exception {
-        script.aotExec(NullNode.getInstance(), httpExchange).subscribe((node, throwable) -> {
-            if (httpExchange.isResponseWrote()) {
+    public void invoke(HttpExchange exchange) throws Exception {
+        script.aotExec(NullNode.getInstance(), exchange).subscribe((node, throwable) -> {
+            if (exchange.isResponseWrote()) {
                 return;
             }
             try {
                 if (throwable != null) {
                     ErrorInfo info = ErrorInfo.of(throwable);
-                    httpExchange.writeJson(info.getStatus(), info);
+                    exchange.writeJson(info.getStatus(), info);
                 } else if (node != null) {
-                    httpExchange.writeJson(200, node);
+                    exchange.writeJson(200, node);
                 } else {
-                    httpExchange.writeRawBytes(204, Unpooled.EMPTY_BUFFER);
+                    exchange.writeRawBytes(204, Unpooled.EMPTY_BUFFER);
                 }
             } catch (FiberException ignore) {
             }

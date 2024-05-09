@@ -17,11 +17,6 @@ class StoreVar extends VarStore {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitStoreVar(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         assembler.storeVar(getStoreVar());
         return -1;

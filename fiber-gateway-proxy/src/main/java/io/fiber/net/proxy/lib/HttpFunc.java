@@ -1,7 +1,7 @@
 package io.fiber.net.proxy.lib;
 
 import io.fiber.net.common.FiberException;
-import io.fiber.net.common.HttpExchange;
+import io.fiber.net.server.HttpExchange;
 import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.async.internal.SerializeJsonObservable;
 import io.fiber.net.common.json.IntNode;

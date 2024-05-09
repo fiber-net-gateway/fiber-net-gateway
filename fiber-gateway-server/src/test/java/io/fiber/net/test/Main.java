@@ -2,7 +2,6 @@ package io.fiber.net.test;
 
 import io.fiber.net.common.Engine;
 import io.fiber.net.common.FiberException;
-import io.fiber.net.common.HttpExchange;
 import io.fiber.net.common.async.Disposable;
 import io.fiber.net.common.async.Observable;
 import io.fiber.net.common.async.Scheduler;
@@ -10,9 +9,7 @@ import io.fiber.net.common.async.internal.Subject;
 import io.fiber.net.common.ioc.Binder;
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.utils.Constant;
-import io.fiber.net.server.EngineModule;
-import io.fiber.net.server.HttpServer;
-import io.fiber.net.server.ServerConfig;
+import io.fiber.net.server.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
@@ -22,11 +19,8 @@ import org.junit.Test;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -132,7 +126,7 @@ public class Main {
     public void main() throws Exception {
         Injector injector = Injector.getRoot().createChild(new M());
         try {
-            Engine instance = injector.getInstance(Engine.class);
+            HttpEngine instance = (HttpEngine) injector.getInstance(Engine.class);
             instance.installExt();
             instance.addInterceptor((project, httpExchange, invocation) -> {
                 String path = httpExchange.getPath();

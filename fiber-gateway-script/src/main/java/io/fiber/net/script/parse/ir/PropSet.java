@@ -28,11 +28,6 @@ class PropSet extends Exp {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitPropSet(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         assembler.propSet(getKeyId());
         return -1;

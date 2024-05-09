@@ -49,6 +49,7 @@ public class DubboModule implements Module {
         public void install(Binder binder) {
             binder.bindPrototype(DubboLibConfigure.class, DubboLibConfigure::new);
             binder.bindMultiBean(HttpLibConfigure.class, DubboLibConfigure.class);
+            binder.bindFactory(DubboRefManager.class, DubboRefManager::new);
         }
     }
 }

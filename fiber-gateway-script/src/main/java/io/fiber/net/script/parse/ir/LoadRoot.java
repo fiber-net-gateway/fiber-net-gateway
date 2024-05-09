@@ -6,11 +6,6 @@ public class LoadRoot extends Exp {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitLoadRoot(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         assembler.loadRoot();
         return 1;

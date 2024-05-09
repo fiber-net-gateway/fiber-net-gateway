@@ -16,11 +16,6 @@ class PushArray extends Exp {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitPushArray(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         assembler.pushArray();
         return -1;

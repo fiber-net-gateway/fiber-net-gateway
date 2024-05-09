@@ -1356,6 +1356,7 @@ public class ClzAssembler {
 
     void throwExp() {
         visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitInsn(Opcodes.SWAP);
         visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
                 internalClzName,
                 "objToError",

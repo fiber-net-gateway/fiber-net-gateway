@@ -1,0 +1,27 @@
+package io.fiber.net.common.json.parse;
+
+public interface Token {
+    int TOK_BOOL = 1;
+    int TOK_COLON = 2;
+    int TOK_COMMA = 3;
+    int TOK_EOF = 4;
+    int TOK_ERROR = 5;
+    int TOK_LEFT_BRACE = 6;
+    int TOK_LEFT_BRACKET = 7;
+    int TOK_NULL = 8;
+    int TOK_RIGHT_BRACE = 9;
+    int TOK_RIGHT_BRACKET = 10;
+
+    /* WE DIFFERENTIATE BETWEEN INTEGERS AND DOUBLES TO ALLOW THE
+     * PARSER TO INTERPRET THE NUMBER WITHOUT RE-SCANNING */
+    int TOK_INTEGER = 11;
+    int TOK_DOUBLE = 12;
+
+    /* WE DIFFERENTIATE BETWEEN STRINGS WHICH REQUIRE FURTHER PROCESSING,
+     * AND STRINGS THAT DO NOT */
+    int TOK_STRING = 13;
+    int TOK_STRING_WITH_ESCAPES = 14;
+
+    /* COMMENT TOKENS ARE NOT CURRENTLY RETURNED TO THE PARSER, EVER */
+    int TOK_COMMENT = 15;
+}

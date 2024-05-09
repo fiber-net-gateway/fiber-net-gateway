@@ -16,11 +16,6 @@ public class NewObjArray extends Exp {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitNewObjArray(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         if (isObj()) {
             assembler.newObj();

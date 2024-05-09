@@ -39,11 +39,6 @@ class ConditionalJump extends Instrument {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitConditionalJump(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         assembler.conditionalJump(this);
         return -1;

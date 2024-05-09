@@ -13,58 +13,59 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class Engine implements Destroyable {
+public class Engine<E> implements Destroyable {
     private static final Logger log = LoggerFactory.getLogger(Engine.class);
 
 
-    private static class InterceptorNode implements Interceptor.Invocation {
-        private final Interceptor interceptor;
-        private Interceptor.Invocation next;
+    private static class InterceptorNode<EX> implements Interceptor.Invocation<EX> {
+        private final Interceptor<EX> interceptor;
+        private Interceptor.Invocation<EX> next;
 
-        public InterceptorNode(Interceptor interceptor) {
+        public InterceptorNode(Interceptor<EX> interceptor) {
             this.interceptor = interceptor;
         }
 
         @Override
-        public void invoke(String project, HttpExchange httpExchange) throws Exception {
-            interceptor.intercept(project, httpExchange, next);
+        public void invoke(String project, EX exchange) throws Exception {
+            interceptor.intercept(project, exchange, next);
         }
     }
 
-    private class FindProjectInvocation implements Interceptor.Invocation {
+    private class FindProjectInvocation implements Interceptor.Invocation<E> {
         @Override
-        public void invoke(String project, HttpExchange httpExchange) throws Exception {
-            runInternal(project, httpExchange);
+        public void invoke(String project, E exchange) throws Exception {
+            runInternal(getHandlerRouter(project), exchange);
         }
     }
 
-    protected Interceptor.Invocation invocation = new FindProjectInvocation();
-    private final Map<String, RequestHandlerRouter> projectMap = new ConcurrentHashMap<>();
-    private InterceptorNode tail;
+    protected Interceptor.Invocation<E> invocation = new FindProjectInvocation();
+    private final Map<String, RouterHandler<E>> projectMap = new ConcurrentHashMap<>();
+    private InterceptorNode<E> tail;
     private final Injector injector;
-    private RouterNameFetcher routerNameFetcher = RouterNameFetcher.DEF_NAME;
+    private RouterNameFetcher<E> routerNameFetcher = exchange -> RouterNameFetcher.DEF_ROUTER_NAME;
 
     public Engine(Injector injector) {
         this.injector = injector;
     }
 
+    @SuppressWarnings("unchecked")
     public void installExt() throws Exception {
         routerNameFetcher = injector.getInstance(RouterNameFetcher.class);
-        Interceptor[] interceptors = injector.getInstances(Interceptor.class);
+        Interceptor<E>[] interceptors = injector.getInstances(Interceptor.class);
         if (ArrayUtils.isNotEmpty(interceptors)) {
             addInterceptors(interceptors);
         }
-        StartListener[] startListeners = injector.getInstances(StartListener.class);
+        StartListener<E, Engine<E>>[] startListeners = injector.getInstances(StartListener.class);
         if (ArrayUtils.isNotEmpty(startListeners)) {
-            for (StartListener startListener : startListeners) {
+            for (StartListener<E, Engine<E>> startListener : startListeners) {
                 startListener.onStart(this);
             }
         }
     }
 
-    public void addInterceptor(Interceptor interceptor) {
+    public void addInterceptor(Interceptor<E> interceptor) {
         Predictions.notNull(interceptor, "interceptor must not null");
-        InterceptorNode node = new InterceptorNode(interceptor);
+        InterceptorNode<E> node = new InterceptorNode<>(interceptor);
         if (tail != null) {
             node.next = tail.next;
             tail.next = node;
@@ -72,27 +73,27 @@ public class Engine implements Destroyable {
             node.next = invocation;
             invocation = node;
         }
-        Predictions.assertTrue(node.next instanceof FindProjectInvocation, "last is not FindProjectInvocation??");
         this.tail = node;
     }
 
-    public final void addInterceptors(Interceptor... interceptor) {
-        for (Interceptor ipr : interceptor) {
+    @SafeVarargs
+    public final void addInterceptors(Interceptor<E>... interceptor) {
+        for (Interceptor<E> ipr : interceptor) {
             addInterceptor(ipr);
         }
     }
 
-    public final void run(String projectName, HttpExchange httpExchange) throws Exception {
-        invocation.invoke(projectName, httpExchange);
+    public final void run(String projectName, E exchange) throws Exception {
+        invocation.invoke(projectName, exchange);
     }
 
-    public void run(HttpExchange httpExchange) throws Exception {
-        run(routerNameFetcher.fetchName(httpExchange), httpExchange);
+    public void run(E exchange) throws Exception {
+        run(routerNameFetcher.fetchName(exchange), exchange);
     }
 
-    public void addHandlerRouter(RequestHandlerRouter handlerRouter) {
+    public void addHandlerRouter(RouterHandler<E> handlerRouter) {
         String managerName = handlerRouter.getRouterName();
-        RequestHandlerRouter old = projectMap.put(managerName, handlerRouter);
+        RouterHandler<E> old = projectMap.put(managerName, handlerRouter);
         if (old != null) {
             old.destroy();
             log.info("project {} is replaced", managerName);
@@ -102,24 +103,21 @@ public class Engine implements Destroyable {
     }
 
     public void removeHandlerRouter(String projectName) {
-        RequestHandlerRouter handlerRouter = projectMap.remove(projectName);
+        RouterHandler<E> handlerRouter = projectMap.remove(projectName);
         if (handlerRouter != null) {
             handlerRouter.destroy();
             log.info("project {} is removed", projectName);
         }
     }
 
-    protected void runInternal(String project, HttpExchange httpExchange) throws Exception {
-        RequestHandlerRouter handlerManager = getHandlerRouter(project);
-        if (handlerManager == null) {
-            httpExchange.discardReqBody();
-            httpExchange.writeJson(404, "NOT_FOUND");
+    protected void runInternal(RouterHandler<E> router, E exchange) throws Exception {
+        if (router == null) {
             return;
         }
-        handlerManager.invoke(httpExchange);
+        router.invoke(exchange);
     }
 
-    public RequestHandlerRouter getHandlerRouter(String projectName) {
+    public RouterHandler<E> getHandlerRouter(String projectName) {
         return projectMap.get(projectName);
     }
 
@@ -129,7 +127,7 @@ public class Engine implements Destroyable {
 
     @Override
     public void destroy() {
-        for (Map.Entry<String, RequestHandlerRouter> entry : projectMap.entrySet()) {
+        for (Map.Entry<String, RouterHandler<E>> entry : projectMap.entrySet()) {
             entry.getValue().destroy();
             log.info("project {} is removed", entry.getKey());
         }

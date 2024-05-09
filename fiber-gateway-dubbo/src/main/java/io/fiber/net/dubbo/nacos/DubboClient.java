@@ -1,9 +1,8 @@
 package io.fiber.net.dubbo.nacos;
 
 import com.alibaba.fastjson2.JSONFactory;
+import io.fiber.net.common.utils.RefResourcePool;
 import io.fiber.net.common.utils.StringUtils;
-import io.netty.util.internal.logging.InternalLogger;
-import io.netty.util.internal.logging.InternalLoggerFactory;
 import org.apache.dubbo.config.ApplicationConfig;
 import org.apache.dubbo.config.ProtocolConfig;
 import org.apache.dubbo.config.ReferenceConfig;
@@ -11,22 +10,19 @@ import org.apache.dubbo.config.RegistryConfig;
 import org.apache.dubbo.rpc.model.ApplicationModel;
 import org.apache.dubbo.rpc.service.GenericService;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-
-public class DubboClient {
+public class DubboClient extends RefResourcePool<DubboClient.Service> {
     static {
         JsonNodeForFastJson2.config(JSONFactory.getDefaultObjectWriterProvider());
     }
 
-    private static final InternalLogger log = InternalLoggerFactory.getInstance(DubboClient.class);
-    private final Map<String, Service> map = new ConcurrentHashMap<>();
     private final ApplicationModel model;
 
     public DubboClient(DubboConfig dubboConfig) {
+        super("dubboClient");
         System.setProperty("dubbo.application.logger", "slf4j");
         ApplicationConfig config = new ApplicationConfig(dubboConfig.getApplicationName());
+        config.setQosCheck(false);
+        config.setQosEnable(false);
         ApplicationModel model = ApplicationModel.defaultModel();
         model.getApplicationConfigManager().setApplication(config);
 
@@ -43,36 +39,19 @@ public class DubboClient {
         this.model = model;
     }
 
-    private Service createService(String interfaceName) {
-        return Service.create(interfaceName, this);
+    @Override
+    protected Service doCreateRef(String key) {
+        return Service.create(key, this);
     }
 
-    public DubboReference getRef(String name, long timeout) {
-        while (true) {
-            Service service = map.computeIfAbsent(name, this::createService);
-            if (service.addRef()) {
-                return new DubboReference(service, timeout);
-            }
-            if (map.remove(name, service)) {
-                service.referenceConfig.destroy();
-                log.info("destroy dubbo service({})", name);
-            }
-        }
-    }
-
-    static class Service {
-        private static final AtomicIntegerFieldUpdater<Service> UPDATER
-                = AtomicIntegerFieldUpdater.newUpdater(Service.class, "refCount");
+    public static class Service extends RefResourcePool.Ref {
         final GenericService genericService;
-        private final DubboClient dubboClient;
         private final ReferenceConfig<Object> referenceConfig;
-        private Thread creator = Thread.currentThread();
-        private volatile int refCount = 1;
 
         private Service(GenericService genericService, DubboClient dubboClient,
                         ReferenceConfig<Object> referenceConfig) {
+            super(dubboClient);
             this.genericService = genericService;
-            this.dubboClient = dubboClient;
             this.referenceConfig = referenceConfig;
         }
 
@@ -85,38 +64,14 @@ public class DubboClient {
             return new Service((GenericService) referenceConfig.get(false), dubboClient, referenceConfig);
         }
 
-        private boolean addRef() {
-            if (creator != null && Thread.currentThread() == creator) {
-                creator = null;
-                return true;
-            }
-            int c;
-            do {
-                c = refCount;
-                if (c <= 0) {
-                    log.warn("dubbo service ({}) is destroyed?", referenceConfig.getInterface());
-                    return false;
-                }
-            } while (!UPDATER.compareAndSet(this, c, c + 1));
-            return true;
+        @Override
+        protected String refKey() {
+            return referenceConfig.getInterface();
         }
 
-        void destroy() {
-            int c;
-            do {
-                c = refCount;
-                if (c <= 0) {
-                    log.warn("dubbo service ({}) is destroyed?", referenceConfig.getInterface());
-                    return;
-                }
-            } while (!UPDATER.compareAndSet(this, c, c - 1));
-            if (c == 1) {
-                Service rf = dubboClient.map.remove(referenceConfig.getInterface());
-                if (rf == this) {
-                    log.info("destroy dubbo service({})", referenceConfig.getInterface());
-                    referenceConfig.destroy();
-                }
-            }
+        @Override
+        protected void doClose() {
+            referenceConfig.destroy();
         }
     }
 }

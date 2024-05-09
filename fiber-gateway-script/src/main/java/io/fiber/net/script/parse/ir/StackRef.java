@@ -35,11 +35,6 @@ class StackRef extends Exp {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitStackRef(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         throw new IllegalStateException("[BUG]not hit!!! stackRef is not instrument");
     }

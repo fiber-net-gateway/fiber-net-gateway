@@ -1,0 +1,17 @@
+[
+  {
+    "method": "POST",
+    "url": "/a/a",
+    "file": "t"
+  },
+  {
+    "method": "POST",
+    "url": "/a/b",
+    "file": "t2"
+  },
+  {
+    "method": "POST",
+    "url": "/a/c",
+    "file": "t2"
+  }
+]

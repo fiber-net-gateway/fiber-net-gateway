@@ -12,7 +12,7 @@ public class DubboClientTest {
         DubboConfig dubboConfig = new DubboConfig();
         dubboConfig.setRegistryAddr("nacos://172.22.94.85:8848");
         DubboClient dubboClient = new DubboClient(dubboConfig);
-        DubboReference ref = dubboClient.getRef("com.test.dubbo.DemoService", 10000);
+        DubboRefManager.Reference ref = new  DubboRefManager.Reference(dubboClient.getOrCreate("com.test.dubbo.DemoService"), 3000);
         NioEventLoopGroup group = new NioEventLoopGroup();
         group.execute(() -> {
             ref.invoke("createUser", new Object[]{TextNode.valueOf("ccccc")})
@@ -21,6 +21,6 @@ public class DubboClientTest {
                         System.err.println(throwable);
                     });
         });
-        group.shutdownGracefully(10000, 10000, TimeUnit.MILLISECONDS);
+        group.shutdownGracefully(10000, 10000, TimeUnit.MILLISECONDS).awaitUninterruptibly();
     }
 }

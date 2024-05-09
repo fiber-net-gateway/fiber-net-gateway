@@ -51,11 +51,6 @@ class LoadVar extends Exp implements VarLoad {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitLoadVar(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         assembler.loadVar(getLoadVar());
         return 1;

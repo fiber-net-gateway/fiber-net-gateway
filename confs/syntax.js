@@ -1,29 +1,36 @@
-directive bd from http "https://www.baidu.com";
-
-req.discardBody();
-
-let a = 100;
-let b;
-let c = [a, a + 100, b = {}];
-
-let d = [...c];
-
-for(let k,v of c) {
-   arrays.push(d, k, v, ...c);
-   for(let k,v of c) {
-      arrays.push(d, k, v ,k, v);
-   }
+// 变量定义，函数调用。req 不是变量，readJson 不是方法。req.readJson 是一个函数。
+let jsonBody = req.readJson(); 
+// 对象
+let result = {jsonBody};
+// 表达式，数组
+jsonBody =  [...jsonBody, 1 + 2 - 3, 1 ,2];
+// 迭代： idx 为 index 或者 key
+for (let idx, item of jsonBody) {
+    // if else
+    if (idx > 0) {
+        result.item = item;
+        break;
+    } else {
+        result.idx = idx;
+        // continue
+        continue;
+    }
 }
 
-b.cc = "123";
+// 指令，定义一个函数包
+directive demoService from dubbo "com.test.dubbo.DemoService";
+
+// try catch
 try {
-    b.json = req.readJson();
+    /* 调用函数包 函数 */
+    result.dubbo = demoService.createUser("This Name");
+    if (length(jsonBody) > 3) {
+        // throw
+        throw "数组太长";
+    }
 } catch (e) {
-    b.jsonError = e;
+    result.err = e;
+    result.errorType = typeof e;
 }
 
-let bdData = bd.request({headers: {"User-Agent": "Apache-HttpClient/4.5.14 (Java/17.0.6)"}});
-bdData.body = strings.toString(bdData.body);
-return {d, p: d[3]=="200", baidu: bdData};
-
-
+return result;

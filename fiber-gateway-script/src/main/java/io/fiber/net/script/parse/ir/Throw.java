@@ -14,10 +14,6 @@ class Throw extends Instrument {
     public static Throw of(Exp target) {
         return new Throw(target);
     }
-    @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitThrow(this);
-    }
 
     @Override
     int assemble(ClzAssembler assembler) {

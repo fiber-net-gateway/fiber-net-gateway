@@ -16,11 +16,6 @@ class Dump extends Exp {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitDump(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         assembler.dump();
         return 1;

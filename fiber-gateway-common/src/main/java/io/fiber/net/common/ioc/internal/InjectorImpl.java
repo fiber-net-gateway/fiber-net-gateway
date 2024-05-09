@@ -68,11 +68,7 @@ public class InjectorImpl extends Injector {
         }
         if (bean.isFactory()) {
             Creator creator = instance.computeIfAbsent(bean, CREATING_FUNC);
-            Object o = creator.create(this);
-            if (o instanceof Destroyable) {
-                addDestroyable((Destroyable) o);
-            }
-            return (T) o;
+            return (T) creator.create(this);
         }
 
         return (T) bean.get(this);
@@ -141,7 +137,7 @@ public class InjectorImpl extends Injector {
             this.bean = bean;
         }
 
-        private Object create(Injector injector) {
+        private Object create(InjectorImpl injector) {
             Object object = instance;
             if (object != null && object != CREATING) {
                 return object == NULL ? null : object;
@@ -173,6 +169,10 @@ public class InjectorImpl extends Injector {
                 }
                 instance = object = o;
                 infant = null;
+            }
+
+            if (object instanceof Destroyable) {
+                injector.addDestroyable((Destroyable) object);
             }
 
             return object;

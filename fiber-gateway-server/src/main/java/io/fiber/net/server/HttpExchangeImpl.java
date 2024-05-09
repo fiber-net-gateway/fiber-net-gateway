@@ -1,7 +1,6 @@
 package io.fiber.net.server;
 
 import io.fiber.net.common.FiberException;
-import io.fiber.net.common.HttpExchange;
 import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.async.Disposable;
 import io.fiber.net.common.async.Maybe;

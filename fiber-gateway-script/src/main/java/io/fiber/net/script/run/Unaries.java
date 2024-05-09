@@ -57,6 +57,9 @@ public class Unaries {
     }
 
     public static IteratorNode iterate(JsonNode node) {
+        if (node.isEmpty()) {
+            return ValueIteratorNode.INSTANCE;
+        }
         if (node instanceof ArrayNode) {
             return new ArrayIteratorNode((ArrayNode) node);
         }

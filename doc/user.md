@@ -4,26 +4,61 @@
 fiber-gateway 的语法设计类似于 javascript ，但与它相比更简单。它是纯面向过程的语法。
 
 # 语法说明
-写法上 模仿了 javascript，不过仅仅支持少部分语法。
+写法上 模仿了 javascript，不过仅仅支持少部分语法。原因是 javascript 语法过于复杂，不适合在网关、FaaS 等场景下使用，
+但是其强大的数据表示能力又是这类场景需要的。
+
 除了 简单的表达式外，语句仅支持 变量定义，if else. for (只是用于迭代，不支持条件) continue break. 
-try catch (没有finally)，throw，return，
+try catch (没有finally)，throw，return，以及函数包指令。
 不支持条件循环（可以迭代）,不支持函数定义，更没有闭包了。不支持方法。函数都是静态并且 native 定义的。
 ```javascript
-// readJson 并不是 req 的方法，req.readJson 是一个function。
+// 变量定义，函数调用。req 不是变量，readJson 不是方法。req.readJson 是一个函数。
 let jsonBody = req.readJson(); 
-// 没有方法，使用变量的方法将会编译报错. jsonBody.toString(); 编译报错
-let str = strings.toString(jsonBody.attr); // 不存在 json.toString() 没有方法，strings.toString是一个函数。
+// 对象
+let result = {};
+// 表达式，数组
+jsonBody =  [1 + 2 - 3, 1 ,2];
+// 迭代： idx 为 index 或者 key
+for (let idx, item of jsonBody) {
+    // if else
+    if (idx > 0) {
+        result.item = item;
+        break;
+    } else {
+        result.idx = idx;
+        // continue
+        continue;
+    }
+}
+
+// 指令，定义一个函数包
+directive demoService from dubbo "com.test.dubbo.DemoService";
+
+// try catch
+try {
+    /* 调用函数包 函数 */
+    result.dubbo = demoService.createUser("This Name");
+    if (length(jsonBody) > 3) {
+        // throw
+        throw "数组太长";
+    }
+} catch (e) {
+    result.errorType = typeof e;
+}
+
+return result;
 ```
 
 ## 数据类型
 他的运算对象为 io.fiber.net.common.json.JsonNodeType ，数据类型没有方法 （method）
 ```java
-package com.fasterxml.jackson.databind.node;
+package io.fiber.net.common.json;
 
 public enum JsonNodeType
-{ ARRAY, BINARY, BOOLEAN, MISSING, NULL, NUMBER, OBJECT, POJO, STRING}
+{ ARRAY, BINARY, BOOLEAN, MISSING, NULL, NUMBER, OBJECT, 
+    // for script
+    EXCEPTION, ITERATOR}
 ```
-但并未使用 POJO 类型的数据。 所以实际支持 number text binary boolean null missing object array 8种数据类型
+MISSING, EXCEPTION，ITERATOR 是在脚本中产生的，无法通过 json 反序列化得到
 ```javascript
 let num = 1;
 let txt = "this is string";

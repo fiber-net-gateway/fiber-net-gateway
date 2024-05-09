@@ -46,11 +46,6 @@ class Unary extends Exp {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitUnary(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         assembler.unary(getType(), isOptimiseIf());
         return 0;

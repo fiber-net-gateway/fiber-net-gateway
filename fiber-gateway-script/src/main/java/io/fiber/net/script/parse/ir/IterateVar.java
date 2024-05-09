@@ -47,11 +47,6 @@ class IterateVar extends VarStore implements VarLoad {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitIterateVar(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         assembler.iterateVar(this);
         return 0;

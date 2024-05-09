@@ -41,7 +41,7 @@ public class DubboLibConfigure implements HttpLibConfigure {
     }
 
     private static class DubboServiceRefDef implements Library.DirectiveDef {
-        private DubboReference ref;
+        private DubboRefManager.Reference ref;
         private final String service;
         private final int timeout;
         private final Injector injector;
@@ -60,7 +60,8 @@ public class DubboLibConfigure implements HttpLibConfigure {
         @Override
         public Library.AsyncFunction findAsyncFunc(String directive, String function) {
             if (ref == null) {
-                ref = injector.getInstance(DubboClient.class).getRef(service, timeout);
+                DubboRefManager refManager = injector.getInstance(DubboRefManager.class);
+                ref = refManager.ref(service, timeout);
             }
             return new Fc(function, ref);
         }
@@ -68,9 +69,9 @@ public class DubboLibConfigure implements HttpLibConfigure {
 
     private static class Fc implements HttpDynamicFunc {
         private final String method;
-        private final DubboReference ref;
+        private final DubboRefManager.Reference ref;
 
-        private Fc(String method, DubboReference ref) {
+        private Fc(String method, DubboRefManager.Reference ref) {
             this.method = method;
             this.ref = ref;
         }
@@ -85,7 +86,7 @@ public class DubboLibConfigure implements HttpLibConfigure {
                     args[i] = context.getArgVal(i);
                 }
             } else {
-                args = DubboReference.EMPTY;
+                args = DubboRefManager.EMPTY;
             }
             ref.invoke(method, args).subscribe((jsonNode, throwable) -> {
                 if (throwable != null) {

@@ -12,11 +12,6 @@ public class Pop extends Instrument {
     }
 
     @Override
-    void accept(InstrumentVisitor visitor) {
-        visitor.visitPop(this);
-    }
-
-    @Override
     int assemble(ClzAssembler assembler) {
         if (requirePop) {
             assembler.pop();

@@ -27,7 +27,7 @@ public class UrlHandlerManager extends RefResourcePool<UrlHandlerManager.ScriptR
         }
     }
 
-    public static class ScriptRef extends Ref {
+    public static class ScriptRef extends RefResourcePool.Ref {
         final ScriptHandler handler;
 
         protected ScriptRef(RefResourcePool<? extends Ref> pool, ScriptHandler handler) {

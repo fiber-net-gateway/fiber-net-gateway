@@ -7,6 +7,7 @@ import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.dubbo.nacos.DubboModule;
 import io.fiber.net.proxy.ConfigWatcher;
 import io.fiber.net.proxy.LibProxyMainModule;
+import io.fiber.net.server.HttpEngine;
 import io.fiber.net.server.HttpServer;
 import io.fiber.net.server.ServerConfig;
 import org.slf4j.Logger;
@@ -25,7 +26,7 @@ public class Main {
         if (!file.exists() || !file.isDirectory()) {
             throw new IllegalArgumentException("onInit path must be directory");
         }
-        Engine engine = LibProxyMainModule.createEngine(
+        HttpEngine engine = LibProxyMainModule.createEngine(
                 new DubboModule(),
                 binder -> install(binder, file));
 

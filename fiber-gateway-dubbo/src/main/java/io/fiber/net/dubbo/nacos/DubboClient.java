@@ -65,11 +65,6 @@ public class DubboClient extends RefResourcePool<DubboClient.Service> {
         }
 
         @Override
-        protected String refKey() {
-            return referenceConfig.getInterface();
-        }
-
-        @Override
         protected void doClose() {
             referenceConfig.destroy();
         }

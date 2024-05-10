@@ -36,11 +36,6 @@ public class UrlHandlerManager extends RefResourcePool<UrlHandlerManager.ScriptR
         }
 
         @Override
-        protected String refKey() {
-            return handler.getRouterName();
-        }
-
-        @Override
         protected void doClose() {
             handler.destroy();
         }

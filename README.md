@@ -50,7 +50,7 @@ java -jar fiber-gateway-example-1.0-SNAPSHOT.jar scripts
 
 - 测试：每发一个请求，上边的脚本就会执行一次
 ```bash
-# 使用 get 请求，返回 dubbo DemoService.createUser 调用的结果
+# 调用服务对数组求和
 curl 127.0.0.1:16688 -XPOST -H'Content-Type: application/json' -d'[1,2,3,4]' -i
 # ======================================================
 HTTP/1.1 200 OK

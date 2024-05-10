@@ -32,8 +32,8 @@ cd fiber-gateway-example/target
 
 - 创建脚本文件，脚本内容是对数组求和
 ```bash
-mkdir conf
-cat > conf/fiber-net.js << EOF
+mkdir scripts
+cat > scripts/fiber-net.js << EOF
 let bodyArray = req.readJson();
 let sum = 0;
 for (let _,value of bodyArray) {
@@ -45,7 +45,7 @@ EOF
 
 - 运行
 ```bash
-java -jar fiber-gateway-example-1.0-SNAPSHOT.jar conf
+java -jar fiber-gateway-example-1.0-SNAPSHOT.jar scripts
 ```
 
 - 测试：每发一个请求，上边的脚本就会执行一次

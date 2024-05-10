@@ -30,68 +30,38 @@ mvn package -DskipTests
 cd fiber-gateway-example/target
 ```
 
-- 创建配置文件
+- 创建脚本文件，脚本内容是对数组求和
 ```bash
 mkdir conf
 cat > conf/fiber-net.js << EOF
-directive fy from http "https://fanyi.baidu.com";
-directive bd from http "https://www.baidu.com";
-directive demoService from dubbo "com.test.dubbo.DemoService";
-
-if (req.getMethod() == "GET") {
-    let dubboResult = demoService.createUser(req.getHeader("Host"));
-    resp.send(200, {dubboResult, success:true});
-} else if (req.getMethod() == "POST") {
-    fy.proxyPass({
-        path: "/v2transapi",
-        query: "from=en&to=zh",
-        method: "POST",
-        headers: {
-            "X-Fiber-Project": null
-        }
-    });
-} else {
-      req.discardBody();
-      let res = bd.request({path: "/", headers: {"User-Agent": "curl/7.88.1"}});
-      resp.setHeader("Content-Type", "text/html");
-      resp.send(res.status, res.body);
+let bodyArray = req.readJson();
+let sum = 0;
+for (let _,value of bodyArray) {
+    sum = sum + value;
 }
+return "sum = " + sum;
 EOF
 ```
 
 - 运行
 ```bash
-java -jar -Dfiber.dubbo.registry=nacos://<nacos_ip_port> fiber-gateway-example-1.0-SNAPSHOT.jar conf
+java -jar fiber-gateway-example-1.0-SNAPSHOT.jar conf
 ```
 
 - 测试：每发一个请求，上边的脚本就会执行一次
 ```bash
 # 使用 get 请求，返回 dubbo DemoService.createUser 调用的结果
-curl 127.0.0.1:16688 -XGET
-# 使用 post 请求，反向代理到百度翻译 （反向代理会透传 downstream 内容）
-curl 127.0.0.1:16688 -XPOST
-# 使用其它请求，返回百度主页。（请求模式，不会透传 downstream）。
-curl 127.0.0.1:16688 -XPUT
+curl 127.0.0.1:16688 -XPOST -H'Content-Type: application/json' -d'[1,2,3,4]' -i
+# ======================================================
+HTTP/1.1 200 OK
+content-type: application/json; charset=utf-8
+date: Fri, 10 May 2024 08:28:01 GMT
+server: fiber-net(fn)/dev/dev
+transfer-encoding: chunked
+
+"sum = 10"
 ```
-dubbo 定义如下
-```java
-package com.test.dubbo;
-public interface DemoService {
-    User createUser(String name);
-    class User {
-        private String name;
-        private int age;
-        private boolean male;
-        // getter/setter ...
-    }
-}
-```
-每次请求，fiber-net.js 都会被执行一次。也可以在 conf 目录下放置其它 .js 文件
-通过 request header "X-Fiber-Project" 执行被执行的文件名。（如 ttt.js）
-```bash
-### conf/ttt.js 文件会被执行，不指定则执行 fiber-net.js 
-curl 127.0.0.1:16688 -H'X-Fiber-Project: ttt'
-```
+
 详细说明请参考 [使用文档](doc/user.md)
 
 扩展二次开发请参考 [开发文档](doc/dev.md)

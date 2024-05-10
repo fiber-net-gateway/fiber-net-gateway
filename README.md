@@ -36,7 +36,7 @@ mkdir scripts
 cat > scripts/fiber-net.js << EOF
 let bodyArray = req.readJson();
 let sum = 0;
-for (let _,value of bodyArray) {
+for (let _, value of bodyArray) {
     sum = sum + value;
 }
 return "sum = " + sum;

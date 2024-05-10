@@ -20,6 +20,7 @@ public abstract class RefResourcePool<V extends RefResourcePool.Ref> {
         while (true) {
             V ref = map.computeIfAbsent(key, k -> {
                 V v = doCreateRef(k);
+                v.setKey(k);
                 log.info("ref object({}) of {} is created", k, poolName);
                 return v;
             });
@@ -41,12 +42,19 @@ public abstract class RefResourcePool<V extends RefResourcePool.Ref> {
         private Thread creator = Thread.currentThread();
         private volatile int refCount = 1;
         private final RefResourcePool<? extends Ref> pool;
+        private String key;
 
         protected Ref(RefResourcePool<? extends Ref> pool) {
             this.pool = pool;
         }
 
-        protected abstract String refKey();
+        void setKey(String key) {
+            this.key = key;
+        }
+
+        private String refKey() {
+            return key;
+        }
 
         protected abstract void doClose();
 

@@ -1,6 +1,5 @@
 package io.fiber.net.server;
 
-import io.fiber.net.common.Engine;
 import io.fiber.net.common.utils.EpollAvailable;
 import io.fiber.net.common.utils.StringUtils;
 import io.netty.bootstrap.ServerBootstrap;
@@ -25,7 +24,7 @@ public class Server implements HttpServer {
     }
 
     @Override
-    public void start(ServerConfig config, Engine engine) throws Exception {
+    public void start(ServerConfig config, HttpEngine engine) throws Exception {
         bootstrap = new ServerBootstrap();
         bootstrap.channel(EpollAvailable.serverSocketClazz());
         bootstrap.group(EpollAvailable.bossGroup(), eventLoopGroup);

@@ -1,6 +1,5 @@
 package io.fiber.net.server;
 
-import io.fiber.net.common.Engine;
 import io.fiber.net.common.FiberException;
 import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.utils.Constant;
@@ -53,7 +52,7 @@ public class ReqHandler extends ChannelDuplexHandler {
 
 
     private final int maxLength;
-    private final Engine engine;
+    private final HttpEngine engine;
     private HttpExchangeImpl httpExchange;
     private boolean chunkedBody;
     private int readBodySize;
@@ -61,7 +60,7 @@ public class ReqHandler extends ChannelDuplexHandler {
     private boolean lingeringSend;
     private Scheduler scheduler;
 
-    public ReqHandler(int maxLength, Engine engine) {
+    public ReqHandler(int maxLength, HttpEngine engine) {
         this.maxLength = maxLength;
         this.engine = engine;
     }

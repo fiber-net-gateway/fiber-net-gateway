@@ -1,9 +1,6 @@
 package io.fiber.net.http;
 
-import io.fiber.net.common.async.BiConsumer;
-import io.fiber.net.common.async.Function;
-import io.fiber.net.common.async.Maybe;
-import io.fiber.net.common.async.Observable;
+import io.fiber.net.common.async.*;
 import io.fiber.net.common.utils.BodyBufSubject;
 import io.fiber.net.http.impl.ClientHttpExchange;
 import io.fiber.net.http.impl.ConnectionPool;
@@ -118,7 +115,7 @@ abstract class ExchangeOb extends ClientHttpExchange implements ConnectionPool.C
     protected void onResp(int code, HttpHeaders headers) {
         respStatus = code;
         respHeaders = headers;
-        respBody = new BodyBufSubject();
+        respBody = new BodyBufSubject(cn.ioScheduler());
         try {
             onNotifyResp();
         } catch (Throwable e) {
@@ -161,13 +158,16 @@ abstract class ExchangeOb extends ClientHttpExchange implements ConnectionPool.C
     }
 
     @Override
-    public Observable<ByteBuf> readRespBody() {
+    public Observable<ByteBuf> readRespBodyUnsafe() {
         return respBody;
     }
 
     @Override
-    public Maybe<ByteBuf> readFullRespBody() {
-        return respBody.toMaybe();
+    public Maybe<ByteBuf> readFullRespBody(Scheduler scheduler) {
+        if (respBody.getProducerScheduler() == scheduler) {
+            return respBody.toMaybe();
+        }
+        return respBody.toMaybe().notifyOn(scheduler);
     }
 
     protected abstract void onNotifyResp() throws Throwable;

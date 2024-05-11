@@ -47,7 +47,13 @@ public class TestMain {
                     }
 
                     clientResponse.readFullRespBody()
-                            .map(buf -> buf.toString(StandardCharsets.UTF_8))
+                            .map(buf -> {
+                                try {
+                                    return buf.toString(StandardCharsets.UTF_8);
+                                } finally {
+                                    buf.release();
+                                }
+                            })
                             .subscribe((s, throwable1) -> {
                                 assert current.inLoop();
                                 System.out.println();

@@ -79,8 +79,8 @@ public class ArrayFuncs {
     static final Map<String, Library.Function> FUNC = new HashMap<>();
 
     static {
-        FUNC.put("arrays.join", new ArrayJoinFunc());
-        FUNC.put("arrays.pop", new ArrayPopFunc());
-        FUNC.put("arrays.push", new ArrayPushFunc());
+        FUNC.put("array.join", new ArrayJoinFunc());
+        FUNC.put("array.pop", new ArrayPopFunc());
+        FUNC.put("array.push", new ArrayPushFunc());
     }
 }

@@ -2,6 +2,7 @@ package io.fiber.net.proxy;
 
 import io.fiber.net.common.RouterHandler;
 import io.fiber.net.common.utils.CollectionUtils;
+import io.fiber.net.proxy.lib.ReqFunc;
 import io.fiber.net.server.HttpExchange;
 
 import java.util.List;
@@ -38,6 +39,7 @@ public class UrlMappingRouter implements RouterHandler<HttpExchange> {
             return;
         }
 
+        ReqFunc.MAPPING_RESULT_ATTR.set(exchange, result);
         script.invoke(exchange);
     }
 

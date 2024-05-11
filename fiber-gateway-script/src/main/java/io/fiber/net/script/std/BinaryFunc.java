@@ -4,6 +4,7 @@ import io.fiber.net.common.json.BinaryNode;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.MissingNode;
 import io.fiber.net.common.json.TextNode;
+import io.fiber.net.common.utils.HashUtils;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
@@ -50,11 +51,31 @@ public class BinaryFunc {
         }
     }
 
+    static class HexFunc implements Library.Function {
+
+        @Override
+        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+            if (context.noArgs()) {
+                return MissingNode.getInstance();
+            }
+            JsonNode arg = context.getArgVal(0);
+            if (!arg.isBinary()) {
+                throw new ScriptExecException(arg.getNodeType() + " is not support hex");
+            }
+            try {
+                return TextNode.valueOf(HashUtils.hex(arg.binaryValue()));
+            } catch (IOException e) {
+                throw new ScriptExecException(e.getMessage());
+            }
+        }
+    }
+
     static final Map<String, Library.Function> FUNC = new HashMap<>();
 
     static {
         FUNC.put("binary.base64Encode", new EncodeBase64());
         FUNC.put("binary.base64Decode", new DecodeBase64());
+        FUNC.put("binary.hex", new HexFunc());
     }
 
 }

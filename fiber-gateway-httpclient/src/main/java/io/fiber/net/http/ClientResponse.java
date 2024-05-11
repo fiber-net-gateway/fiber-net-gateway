@@ -2,6 +2,7 @@ package io.fiber.net.http;
 
 import io.fiber.net.common.async.Maybe;
 import io.fiber.net.common.async.Observable;
+import io.fiber.net.common.async.Scheduler;
 import io.netty.buffer.ByteBuf;
 
 import java.util.Collection;
@@ -18,9 +19,26 @@ public interface ClientResponse {
 
     void discardRespBody();
 
-    Observable<ByteBuf> readRespBody();
+    default Observable<ByteBuf> readRespBody() {
+        return readRespBodyUnsafe().notifyOn(Scheduler.current());
+    }
 
-    Maybe<ByteBuf> readFullRespBody();
+    default Observable<ByteBuf> readRespBody(Scheduler scheduler) {
+        return readRespBodyUnsafe().notifyOn(scheduler);
+    }
+
+    /**
+     * not notify cross thread. for performance.
+     *
+     * @return ob for body
+     */
+    Observable<ByteBuf> readRespBodyUnsafe();
+
+    default Maybe<ByteBuf> readFullRespBody() {
+        return readFullRespBody(Scheduler.current());
+    }
+
+    Maybe<ByteBuf> readFullRespBody(Scheduler scheduler);
 
     ClientExchange getExchange();
 }

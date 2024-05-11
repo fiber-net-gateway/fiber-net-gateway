@@ -1,5 +1,6 @@
 package io.fiber.net.dubbo.nacos;
 
+import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.async.Single;
 import io.fiber.net.common.ioc.Destroyable;
 import io.fiber.net.common.ioc.Injector;
@@ -89,7 +90,7 @@ public class DubboRefManager implements Destroyable {
                 } else {
                     return NullNode.getInstance();
                 }
-            });
+            }).notifyOn(Scheduler.current());
         }
 
         public Single<JsonNode> invoke(String methodName, ArrayNode args) {

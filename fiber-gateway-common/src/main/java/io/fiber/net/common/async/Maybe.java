@@ -22,8 +22,6 @@ public interface Maybe<T> {
         void onError(Throwable e);
 
         void onComplete();
-
-        Scheduler scheduler();
     }
 
     interface OnSubscribe<T> {
@@ -55,5 +53,12 @@ public interface Maybe<T> {
     @SuppressWarnings("unchecked")
     static <T> Maybe<T> ofErr(Throwable err) {
         return (Maybe<T>) new ErrMaybe(err);
+    }
+
+    default Maybe<T> notifyOn(Scheduler scheduler) {
+        if (Scheduler.direct() == scheduler) {
+            return this;
+        }
+        return new SchedulerNotifyMaybe<>(scheduler, this);
     }
 }

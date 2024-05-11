@@ -84,10 +84,5 @@ public class ObToMaybe<T> implements Maybe<T> {
                 down.onComplete();
             }
         }
-
-        @Override
-        public Scheduler scheduler() {
-            return down.scheduler();
-        }
     }
 }

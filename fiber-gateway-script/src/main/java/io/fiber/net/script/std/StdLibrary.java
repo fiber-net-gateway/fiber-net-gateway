@@ -12,18 +12,17 @@ public class StdLibrary implements Library {
     private static final Map<String, Library.Function> DEF_FUNC_MAP = new HashMap<>();
 
     static {
-        DEF_FUNC_MAP.put("random", new RandomFunc());
-        DEF_FUNC_MAP.put("now", new NowFunc());
-        DEF_FUNC_MAP.put("canary", new CanaryFunc());
-        DEF_FUNC_MAP.put("crc32", new Crc32Func());
-        DEF_FUNC_MAP.put("includes", new IncludesFunc());
         DEF_FUNC_MAP.put("length", LengthFunc.INSTANCE);
+        DEF_FUNC_MAP.put("includes", new IncludesFunc());
         DEF_FUNC_MAP.putAll(ArrayFuncs.FUNC);
         DEF_FUNC_MAP.putAll(ObjectsFuncs.FUNC);
         DEF_FUNC_MAP.putAll(StringsFuncs.FUNC);
         DEF_FUNC_MAP.putAll(JsonFunc.FUNC);
         DEF_FUNC_MAP.putAll(MathFuncs.FUNC);
         DEF_FUNC_MAP.putAll(BinaryFunc.FUNC);
+        DEF_FUNC_MAP.putAll(HashFuncs.FUNC);
+        DEF_FUNC_MAP.putAll(RandFuncs.FUNC);
+        DEF_FUNC_MAP.putAll(TimeFuncs.FUNC);
     }
 
     protected static Map<String, Library.Function> getDefFuncMap() {

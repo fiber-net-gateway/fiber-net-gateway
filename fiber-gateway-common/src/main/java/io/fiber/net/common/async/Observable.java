@@ -3,6 +3,7 @@ package io.fiber.net.common.async;
 import io.fiber.net.common.async.internal.Functions;
 import io.fiber.net.common.async.internal.ObToMaybe;
 import io.fiber.net.common.async.internal.ObservableCreate;
+import io.fiber.net.common.async.internal.SchedulerNotifyObservable;
 
 /**
  * 承诺由 subscribe 的线程发出通知，并且每个 Observable 仅可以被订阅一次。
@@ -31,8 +32,6 @@ public interface Observable<T> {
         void onError(Throwable e);
 
         void onComplete();
-
-        Scheduler scheduler();
     }
 
     @FunctionalInterface
@@ -56,6 +55,14 @@ public interface Observable<T> {
     default Maybe<T> toMaybe() {
         return toMaybe((Function2<? super T, ? super T, ? extends T>) Functions.getUseLaterMerger(),
                 Functions.getNoopConsumer());
+    }
+
+    default Observable<T> notifyOn(Scheduler scheduler) {
+        if (scheduler == Scheduler.direct()) {
+            return this;
+        }
+
+        return new SchedulerNotifyObservable<>(scheduler, this);
     }
 
 }

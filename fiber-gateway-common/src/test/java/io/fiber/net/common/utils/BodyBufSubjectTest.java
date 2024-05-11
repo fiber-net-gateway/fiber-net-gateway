@@ -45,7 +45,7 @@ public class BodyBufSubjectTest {
         group.execute(() -> {
             Scheduler current = Scheduler.current();
             bufSubjectSingle.subscribe((bodyBufSubject, throwable) -> {
-                bodyBufSubject.toMaybe().subscribe((byteBuf, throwable1) -> {
+                bodyBufSubject.toMaybe().notifyOn(current).subscribe((byteBuf, throwable1) -> {
                     Assert.assertTrue(current.inLoop());
                     Assert.assertEquals(80000, byteBuf.readableBytes());
                     byteBuf.release();

@@ -2,7 +2,6 @@ package io.fiber.net.script;
 
 import io.fiber.net.common.async.Disposable;
 import io.fiber.net.common.async.Maybe;
-import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.json.JsonNode;
 
 import java.util.Objects;
@@ -15,6 +14,7 @@ public class ComparedMayBeObserver {
 
     private Ob ob1, ob2;
     private final String name;
+    private int compileState;
 
     public ComparedMayBeObserver(String name) {
         this.name = name;
@@ -34,14 +34,26 @@ public class ComparedMayBeObserver {
 
         if (ob1.equals(ob2)) {
             System.out.println(name + " 成功：" + ob1);
+            compileState = S_SEC;
         } else {
             System.err.println(name + "失败：");
             System.err.println(ob1);
             System.err.println("================================================");
             System.err.println(ob2);
+            compileState = S_ERR;
         }
     }
 
+    public boolean isEndAndSec() {
+        return compileState == S_SEC;
+    }
+
+    public JsonNode getSameResult() {
+        if (!isEndAndSec()) {
+            throw new IllegalStateException("not successful");
+        }
+        return ob1.jsonNode;
+    }
 
     public static class Ob implements Maybe.Observer<JsonNode> {
         private int state = S_INIT;
@@ -76,11 +88,6 @@ public class ComparedMayBeObserver {
             state = S_CPT;
             outer.eq();
 
-        }
-
-        @Override
-        public Scheduler scheduler() {
-            return Scheduler.current();
         }
 
         @Override

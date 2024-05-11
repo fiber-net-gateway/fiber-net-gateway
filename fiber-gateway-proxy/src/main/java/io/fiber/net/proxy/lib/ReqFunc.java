@@ -1,15 +1,17 @@
 package io.fiber.net.proxy.lib;
 
-import io.fiber.net.server.HttpExchange;
 import io.fiber.net.common.json.*;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.http.util.MultiMap;
 import io.fiber.net.http.util.UrlEncoded;
+import io.fiber.net.proxy.RoutePathMatcher;
+import io.fiber.net.proxy.ScriptHandler;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
+import io.fiber.net.server.HttpExchange;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufUtil;
 
@@ -113,7 +115,7 @@ public class ReqFunc {
         @Override
         public void call(ExecutionContext context) {
             HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
-            exchange.readFullReqBody().subscribe((buf, throwable) -> {
+            exchange.readFullBody().subscribe((buf, throwable) -> {
                 if (throwable != null) {
                     context.throwErr(new ScriptExecException(throwable.getMessage(), throwable, 400,
                             ScriptExecException.ERROR_NAME));
@@ -152,7 +154,7 @@ public class ReqFunc {
         @Override
         public void call(ExecutionContext context) {
             HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
-            exchange.readFullReqBody().subscribe((buf, throwable) -> {
+            exchange.readFullBody().subscribe((buf, throwable) -> {
                 if (throwable != null) {
                     context.throwErr(new ScriptExecException(throwable.getMessage(), throwable, 400,
                             ScriptExecException.ERROR_NAME));
@@ -210,11 +212,30 @@ public class ReqFunc {
         }
     }
 
+    private static class GetPathVar implements SyncHttpFunc {
+
+        @Override
+        public JsonNode call(ExecutionContext context) {
+            RoutePathMatcher.MappingResult<ScriptHandler> result
+                    = MAPPING_RESULT_ATTR.get(HttpDynamicFunc.httpExchange(context));
+            if (result == null) {
+                return MissingNode.getInstance();
+            }
+
+            if (context.noArgs()) {
+                return result.toObjNode();
+            }
+
+            return result.getVar(context.getArgVal(0).asText());
+        }
+    }
+
     static final Map<String, Library.AsyncFunction> ASYNC_FC_MAP = new HashMap<>();
     static final Map<String, Library.Function> FC_MAP = new HashMap<>();
 
     static {
         FC_MAP.put("req.getPath", new GetPath());
+        FC_MAP.put("req.getPathVar", new GetPathVar());
         FC_MAP.put("req.getQueryStr", new GetQueryText());
         FC_MAP.put("req.getMethod", new GetMethodText());
         FC_MAP.put("req.getHeader", new GetHeader());
@@ -224,4 +245,6 @@ public class ReqFunc {
         ASYNC_FC_MAP.put("req.readBinary", new ReadBinaryBody());
     }
 
+    public static final HttpExchange.Attr<RoutePathMatcher.MappingResult<ScriptHandler>> MAPPING_RESULT_ATTR
+            = HttpExchange.createAttr();
 }

@@ -485,7 +485,7 @@ public class Tokenizer {
         int start = pos;
         do {
             pos++;
-        } while (isIdentifier(toProcess.charAt(pos)));
+        } while (pos < max && isIdentifier(toProcess.charAt(pos)));
         char[] subarray = subarray(start, pos);
         tokens.add(new Token(TokenKind.IDENTIFIER, subarray, start, pos));
     }

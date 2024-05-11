@@ -8,8 +8,8 @@ import io.netty.util.internal.ThreadExecutorMap;
 
 import java.util.concurrent.TimeUnit;
 
-public class Scheduler {
-    private static final FastThreadLocal<Scheduler> TH = new FastThreadLocal<>();
+public abstract class Scheduler {
+    private static final FastThreadLocal<IOScheduler> TH = new FastThreadLocal<>();
 
     public static void assertInIoThread() {
         if (ThreadExecutorMap.currentExecutor() == null) {
@@ -27,42 +27,71 @@ public class Scheduler {
     }
 
     public static Scheduler current() {
-        Scheduler scheduler = TH.getIfExists();
+        IOScheduler scheduler = TH.getIfExists();
         if (scheduler == null) {
             EventExecutor currentExecutor = ThreadExecutorMap.currentExecutor();
             if (currentExecutor == null) {
                 throw new IllegalStateException("not in io thread??");
             }
-            scheduler = new Scheduler(currentExecutor);
+            scheduler = new IOScheduler(currentExecutor);
             TH.set(scheduler);
         }
 
         return scheduler;
     }
 
-    public static void __setCurrentScheduler(Scheduler scheduler) {
-        TH.set(scheduler);
+    public static Scheduler direct() {
+        return DirectScheduler.INSTANCE;
     }
 
-    private final EventExecutor eventExecutor;
-
-    public Scheduler(EventExecutor eventExecutor) {
-        this.eventExecutor = eventExecutor;
+    protected Scheduler() {
     }
 
-    public void execute(Runnable runnable) {
-        eventExecutor.execute(runnable);
+    public abstract void execute(Runnable runnable);
+
+    public abstract ScheduledFuture<?> schedule(Runnable task, long timeoutMs);
+
+    public abstract boolean inLoop();
+
+    private static class IOScheduler extends Scheduler {
+        private final EventExecutor eventExecutor;
+
+        IOScheduler(EventExecutor eventExecutor) {
+            this.eventExecutor = eventExecutor;
+        }
+
+        @Override
+        public void execute(Runnable runnable) {
+            eventExecutor.execute(runnable);
+        }
+
+        @Override
+        public ScheduledFuture<?> schedule(Runnable task, long timeoutMs) {
+            return eventExecutor.schedule(task, timeoutMs, TimeUnit.MILLISECONDS);
+        }
+
+        public boolean inLoop() {
+            return eventExecutor.inEventLoop();
+        }
+
     }
 
-    public ScheduledFuture<?> schedule(Runnable task, long timeoutMs) {
-        return eventExecutor.schedule(task, timeoutMs, TimeUnit.MILLISECONDS);
-    }
+    private static class DirectScheduler extends Scheduler {
+        private static final DirectScheduler INSTANCE = new DirectScheduler();
 
-    public boolean inLoop() {
-        return eventExecutor.inEventLoop();
-    }
+        @Override
+        public void execute(Runnable runnable) {
+            runnable.run();
+        }
 
-    public EventExecutor getEventExecutor() {
-        return eventExecutor;
+        @Override
+        public ScheduledFuture<?> schedule(Runnable task, long timeoutMs) {
+            return current().schedule(task, timeoutMs);
+        }
+
+        @Override
+        public boolean inLoop() {
+            return true;
+        }
     }
 }

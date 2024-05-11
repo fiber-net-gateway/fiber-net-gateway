@@ -1,7 +1,6 @@
 package io.fiber.net.common.async.internal;
 
 import io.fiber.net.common.async.Observable;
-import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.utils.Exceptions;
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -28,7 +27,7 @@ public abstract class Subject<T> implements Observable<T> {
         ObE<T> o;
         do {
             if (isSubscribed(o = UPDATER.get(this))) {
-                e.onError0(Exceptions.OB_CONSUMED);
+                e.onError(Exceptions.OB_CONSUMED);
                 return;
             }
         } while (!UPDATER.compareAndSet(this, o, e));
@@ -46,16 +45,16 @@ public abstract class Subject<T> implements Observable<T> {
             assert t != null || error != null;
 
             if (t != null) {
-                e.onNext0(t);
+                e.onNext(t);
             }
 
             if (o != COMPLETED) {
                 return;
             }
             if (error != null) {
-                e.onError0(error);
+                e.onError(error);
             } else {
-                e.onComplete0();
+                e.onComplete();
             }
         }
     }
@@ -233,20 +232,6 @@ public abstract class Subject<T> implements Observable<T> {
                 sender.onDismissClear(value);
                 return;
             }
-            Scheduler scheduler = observer.scheduler();
-            if (scheduler.inLoop()) {
-                observer.onNext(value);
-            } else {
-                scheduler.execute(() -> onNext0(value));
-            }
-        }
-
-        protected void onNext0(T value) {
-            assert observer.scheduler().inLoop();
-            if (isDisposed()) {
-                sender.onDismissClear(value);
-                return;
-            }
             observer.onNext(value);
         }
 
@@ -255,37 +240,11 @@ public abstract class Subject<T> implements Observable<T> {
             if (isDisposed()) {
                 return;
             }
-            Scheduler scheduler = observer.scheduler();
-            if (scheduler.inLoop()) {
-                observer.onError(error);
-            } else {
-                scheduler.execute(() -> onError0(error));
-            }
-        }
-
-        protected void onError0(Throwable error) {
-            assert observer.scheduler().inLoop();
-            if (isDisposed()) {
-                return;
-            }
             observer.onError(error);
         }
 
         @Override
         public void onComplete() {
-            if (isDisposed()) {
-                return;
-            }
-            Scheduler scheduler = observer.scheduler();
-            if (scheduler.inLoop()) {
-                observer.onComplete();
-            } else {
-                scheduler.execute(this::onComplete0);
-            }
-        }
-
-        protected void onComplete0() {
-            assert observer.scheduler().inLoop();
             if (isDisposed()) {
                 return;
             }

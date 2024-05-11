@@ -52,7 +52,7 @@ public abstract class RefResourcePool<V extends RefResourcePool.Ref> {
             this.key = key;
         }
 
-        private String refKey() {
+        protected final String refKey() {
             return key;
         }
 

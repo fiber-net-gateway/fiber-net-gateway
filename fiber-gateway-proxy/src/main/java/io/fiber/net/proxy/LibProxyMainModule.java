@@ -32,7 +32,6 @@ public class LibProxyMainModule implements Module {
             binder.bindPrototype(ProjectRouterBuilder.class, ProjectRouterBuilder::new);
         }
 
-        @SuppressWarnings("unchecked")
         synchronized ScriptHandler createProject(String projectName, String code) throws Exception {
             Injector injector;
             if (projectInjector != null) {

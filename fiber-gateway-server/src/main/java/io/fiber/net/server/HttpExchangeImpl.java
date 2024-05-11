@@ -156,6 +156,7 @@ class HttpExchangeImpl extends HttpExchange {
     @Override
     public void writeRawBytes(int status, ByteBuf buf) throws FiberException {
         if (responseWrote) {
+            buf.release();
             if (logger.isDebugEnabled()) {
                 logger.debug("response is wrote");
             }
@@ -163,6 +164,7 @@ class HttpExchangeImpl extends HttpExchange {
         }
         responseWrote = true;
         if (!ch.isActive()) {
+            buf.readByte();
             throw new FiberException("error serializing result:", 500, "WRITE_JSON_BODY");
         }
 
@@ -213,13 +215,16 @@ class HttpExchangeImpl extends HttpExchange {
     }
 
     @Override
-    public Observable<ByteBuf> readReqBody() {
+    public Observable<ByteBuf> readBodyUnsafe() {
         return reqBufSubject;
     }
 
     @Override
-    public Maybe<ByteBuf> readFullReqBody() {
-        return reqBufSubject.toMaybe();
+    public Maybe<ByteBuf> readFullBody(Scheduler scheduler) {
+        if (reqBufSubject.getProducerScheduler() == scheduler) {
+            return reqBufSubject.toMaybe();
+        }
+        return reqBufSubject.toMaybe().notifyOn(scheduler);
     }
 
     void feedReqBody(ByteBuf buf, boolean last) {
@@ -259,6 +264,7 @@ class HttpExchangeImpl extends HttpExchange {
     }
 
     private class RespWriteOb implements Observable.Observer<ByteBuf> {
+        private final Scheduler scheduler = reqBufSubject.getProducerScheduler();
         private final boolean flush;
         private boolean headerSent;
         private HttpResponseStatus status;
@@ -288,7 +294,14 @@ class HttpExchangeImpl extends HttpExchange {
                 buf.release();
                 return;
             }
+            if (scheduler.inLoop()) {
+                writeBuf(buf);
+            } else {
+                scheduler.execute(() -> writeBuf(buf));
+            }
+        }
 
+        private void writeBuf(ByteBuf buf) {
             if (flush) {
                 ch.writeAndFlush(buf, ch.voidPromise());
             } else {
@@ -311,6 +324,14 @@ class HttpExchangeImpl extends HttpExchange {
 
         @Override
         public void onError(Throwable e) {
+            if (scheduler.inLoop()) {
+                onError0(e);
+            } else {
+                scheduler.execute(() -> onError0(e));
+            }
+        }
+
+        private void onError0(Throwable e) {
             if (!headerSent) {
                 headerSent = true;
                 ByteBuf buf = ch.alloc().buffer();
@@ -329,15 +350,19 @@ class HttpExchangeImpl extends HttpExchange {
             if (!ch.isActive()) {
                 return;
             }
+            if (scheduler.inLoop()) {
+                onComplete0();
+            } else {
+                scheduler.execute(this::onComplete0);
+            }
+        }
+
+        private void onComplete0() {
             writeHeader(false);
             ch.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT, ch.voidPromise());
             onDestroy();
         }
 
-        @Override
-        public Scheduler scheduler() {
-            return reqBufSubject.getProducerScheduler();
-        }
     }
 
     private DefaultHttpHeaders headerForSend(int contentLen) {

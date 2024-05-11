@@ -74,7 +74,6 @@ public class Main {
 
     private static class Ob2 extends Subject<ByteBuf> implements Observable.Observer<ByteBuf> {
         final HttpExchange httpExchange;
-        final Scheduler scheduler = Scheduler.current();
 
         private Ob2(HttpExchange httpExchange) {
             this.httpExchange = httpExchange;
@@ -107,11 +106,6 @@ public class Main {
         }
 
         @Override
-        public Scheduler scheduler() {
-            return scheduler;
-        }
-
-        @Override
         protected ByteBuf noSubscriberMerge(ByteBuf previous, ByteBuf current) {
             throw new UnsupportedOperationException("xxxxx");
         }
@@ -131,12 +125,12 @@ public class Main {
             instance.addInterceptor((project, httpExchange, invocation) -> {
                 String path = httpExchange.getPath();
                 if (path.contains("echo")) {
-                    httpExchange.writeRawBytes(200, httpExchange.readReqBody());
+                    httpExchange.writeRawBytes(200, httpExchange.readBody());
                 } else if (path.contains("async")) {
                     httpExchange.writeRawBytes(200, new Ob(), true);
                 } else {
                     httpExchange.setResponseHeader(Constant.CONTENT_TYPE_HEADER, "text/plain;charset=utf-8");
-                    httpExchange.readReqBody().subscribe(new Ob2(httpExchange));
+                    httpExchange.readBody().subscribe(new Ob2(httpExchange));
                 }
             });
             HttpServer server = injector.getInstance(HttpServer.class);

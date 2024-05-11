@@ -3,7 +3,6 @@ package io.fiber.net.common.async.internal;
 import io.fiber.net.common.async.BiConsumer;
 import io.fiber.net.common.async.Disposable;
 import io.fiber.net.common.async.Maybe;
-import io.fiber.net.common.async.Scheduler;
 
 public class OnNotifyWrapMaybe<T> implements Maybe<T> {
     final BiConsumer<? super T, Throwable> onNotify;
@@ -62,11 +61,6 @@ public class OnNotifyWrapMaybe<T> implements Maybe<T> {
                 return;
             }
             observer.onComplete();
-        }
-
-        @Override
-        public Scheduler scheduler() {
-            return observer.scheduler();
         }
     }
 }

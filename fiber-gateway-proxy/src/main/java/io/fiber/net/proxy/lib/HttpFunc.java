@@ -1,7 +1,6 @@
 package io.fiber.net.proxy.lib;
 
 import io.fiber.net.common.FiberException;
-import io.fiber.net.server.HttpExchange;
 import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.async.internal.SerializeJsonObservable;
 import io.fiber.net.common.json.IntNode;
@@ -18,6 +17,7 @@ import io.fiber.net.http.util.UrlEncoded;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
+import io.fiber.net.server.HttpExchange;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
@@ -169,7 +169,7 @@ public class HttpFunc implements Library.DirectiveDef {
                 exchange.setHeader(headerName, httpExchange.getRequestHeader(headerName));
             }
             addHeader(exchange, param);
-            exchange.setReqBodyFunc(ec -> httpExchange.readReqBody(), false);
+            exchange.setReqBodyFunc(ec -> httpExchange.readBodyUnsafe(), false);
 
             JsonNode node = param.get("responseHeaders");
             exchange.sendForResp().subscribe((response, e) -> {
@@ -182,7 +182,7 @@ public class HttpFunc implements Library.DirectiveDef {
                     }
                     addResponseHeaders(node, httpExchange);
                     try {
-                        httpExchange.writeRawBytes(status, response.readRespBody());
+                        httpExchange.writeRawBytes(status, response.readRespBodyUnsafe());
                     } catch (FiberException ex) {
                         context.throwErr(new ScriptExecException(ex.getMessage(), ex));
                         return;

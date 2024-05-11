@@ -3,9 +3,11 @@ package io.fiber.net.proxy;
 import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.MissingNode;
+import io.fiber.net.common.json.ObjectNode;
 import io.fiber.net.common.json.TextNode;
 import io.fiber.net.common.utils.Assert;
 import io.fiber.net.common.utils.CharArrUtil;
+import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.server.HttpExchange;
 
@@ -421,6 +423,16 @@ public class RoutePathMatcher<H> {
                 return MissingNode.getInstance();
             }
             return map.getOrDefault(var, MissingNode.getInstance());
+        }
+
+        public ObjectNode toObjNode() {
+            ObjectNode node = JsonUtil.createObjectNode();
+            if (map != null) {
+                for (Map.Entry<String, JsonNode> entry : map.entrySet()) {
+                    node.set(entry.getKey(), entry.getValue());
+                }
+            }
+            return node;
         }
     }
 

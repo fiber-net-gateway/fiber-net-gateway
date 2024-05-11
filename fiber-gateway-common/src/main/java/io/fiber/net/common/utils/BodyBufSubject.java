@@ -1,6 +1,7 @@
 package io.fiber.net.common.utils;
 
 import io.fiber.net.common.async.Maybe;
+import io.fiber.net.common.async.Observable;
 import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.async.internal.Subject;
 import io.netty.buffer.ByteBuf;
@@ -64,5 +65,13 @@ public class BodyBufSubject extends Subject<ByteBuf> {
     public void onComplete() {
         assert scheduler.inLoop();
         super.onComplete();
+    }
+
+    @Override
+    public Observable<ByteBuf> notifyOn(Scheduler scheduler) {
+        if (scheduler == this.scheduler) {
+            return this;
+        }
+        return super.notifyOn(scheduler);
     }
 }

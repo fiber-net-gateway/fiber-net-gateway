@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fiber.net.common.async.Disposable;
 import io.fiber.net.common.async.Observable;
-import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.utils.JsonUtil;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -42,9 +41,8 @@ public class SerializeJsonObservable implements Observable<ByteBuf> {
         ob.serialize();
     }
 
-    private class Ob extends OutputStream implements Runnable, Disposable {
+    private class Ob extends OutputStream implements Disposable {
         private final Observer<? super ByteBuf> observer;
-        private final Scheduler scheduler;
         private boolean d;
         private ByteBuf buf;
         private int byteBlock = initialChunkSize;
@@ -52,19 +50,9 @@ public class SerializeJsonObservable implements Observable<ByteBuf> {
 
         private Ob(Observer<? super ByteBuf> observer) {
             this.observer = observer;
-            scheduler = observer.scheduler();
         }
 
         void serialize() {
-            if (scheduler.inLoop()) {
-                run();
-            } else {
-                scheduler.execute(this);
-            }
-        }
-
-        @Override
-        public void run() {
             if (d) {
                 return;
             }

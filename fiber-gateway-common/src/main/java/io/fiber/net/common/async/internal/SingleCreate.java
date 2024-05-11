@@ -1,6 +1,5 @@
 package io.fiber.net.common.async.internal;
 
-import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.async.Single;
 import io.fiber.net.common.utils.Exceptions;
 
@@ -26,11 +25,9 @@ public final class SingleCreate<T> implements Single<T> {
 
     static class ObE<T> extends DisposableOb implements Emitter<T> {
         private final Observer<? super T> observer;
-        private final Scheduler scheduler;
 
         ObE(Observer<? super T> observer) {
             this.observer = observer;
-            scheduler = observer.scheduler();
         }
 
         @Override
@@ -38,13 +35,8 @@ public final class SingleCreate<T> implements Single<T> {
             if (isDisposed()) {
                 return;
             }
-            Scheduler scheduler = this.scheduler;
             try {
-                if (scheduler.inLoop()) {
-                    observer.onSuccess(t);
-                } else {
-                    scheduler.execute(() -> observer.onSuccess(t));
-                }
+                observer.onSuccess(t);
             } finally {
                 dispose();
             }
@@ -57,13 +49,8 @@ public final class SingleCreate<T> implements Single<T> {
                 return;
             }
 
-            Scheduler scheduler = this.scheduler;
             try {
-                if (scheduler.inLoop()) {
-                    observer.onError(t);
-                } else {
-                    scheduler.execute(() -> observer.onError(t));
-                }
+                observer.onError(t);
             } finally {
                 dispose();
             }

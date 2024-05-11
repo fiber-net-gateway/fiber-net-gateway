@@ -4,6 +4,7 @@ import io.fiber.net.common.FiberException;
 import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.async.Maybe;
 import io.fiber.net.common.async.Observable;
+import io.fiber.net.common.async.Scheduler;
 import io.netty.buffer.ByteBuf;
 
 import java.util.Arrays;
@@ -138,8 +139,26 @@ public abstract class HttpExchange {
 
     public abstract void discardReqBody();
 
-    public abstract Observable<ByteBuf> readReqBody();
 
-    public abstract Maybe<ByteBuf> readFullReqBody();
+    public Observable<ByteBuf> readBody() {
+        return readBodyUnsafe().notifyOn(Scheduler.current());
+    }
+
+    public Observable<ByteBuf> readBody(Scheduler scheduler) {
+        return readBodyUnsafe().notifyOn(scheduler);
+    }
+
+    /**
+     * not notify cross thread. for performance.
+     *
+     * @return ob for body
+     */
+    public abstract Observable<ByteBuf> readBodyUnsafe();
+
+    public Maybe<ByteBuf> readFullBody() {
+        return readFullBody(Scheduler.current());
+    }
+
+    public abstract Maybe<ByteBuf> readFullBody(Scheduler scheduler);
 
 }

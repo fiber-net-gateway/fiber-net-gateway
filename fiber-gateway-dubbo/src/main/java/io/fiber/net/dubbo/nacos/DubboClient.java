@@ -9,12 +9,15 @@ import org.apache.dubbo.config.ReferenceConfig;
 import org.apache.dubbo.config.RegistryConfig;
 import org.apache.dubbo.rpc.model.ApplicationModel;
 import org.apache.dubbo.rpc.service.GenericService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class DubboClient extends RefResourcePool<DubboClient.Service> {
     static {
         JsonNodeForFastJson2.config(JSONFactory.getDefaultObjectWriterProvider());
     }
 
+    private static final Logger log = LoggerFactory.getLogger(DubboClient.class);
     private final ApplicationModel model;
 
     public DubboClient(DubboConfig dubboConfig) {
@@ -66,7 +69,11 @@ public class DubboClient extends RefResourcePool<DubboClient.Service> {
 
         @Override
         protected void doClose() {
-            referenceConfig.destroy();
+            try {
+                referenceConfig.destroy();
+            } catch (RuntimeException e) {
+                log.warn("closing dubbo service failed, {}", refKey(), e);
+            }
         }
     }
 }

@@ -2,7 +2,6 @@ package io.fiber.net.common.async.internal;
 
 import io.fiber.net.common.async.Disposable;
 import io.fiber.net.common.async.Function;
-import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.async.Single;
 
 public class MappedSingle<T, U> implements Single<U> {
@@ -49,11 +48,6 @@ public class MappedSingle<T, U> implements Single<U> {
         @Override
         public void onError(Throwable e) {
             c.onError(e);
-        }
-
-        @Override
-        public Scheduler scheduler() {
-            return c.scheduler();
         }
     }
 }

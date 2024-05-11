@@ -31,7 +31,13 @@ public class ScriptTest {
         for (JsonNode jsonNode : node) {
             executors.execute(() -> {
                 String script = jsonNode.get(0).textValue();
-                Script compiled = Script.compileExpression(script, true);
+                Script compiled;
+
+                try {
+                    compiled = Script.compileExpression(script, true);
+                } catch (Exception e) {
+                    throw new IllegalStateException("cannot compile express: " + script, e);
+                }
                 Maybe<JsonNode> result = compiled.exec(jsonNode.get(2));
                 result.subscribe((node1, throwable) -> {
                     try {
@@ -73,7 +79,6 @@ public class ScriptTest {
         latch.await();
         executors.shutdownGracefully().awaitUninterruptibly();
     }
-
 
 
 }

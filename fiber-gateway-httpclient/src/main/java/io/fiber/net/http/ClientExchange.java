@@ -1,9 +1,6 @@
 package io.fiber.net.http;
 
-import io.fiber.net.common.async.BiConsumer;
-import io.fiber.net.common.async.Function;
-import io.fiber.net.common.async.Observable;
-import io.fiber.net.common.async.Single;
+import io.fiber.net.common.async.*;
 import io.fiber.net.common.async.internal.SingleSubject;
 import io.fiber.net.common.utils.Headers;
 import io.fiber.net.http.impl.ConnectionPool;
@@ -210,34 +207,62 @@ public class ClientExchange {
         return ob != null && ob.isHeaderReceived();
     }
 
+    public Single<ClientResponse> sendForResp() {
+        return sendForResp(null);
+    }
+
     /**
      * must be release();
      *
      * @return ob
      */
-    public Single<ClientResponse> sendForResp() {
-        responseOb = new ResponseOb(this);
+    public Single<ClientResponse> sendForResp(Scheduler scheduler) {
+        responseOb = new ResponseOb(this, scheduler);
         connectionPool.getConn(responseOb);
         return responseOb.single;
     }
 
     private static class RespSingle extends SingleSubject<ClientResponse> {
+        private final Scheduler scheduler;
+
+        private RespSingle(Scheduler scheduler) {
+            this.scheduler = scheduler == null ? Scheduler.current() : scheduler;
+        }
 
         @Override
         protected void onDismissClear(ClientResponse value) {
             value.discardRespBody();
         }
-    }
 
-    private static class ResponseOb extends ExchangeOb {
-        private final RespSingle single = new RespSingle();
-
-        ResponseOb(ClientExchange exchange) {
-            super(exchange);
+        @Override
+        public void onError(Throwable e) {
+            if (scheduler.inLoop()) {
+                super.onError(e);
+            } else {
+                scheduler.execute(() -> super.onError(e));
+            }
         }
 
         @Override
-        protected void onNotifyResp() throws Throwable {
+        public void onSuccess(ClientResponse clientResponse) {
+            if (scheduler.inLoop()) {
+                super.onSuccess(clientResponse);
+            } else {
+                scheduler.execute(() -> super.onSuccess(clientResponse));
+            }
+        }
+    }
+
+    private static class ResponseOb extends ExchangeOb {
+        private final RespSingle single;
+
+        ResponseOb(ClientExchange exchange, Scheduler scheduler) {
+            super(exchange);
+            single = new RespSingle(scheduler);
+        }
+
+        @Override
+        protected void onNotifyResp() {
             single.onSuccess(this);
         }
 

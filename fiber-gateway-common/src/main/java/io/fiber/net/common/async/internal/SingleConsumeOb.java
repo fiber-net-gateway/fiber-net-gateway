@@ -1,13 +1,11 @@
 package io.fiber.net.common.async.internal;
 
 import io.fiber.net.common.async.Disposable;
-import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.async.Single;
 
 import java.util.function.BiConsumer;
 
 public class SingleConsumeOb<T> implements Single.Observer<T> {
-    private final Scheduler scheduler = Scheduler.current();
     private final java.util.function.BiConsumer<T, Throwable> com;
     private Disposable d;
 
@@ -32,10 +30,5 @@ public class SingleConsumeOb<T> implements Single.Observer<T> {
     @Override
     public void onError(Throwable e) {
         com.accept(null, e);
-    }
-
-    @Override
-    public Scheduler scheduler() {
-        return scheduler;
     }
 }

@@ -11,8 +11,6 @@ public interface Single<T> {
         void onSuccess(T t);
 
         void onError(Throwable e);
-
-        Scheduler scheduler();
     }
 
     interface Emitter<T> {
@@ -53,4 +51,10 @@ public interface Single<T> {
         return new MappedSingle<>(map, this);
     }
 
+    default Single<T> notifyOn(Scheduler scheduler) {
+        if (Scheduler.direct() == scheduler) {
+            return this;
+        }
+        return new SchedulerNotifySingle<>(scheduler, this);
+    }
 }

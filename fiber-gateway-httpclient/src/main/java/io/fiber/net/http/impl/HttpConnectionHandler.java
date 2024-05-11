@@ -28,13 +28,13 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     private ChannelHandlerContext ctx;
     private ScheduledFuture<?> requestTimerFut;
     private final PoolConfig config;
+    private Scheduler ioSch;
     private boolean chunkedBody;
     private long receivedBodyLength;
     private boolean requesting;
     private boolean closeByProto;
     private int requests;
     private long maxBodyLength;
-    private Scheduler scheduler;
 
     public HttpConnectionHandler(Channel ch, HttpHost httpHost, EventLoop eventLoop, PoolConfig config) {
         super(ch, httpHost);
@@ -50,7 +50,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
             SslContext context = SslContextBuilder.forClient().trustManager(config.trustManager).build();
             ctx.pipeline().addFirst(context.newHandler(ctx.alloc()));
         }
-        scheduler = Scheduler.current();
+        ioSch = Scheduler.current();
     }
 
     @Override
@@ -245,6 +245,11 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
         buf.subscribe(ob);
     }
 
+    @Override
+    public Scheduler ioScheduler() {
+        return ioSch;
+    }
+
     private class Ob implements Observable.Observer<ByteBuf> {
         final ClientHttpExchange exchange;
         final boolean flush;
@@ -274,10 +279,18 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
 
         @Override
         public void onNext(ByteBuf buf) {
-            if (buf.readableBytes() == 0) {
+            if (buf.readableBytes() == 0 || !ctx.channel().isActive()) {
                 buf.release();
                 return;
             }
+            if (eventLoop.inEventLoop()) {
+                sendBuf(buf);
+            } else {
+                eventLoop.execute(() -> sendBuf(buf));
+            }
+        }
+
+        private void sendBuf(ByteBuf buf) {
             sendReq();
             if (flush) {
                 ctx.writeAndFlush(buf, ctx.voidPromise());
@@ -288,19 +301,26 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
 
         @Override
         public void onError(Throwable e) {
-            ioErrorAndClose(e);
+            if (eventLoop.inEventLoop()) {
+                ioErrorAndClose(e);
+            } else {
+                eventLoop.execute(() -> ioErrorAndClose(e));
+            }
         }
 
         @Override
         public void onComplete() {
+            if (eventLoop.inEventLoop()) {
+                onComplete0();
+            } else {
+                eventLoop.execute(this::onComplete0);
+            }
+        }
+
+        private void onComplete0() {
             sendReq();
             ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT, ctx.newPromise()
                     .addListener(HttpConnectionHandler.this::onRequestBodySent));
-        }
-
-        @Override
-        public Scheduler scheduler() {
-            return scheduler;
         }
     }
 
@@ -349,7 +369,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     }
 
     private void requestTimer(long timeout) {
-        requestTimerFut = ctx.executor().schedule(this, timeout, TimeUnit.MILLISECONDS);
+        requestTimerFut = eventLoop.schedule(this, timeout, TimeUnit.MILLISECONDS);
     }
 
     @Override

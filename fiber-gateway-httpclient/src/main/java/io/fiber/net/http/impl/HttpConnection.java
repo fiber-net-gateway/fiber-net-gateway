@@ -1,6 +1,7 @@
 package io.fiber.net.http.impl;
 
 import io.fiber.net.common.async.Observable;
+import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.http.HttpClientException;
 import io.fiber.net.http.HttpHost;
 import io.netty.buffer.ByteBuf;
@@ -120,6 +121,8 @@ public abstract class HttpConnection {
     public abstract void send(ClientHttpExchange exchange, ByteBuf buf) throws HttpClientException;
 
     public abstract void send(ClientHttpExchange exchange, Observable<ByteBuf> buf, boolean flush) throws HttpClientException;
+
+    public abstract Scheduler ioScheduler();
 
     @Override
     public String toString() {

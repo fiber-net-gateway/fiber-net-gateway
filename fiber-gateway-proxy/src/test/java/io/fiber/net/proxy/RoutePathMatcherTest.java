@@ -4,6 +4,7 @@ import io.fiber.net.common.FiberException;
 import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.async.Maybe;
 import io.fiber.net.common.async.Observable;
+import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.TextNode;
 import io.fiber.net.script.Script;
@@ -263,12 +264,12 @@ public class RoutePathMatcherTest {
         }
 
         @Override
-        public Observable<ByteBuf> readReqBody() {
+        public Observable<ByteBuf> readBodyUnsafe() {
             return null;
         }
 
         @Override
-        public Maybe<ByteBuf> readFullReqBody() {
+        public Maybe<ByteBuf> readFullBody(Scheduler scheduler) {
             return null;
         }
     }

@@ -35,7 +35,7 @@
     }
   ],
   [
-    "arrays.push(arrays.push([\"1\"], $.aa.dd.a), ...$.aa.ee).length",
+    "array.push(array.push([\"1\"], $.aa.dd.a), ...$.aa.ee).length",
     5,
     {
       "aa": {
@@ -51,7 +51,7 @@
     }
   ],
   [
-    "arrays.push(arrays.push([\"1\"], $.aa.dd.a), ...$.aa.ee)",
+    "array.push(array.push([\"1\"], $.aa.dd.a), ...$.aa.ee)",
     [
       "1",
       "123",

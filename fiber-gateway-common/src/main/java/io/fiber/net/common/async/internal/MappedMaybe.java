@@ -3,7 +3,6 @@ package io.fiber.net.common.async.internal;
 import io.fiber.net.common.async.Disposable;
 import io.fiber.net.common.async.Function;
 import io.fiber.net.common.async.Maybe;
-import io.fiber.net.common.async.Scheduler;
 
 public class MappedMaybe<T, U> implements Maybe<U> {
 
@@ -56,9 +55,5 @@ public class MappedMaybe<T, U> implements Maybe<U> {
             c.onComplete();
         }
 
-        @Override
-        public Scheduler scheduler() {
-            return c.scheduler();
-        }
     }
 }

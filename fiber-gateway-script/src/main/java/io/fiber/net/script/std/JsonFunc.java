@@ -19,7 +19,7 @@ public class JsonFunc {
             }
 
             try {
-                return JsonUtil.MAPPER.readValue(arg.textValue(), JsonNode.class);
+                return JsonUtil.readTree(arg.textValue());
             } catch (Exception e) {
                 throw new ScriptExecException("cannot parseJson: " + e.getMessage(), e);
             }

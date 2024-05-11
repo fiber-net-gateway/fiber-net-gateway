@@ -1,6 +1,7 @@
 package io.fiber.net.script.std;
 
 import io.fiber.net.common.json.ArrayNode;
+import io.fiber.net.common.json.IntNode;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.ObjectNode;
 import io.fiber.net.common.utils.JsonUtil;
@@ -18,11 +19,12 @@ public class ObjectsFuncs {
         if (context.noArgs()) {
             throw new ScriptExecException("require object");
         }
-        if (!context.getArgVal(0).isObject()) {
-            throw new ScriptExecException("require object but get " + context.getArgVal(0).getNodeType());
+        JsonNode argVal = context.getArgVal(0);
+        if (!argVal.isObject()) {
+            throw new ScriptExecException("require object but get " + argVal.getNodeType());
         }
 
-        return (ObjectNode) context.getArgVal(0);
+        return (ObjectNode) argVal;
     }
 
     static class AssignMethod implements Library.Function {
@@ -77,22 +79,25 @@ public class ObjectsFuncs {
         public JsonNode call(ExecutionContext context) throws ScriptExecException {
             int length = context.getArgCnt();
             if (length < 2) {
-                throw new ScriptExecException("deleteObjectKey params undefined");
+                throw new ScriptExecException("assign ObjectKey params undefined");
             }
 
             JsonNode arg = context.getArgVal(0);
             if (!arg.isObject()) {
-                throw new ScriptExecException("deleteObjectKey not support " + arg.getNodeType());
+                throw new ScriptExecException("assign ObjectKey not support " + arg.getNodeType());
             }
 
             ObjectNode obj = (ObjectNode) arg;
+            int size = 0;
             for (int i = 1; i < length; i++) {
                 if (context.getArgVal(i).isTextual()) {
-                    obj.remove(context.getArgVal(i).textValue());
+                    if (obj.remove(context.getArgVal(i).textValue()) != null) {
+                        size++;
+                    }
                 }
             }
 
-            return obj;
+            return IntNode.valueOf(size);
         }
     }
 

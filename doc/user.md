@@ -132,13 +132,89 @@ transfer-encoding: chunked
 ### 三元
 - 选择 bool ? a : b 
 
-## 语句
-### if else
-### for
-### continue、break
-### try catch
-### return、throw
-
 # 标准库
+标准库函数
 
-敬请期待...
+#### 通用函数（无前缀）
+- length 长度。 
+```javascript
+/* true */ 
+length("abc") === 3 
+length({a:1,b:2}) === 2
+length([1,2,3]) === 3
+length(1) === 0
+```
+- includes 包含
+```javascript
+// true
+includes("abcabc", "cab")
+includes(["aa","bb", "cc"], "aa")
+// other false
+includes({a:1}, "a") === false
+```
+
+#### 数组操作 array.XXX
+- array.push 
+```javascript
+let a = [1,2];
+let b = array.push(a, 3, 4);
+// [1,2,3,4]
+return a === b &&
+    a[0] === 1 &&
+    a[1] === 2 &&
+    a[2] === 3 &&
+    a[3] === 4; 
+```
+- array.pop 
+```javascript
+let a = [1,2,3];
+let b = array.pop(a);
+let c = array.pop(a);
+// a -> [1]
+return length(a) === 1
+    && b === 3
+    && c === 2;
+```
+- array.join 
+```javascript
+let a = [1,2,3];
+let b = array.join(a, "-");
+return b === "1-2-3";
+```
+
+#### 对象操作 Object.XXX
+- Object.assign
+```javascript
+let a = {a:1,b:2};
+let b = Object.assign(a, {c:3});
+return a === b && a.a === 1 && a.b === 2 && a.c === 3;
+```
+- Object.keys
+```javascript
+let a = {a:1,b:2};
+let b = Object.keys(a);
+return typeof b === 'array' 
+    && length(b) === 2 
+    && b[0] === "a"
+    && b[1] === "b";
+```
+- Object.values
+```javascript
+let a = {a:1,b:2};
+let b = Object.values(a);
+return typeof b === 'array' 
+    && length(b) === 2 
+    && b[0] === 1
+    && b[1] === 2;
+```
+- Object.delete 删除 object 中的 key， 返回实际删除的个数
+```javascript
+let a = {a:1,b:2};
+let b = Object.delete(a, "a", "c");
+return b === 1
+    && length(a) === 1 // a -> {b:2}
+    && a.b === 2
+    && typeof a.a === "missing"; // a.a is deleted
+```
+
+#### 文档完善中 敬请期待......

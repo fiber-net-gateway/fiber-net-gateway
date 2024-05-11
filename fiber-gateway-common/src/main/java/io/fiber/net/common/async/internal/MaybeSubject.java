@@ -1,7 +1,6 @@
 package io.fiber.net.common.async.internal;
 
 import io.fiber.net.common.async.Maybe;
-import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.utils.Exceptions;
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -64,20 +63,20 @@ public abstract class MaybeSubject<T> implements Maybe<T> {
                     break;
                 }
             } else {
-                e.onError0(Exceptions.OB_CONSUMED);
+                e.onError(Exceptions.OB_CONSUMED);
                 return;
             }
         }
 
         if (o == COMPLETED) {
             if (error != null) {
-                e.onError0(error);
+                e.onError(error);
                 error = null;
             } else if (value != null) {
-                e.onSuccess0(value);
+                e.onSuccess(value);
                 value = null;
             } else {
-                e.onComplete0();
+                e.onComplete();
             }
         }
     }
@@ -148,19 +147,6 @@ public abstract class MaybeSubject<T> implements Maybe<T> {
             if (isDisposed()) {
                 return;
             }
-            Scheduler scheduler = observer.scheduler();
-            if (scheduler.inLoop()) {
-                observer.onError(error);
-            } else {
-                scheduler.execute(() -> onError0(error));
-            }
-        }
-
-        public void onError0(Throwable error) {
-            assert observer.scheduler().inLoop();
-            if (isDisposed()) {
-                return;
-            }
             observer.onError(error);
         }
 
@@ -170,43 +156,16 @@ public abstract class MaybeSubject<T> implements Maybe<T> {
                 source.onDismissClear(value);
                 return;
             }
-            Scheduler scheduler = observer.scheduler();
-            if (scheduler.inLoop()) {
-                observer.onSuccess(value);
-            } else {
-                scheduler.execute(() -> onSuccess0(value));
-            }
-        }
-
-        public void onSuccess0(T value) {
-            assert observer.scheduler().inLoop();
-            if (isDisposed()) {
-                source.onDismissClear(value);
-                return;
-            }
             observer.onSuccess(value);
         }
-
 
         @Override
         public void onComplete() {
             if (isDisposed()) {
                 return;
             }
-            Scheduler scheduler = observer.scheduler();
-            if (scheduler.inLoop()) {
-                observer.onComplete();
-            } else {
-                scheduler.execute(this::onComplete0);
-            }
-        }
-
-        protected void onComplete0() {
-            assert observer.scheduler().inLoop();
-            if (isDisposed()) {
-                return;
-            }
             observer.onComplete();
         }
+
     }
 }

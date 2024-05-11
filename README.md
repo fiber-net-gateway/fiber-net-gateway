@@ -1,7 +1,7 @@
 # fiber-net-gateway 
 一个基于脚本引擎的低代码 API 网关 | FaaS 框架。实现的功能是每收到一次 http 请求，执行一段脚本。
 
-在脚本里，可以写一些调用http，dubbo 或其它简单逻辑，即可以实现协议转换、反向代理、服务编排，[BFF](https://zhuanlan.zhihu.com/p/634498512)等功能。
+在脚本里，可以写一些调用 http，dubbo 或其它简单逻辑，即可以实现协议转换、反向代理、服务编排，[BFF](https://zhuanlan.zhihu.com/p/634498512)等功能。
 
 本项目包含4个基本组件:
 - 基于 netty 的异步 http server。
@@ -26,7 +26,7 @@ ps：仅仅是一个框架，若要用于生产环境，需要进行二次开发
 ```bash
 git clone https://github.com/fiber-net-gateway/fiber-net-gateway.git
 cd fiber-net-gateway
-mvn package -DskipTests
+mvn clean package -DskipTests
 cd fiber-gateway-example/target
 ```
 

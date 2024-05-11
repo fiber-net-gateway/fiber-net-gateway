@@ -21,7 +21,7 @@ public class DubboModule implements Module {
     }
 
     public static void install(Binder binder, DubboConfig config) {
-        binder.bindFactory(DubboClient.class, injector -> new DubboClient(config));
+        binder.bindFactory(DubboClient.class, injector -> new DubboClient(config == null ? defaultConfig() : config));
         binder.bindMultiBean(ProxyModule.class, ScriptModule.class);
         binder.bind(ScriptModule.class, ScriptModule.INSTANCE);
     }
@@ -29,7 +29,7 @@ public class DubboModule implements Module {
     private final DubboConfig config;
 
     public DubboModule() {
-        this(defaultConfig());
+        this(null);
     }
 
     public DubboModule(DubboConfig config) {

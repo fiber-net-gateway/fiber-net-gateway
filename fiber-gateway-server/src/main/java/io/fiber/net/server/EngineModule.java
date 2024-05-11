@@ -6,6 +6,7 @@ import io.fiber.net.common.ioc.Binder;
 import io.fiber.net.common.ioc.Destroyable;
 import io.fiber.net.common.ioc.Initializable;
 import io.fiber.net.common.ioc.Module;
+import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.EpollAvailable;
 import io.fiber.net.common.utils.StringUtils;
 import io.netty.channel.EventLoopGroup;
@@ -35,7 +36,7 @@ public class EngineModule implements Module {
     public void install(Binder binder) {
         binder.bindFactory(Engine.class, HttpEngine::new);
         binder.bind(RouterNameFetcher.class, (RouterNameFetcher<HttpExchange>) exchange -> {
-            String header = exchange.getRequestHeader("X-Fiber-Project");
+            String header = exchange.getRequestHeader(Constant.X_FIBER_PROJECT_HEADER);
             if (StringUtils.isEmpty(header)) {
                 return RouterNameFetcher.DEF_ROUTER_NAME;
             }

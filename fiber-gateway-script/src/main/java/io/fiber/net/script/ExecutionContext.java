@@ -1,7 +1,6 @@
 package io.fiber.net.script;
 
 import io.fiber.net.common.json.JsonNode;
-import io.fiber.net.script.run.ScriptExceptionNode;
 
 public interface ExecutionContext {
 

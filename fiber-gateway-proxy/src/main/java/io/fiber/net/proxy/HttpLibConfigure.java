@@ -9,7 +9,5 @@ import java.util.List;
 public interface HttpLibConfigure {
     void onInit(ExtensiveHttpLib lib);
 
-    Library.Constant findConst(String namespace, String key);
-
     Library.DirectiveDef findDirectiveDef(String type, String name, List<Literal> literals);
 }

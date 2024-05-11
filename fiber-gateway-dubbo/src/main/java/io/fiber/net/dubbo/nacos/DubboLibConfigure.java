@@ -24,12 +24,6 @@ public class DubboLibConfigure implements HttpLibConfigure {
     }
 
     @Override
-    public Library.Constant findConst(String namespace, String key) {
-        return null;
-    }
-
-
-    @Override
     public Library.DirectiveDef findDirectiveDef(String type, String name, List<Literal> literals) {
         if ("dubbo".equals(type)) {
             String service = literals.get(0).getLiteralValue().textValue();

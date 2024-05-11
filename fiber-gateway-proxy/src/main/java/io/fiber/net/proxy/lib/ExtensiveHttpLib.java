@@ -30,19 +30,6 @@ public class ExtensiveHttpLib extends StdLibrary {
     }
 
     @Override
-    public Constant findConstant(String namespace, String key) {
-        if (ArrayUtils.isNotEmpty(configures)) {
-            for (HttpLibConfigure configure : configures) {
-                Constant def = configure.findConst(namespace, key);
-                if (def != null) {
-                    return def;
-                }
-            }
-        }
-        return null;
-    }
-
-    @Override
     public DirectiveDef findDirectiveDef(String type, String name, List<Literal> literals) {
         if (ArrayUtils.isNotEmpty(configures)) {
             for (HttpLibConfigure configure : configures) {

@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets;
 
 public class CharArrUtil {
     public static final char[] EMPTY = new char[0];
-    public static final byte[] EMPTY_BYTES = new byte[0];
+    public static final byte[] EMPTY_BYTES = Constant.EMPTY_BYTE_ARR;
 
 
     public static char[] toCharArr(String str) {

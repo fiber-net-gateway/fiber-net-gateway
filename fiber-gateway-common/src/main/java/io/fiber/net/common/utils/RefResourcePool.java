@@ -85,8 +85,7 @@ public abstract class RefResourcePool<V extends RefResourcePool.Ref> {
                 }
             } while (!UPDATER.compareAndSet(this, c, c - 1));
             if (c == 1) {
-                Ref rf = pool.map.remove(refKey());
-                if (rf == this) {
+                if (pool.map.remove(refKey(), this)) {
                     log.info("ref object({}) of {} destroying", refKey(), pool.poolName);
                     doClose();
                 }

@@ -1,7 +1,7 @@
 # 性能测试
 
 环境在 ubuntu 虚拟机上测试，分别对比测试了 nginx（openresty），golang，spring-mvc，本项目（fiber-net）。
-执行同样逻辑，结果显示本项目性能是 nginx-lua 1.7 倍，golang 的 1.3 倍，spring-mvc 4.4倍。
+执行同样逻辑，结果显示本项目性能是 nginx-lua 1.5 倍，golang 的 1.3 倍，spring-mvc 4.4倍。
 
 ### 环境描述
 

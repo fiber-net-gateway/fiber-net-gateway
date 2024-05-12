@@ -203,4 +203,5 @@ Transfer/sec:     15.87MB
 
 可以看出 本项目的性能 超越 nginx-lua、golang 比较多，对spring-mvc 更是碾压级的超越。
 fiber-net > golang > nginx-lua > spring-mvc
+
 PS：从这里看出 golang 请求数比 nginx 高，但是数据传输更少，因为 golang 的默认 header 很少，实际 QPS 应该打点折扣。

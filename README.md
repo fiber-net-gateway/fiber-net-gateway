@@ -10,7 +10,7 @@
 - 同时支持解释器和 AOT 的脚本引擎。
 
 性能非常高，是世界上最快的 java 网关｜FaaS 框架了（没有之一）， 
-是 nginx-luajit 1.5 倍，golang 的 1.3 倍，spring-mvc 4.4倍（[性能测试](doc/benchmark.md)）。有如下亮点：
+是 nginx-luajit 1.5 倍，spring-mvc 4.4倍（[性能测试](doc/benchmark.md)）。有如下亮点：
 - 专门为 FaaS | API 网关等场景设计的脚本语言，区别于其它网关复杂难以理解的配置，简单易懂。
 - 所有组件全是异步的，没有用到 线程池，除了 Netty 的 IO 线程外无其它线程。
 

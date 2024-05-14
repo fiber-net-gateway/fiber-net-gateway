@@ -1,5 +1,6 @@
 package io.fiber.net.http;
 
+import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.async.*;
 import io.fiber.net.common.async.internal.SingleSubject;
 import io.fiber.net.common.utils.Headers;
@@ -9,7 +10,6 @@ import io.fiber.net.http.impl.PoolConfig;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpMethod;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -136,7 +136,7 @@ public class ClientExchange {
     }
 
     public void setMethod(io.fiber.net.common.HttpMethod method) {
-        this.method = HttpMethod.valueOf(method.name());
+        this.method = method;
     }
 
     public final void addHeader(String name, String value) {

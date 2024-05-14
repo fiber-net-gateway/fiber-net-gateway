@@ -2,9 +2,8 @@ package io.fiber.net.proxy.lib;
 
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.utils.ArrayUtils;
-import io.fiber.net.http.HttpClient;
-import io.fiber.net.http.HttpHost;
 import io.fiber.net.proxy.HttpLibConfigure;
+import io.fiber.net.script.Library;
 import io.fiber.net.script.ast.Literal;
 import io.fiber.net.script.std.StdLibrary;
 
@@ -39,11 +38,28 @@ public class ExtensiveHttpLib extends StdLibrary {
                 }
             }
         }
-        if ("http".equals(type)) {
-            HttpHost httpHost = HttpHost.create(literals.get(0).getLiteralValue().textValue());
-            return new HttpFunc(httpHost, injector.getInstance(HttpClient.class));
-        }
         return null;
     }
 
+    @Override
+    public Object findConstant(String namespace, String key) {
+        Object constant = super.findConstant(namespace, key);
+        if (constant != null) {
+            return constant;
+        }
+        if (ArrayUtils.isNotEmpty(configures)) {
+            for (HttpLibConfigure configure : configures) {
+                Library.Constant c = configure.findConstant(namespace, key);
+                if (c != null) {
+                    return c;
+                }
+
+                Library.AsyncConstant ac = configure.findAsyncConstant(namespace, key);
+                if (ac != null) {
+                    return ac;
+                }
+            }
+        }
+        return null;
+    }
 }

@@ -6,6 +6,7 @@ import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.dubbo.nacos.DubboModule;
 import io.fiber.net.proxy.ConfigWatcher;
 import io.fiber.net.proxy.LibProxyMainModule;
+import io.fiber.net.proxy.ScriptCodeSource;
 import io.fiber.net.server.HttpEngine;
 import io.fiber.net.server.HttpServer;
 import io.fiber.net.server.ServerConfig;
@@ -13,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.nio.file.Files;
 
 public class Main {
     private static final Logger log = LoggerFactory.getLogger(Main.class);
@@ -45,5 +47,9 @@ public class Main {
 
     private static void install(Binder binder, File file) {
         binder.forceBindFactory(ConfigWatcher.class, i -> new DirectoryFilesConfigWatcher(file));
+        File fileDir = new File(file, "file");
+        fileDir.mkdirs();
+        binder.forceBindFactory(ScriptCodeSource.class,
+                i -> name -> new String(Files.readAllBytes(new File(fileDir, name + ".js").toPath())));
     }
 }

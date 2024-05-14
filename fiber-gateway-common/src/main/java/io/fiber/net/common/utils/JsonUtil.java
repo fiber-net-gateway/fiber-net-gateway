@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.ResolvedType;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.module.SimpleModule;
@@ -147,8 +148,17 @@ public class JsonUtil {
     public static JsonNode readTree(String text) throws JsonProcessingException {
         return MAPPER.readValue(text, JsonNode.class);
     }
+
     public static JsonNode valueToTree(Object object) {
         return MAPPER.convertValue(object, JsonNode.class);
+    }
+
+    public static <T> T treeToValue(JsonNode node, Class<T> clz) throws IOException {
+        return MAPPER.readValue(new TreeTraversingParser(node, MAPPER), clz);
+    }
+
+    public static <T> T treeToValue(JsonNode node, ResolvedType valueType) throws IOException {
+        return MAPPER.readValue(new TreeTraversingParser(node, MAPPER), valueType);
     }
 
     public static JsonNode readTree(InputStream json) throws IOException {

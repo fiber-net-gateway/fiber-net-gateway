@@ -168,9 +168,6 @@ class HttpExchangeImpl extends HttpExchange {
             throw new FiberException("error serializing result:", 500, "WRITE_JSON_BODY");
         }
 
-        if (!headers.contains(HttpHeaderNames.CONTENT_TYPE)) {
-            headers.set(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_OCTET_STREAM);
-        }
         writeBody0(buf, status);
     }
 
@@ -367,7 +364,7 @@ class HttpExchangeImpl extends HttpExchange {
 
     private DefaultHttpHeaders headerForSend(int contentLen) {
         DefaultHttpHeaders headers = this.headers;
-        if (!headers.contains(HttpHeaderNames.CONTENT_TYPE)) {
+        if (contentLen != 0 && !headers.contains(HttpHeaderNames.CONTENT_TYPE)) {
             headers.set(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_OCTET_STREAM);
         }
         ReqHandler.addConnectionHeader(headers);

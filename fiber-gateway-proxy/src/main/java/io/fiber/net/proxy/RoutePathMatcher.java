@@ -218,6 +218,10 @@ public class RoutePathMatcher<H> {
                 throw new IllegalStateException("config completed");
             }
 
+            if (method == HttpMethod.HEAD || method == HttpMethod.CONNECT) {
+                throw new IllegalStateException("method HEAD/CONNECT is not allowed");
+            }
+
             int mIdx = method == null ? METHODS.length : method.ordinal();
 
             Node node = addPath(root, url);
@@ -338,10 +342,10 @@ public class RoutePathMatcher<H> {
     }
 
 
-    private static <H> int exec(byte[] cs, int idx, Node n, int mBit, MappingResult<H> context) {
+    private static <H> boolean exec(byte[] cs, int idx, Node n, MappingResult<H> context) {
         int length = cs.length;
 
-        int i, h = 1, matched;
+        int i, h = 1;
         byte ch;
         Iterator<Node> placeholders;
         for (i = idx; i <= length; i++) {
@@ -363,55 +367,92 @@ public class RoutePathMatcher<H> {
                 Node c;
                 do {
                     c = placeholders.next();
-                    if ((matched = exec(cs, i + 1, c, mBit, context)) >= 0) {
-                        context.addParam(c.getName(), new String(cs, idx, i - idx));
-                        return matched;
+                    if (exec(cs, i + 1, c, context)) {
+                        context.addParam(c.getName(), cs, idx, i - idx);
+                        return true;
                     }
                 } while (placeholders.hasNext());
             }
 
             Node wildcard;
             if ((wildcard = n.getWildcard()) != null) {
-                if ((wildcard.handlerMask & (1 << mBit)) != 0) {
-                    context.addParam(wildcard.getName(), new String(cs, idx, length - idx));
-                    return wildcard.handlerIdxStart + mBit;
+                if (context.matchNode(wildcard)) {
+                    context.addParam(wildcard.getName(), cs, idx, length - idx);
+                    return true;
                 }
             }
 
-            return -1;
+            return false;
         }
 
-        return (n.handlerMask & (1 << mBit)) != 0 ? (n.handlerIdxStart + mBit) : -1;
+        return context.matchNode(n);
     }
 
     public MappingResult<H> matchPath(HttpExchange exchange) {
-        MappingResult<H> result = new MappingResult<>();
+        MappingResult<H> result = new MappingResult<>(handlers, exchange);
 
         byte[] cs = CharArrUtil.toByteArr(exchange.getPath());
         int idx = 0;
         if (cs[0] == '/') {
             idx = 1;
         }
-        int matched = exec(cs, idx, root, exchange.getRequestMethod().ordinal(), result);
-        if (matched >= 0) {
-            result.handler = handlers[matched];
-        }
+        exec(cs, idx, root, result);
         return result;
     }
 
     public static class MappingResult<H> {
+        private final H[] handlers;
+        private final int methodBit;
+        private final int preflightMtdBit;
+        private boolean forCors;
         private H handler;
         private Map<String, JsonNode> map;
+
+        public MappingResult(H[] handlers, HttpExchange exchange) {
+            this.handlers = handlers;
+            HttpMethod method = exchange.getRequestMethod();
+            this.methodBit = method.ordinal();
+            this.preflightMtdBit = method == HttpMethod.OPTIONS && CorsProcessor.isPreflightReq(exchange) ? computePreflightMtd(exchange) : -1;
+        }
+
+        private static int computePreflightMtd(HttpExchange exchange) {
+            HttpMethod method = HttpMethod.resolve(exchange.getRequestHeader(CorsScriptHandler.ACCESS_CTL_REQ_MTD_HEADER));
+            return method == null ? -1 : method.ordinal();
+        }
+
+        private boolean matchNode(Node node) {
+            int mb = methodBit, pmb = preflightMtdBit;
+            int hm = node.handlerMask, hid = node.handlerIdxStart;
+
+            if ((hm & (1 << mb)) != 0) {
+                handler = handlers[hid + mb];
+                return true;
+            }
+
+            if (pmb >= 0 && (hm & (1 << pmb)) != 0) {
+                H h;
+                if ((h = handlers[hid + pmb]) instanceof CorsProcessor) {
+                    handler = h;
+                    forCors = true;
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         public H getHandler() {
             return handler;
         }
 
-        void addParam(String var, String val) {
+        void addParam(String var, byte[] cs, int idx, int len) {
+            if (forCors) {
+                return;
+            }
             if (map == null) {
                 map = new HashMap<>();
             }
-            map.put(var, TextNode.valueOf(val));
+            map.put(var, TextNode.valueOf(new String(cs, idx, len)));
         }
 
         public Map<String, JsonNode> getMap() {
@@ -433,6 +474,10 @@ public class RoutePathMatcher<H> {
                 }
             }
             return node;
+        }
+
+        public boolean isForCors() {
+            return forCors;
         }
     }
 

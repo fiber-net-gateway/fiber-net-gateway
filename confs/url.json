@@ -12,6 +12,7 @@
   {
     "method": "POST",
     "url": "/a/c",
-    "file": "t2"
+    "file": "t2",
+    "cors": true
   }
 ]

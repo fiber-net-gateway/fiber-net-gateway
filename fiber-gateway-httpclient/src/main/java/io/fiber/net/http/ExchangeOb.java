@@ -7,6 +7,7 @@ import io.fiber.net.http.impl.ConnectionPool;
 import io.fiber.net.http.impl.HttpConnection;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpMethod;
 
 import java.util.Collection;
 import java.util.List;
@@ -98,7 +99,7 @@ abstract class ExchangeOb extends ClientHttpExchange implements ConnectionPool.C
 
     @Override
     protected io.netty.handler.codec.http.HttpMethod requestMethod() {
-        return exchange.method;
+        return HttpMethod.valueOf(exchange.method.name());
     }
 
     @Override

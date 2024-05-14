@@ -5,8 +5,18 @@ import io.fiber.net.common.ext.StartListener;
 import io.fiber.net.common.ioc.Binder;
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.ioc.Module;
+import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.common.utils.Assert;
+import io.fiber.net.common.utils.CollectionUtils;
+import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.http.DefaultHttpClient;
 import io.fiber.net.http.HttpClient;
+import io.fiber.net.http.HttpHost;
+import io.fiber.net.proxy.lib.ExtensiveHttpLib;
+import io.fiber.net.proxy.lib.HttpFunc;
+import io.fiber.net.script.Library;
+import io.fiber.net.script.Script;
+import io.fiber.net.script.ast.Literal;
 import io.fiber.net.server.EngineModule;
 import io.fiber.net.server.HttpEngine;
 import io.fiber.net.server.HttpExchange;
@@ -26,29 +36,79 @@ public class LibProxyMainModule implements Module {
             this.engineInjector = engineInjector;
         }
 
-
         @Override
         public void install(Binder binder) {
-            binder.bindPrototype(ProjectRouterBuilder.class, ProjectRouterBuilder::new);
+            binder.bindMultiBean(HttpLibConfigure.class, ProxyHttpLibConfigure.class);
+            binder.bindPrototype(ProxyHttpLibConfigure.class, ProxyHttpLibConfigure::new);
         }
 
         synchronized ScriptHandler createProject(String projectName, String code) throws Exception {
+            Assert.isTrue(StringUtils.isNotEmpty(code));
+            Injector injector = createProjectInjector();
+            try {
+                Script compiled = compileScript(code, injector);
+                return new ScriptHandler(injector, projectName, compiled);
+            } catch (Throwable e) {
+                injector.destroy();
+                throw e;
+            }
+        }
+
+        synchronized UrlMappingRouter createProject(String projectName,
+                                                    List<UrlRoute> routes,
+                                                    CorsConfig defCorsConfig) throws Exception {
+            Assert.isTrue(CollectionUtils.isNotEmpty(routes));
+            UrlHandlerManager urlHandlerManager = engineInjector.getInstance(UrlHandlerManager.class);
+            UrlMappingRouterBuilder builder = UrlMappingRouterBuilder.builder(urlHandlerManager);
+            return builder.setName(projectName)
+                    .setRoutes(routes)
+                    .setDefaultCorsConfig(defCorsConfig)
+                    .build();
+        }
+
+        static Script compileScript(String code, Injector injector) throws Exception {
+            HttpLibConfigure[] configures = injector.getInstances(HttpLibConfigure.class);
+
+            ExtensiveHttpLib library = new ExtensiveHttpLib(injector, configures);
+            if (ArrayUtils.isNotEmpty(configures)) {
+                for (HttpLibConfigure configure : configures) {
+                    configure.onInit(library);
+                }
+            }
+            return Script.compile(code, library);
+        }
+
+        private Injector createProjectInjector() {
             Injector injector;
             if (projectInjector != null) {
                 injector = projectInjector.fork();
             } else {
                 injector = projectInjector = engineInjector.createChild(engineInjector.getInstances(ProxyModule.class));
             }
+            return injector;
+        }
+    }
 
-            try {
-                ProjectRouterBuilder builder = injector.getInstance(ProjectRouterBuilder.class);
-                builder.setCode(code);
-                builder.setName(projectName);
-                return builder.build();
-            } catch (Throwable e) {
-                injector.destroy();
-                throw e;
+
+    private static class ProxyHttpLibConfigure implements HttpLibConfigure {
+
+        private final Injector injector;
+
+        public ProxyHttpLibConfigure(Injector injector) {
+            this.injector = injector;
+        }
+
+        @Override
+        public void onInit(ExtensiveHttpLib lib) {
+        }
+
+        @Override
+        public Library.DirectiveDef findDirectiveDef(String type, String name, List<Literal> literals) {
+            if ("http".equals(type)) {
+                HttpHost httpHost = HttpHost.create(literals.get(0).getLiteralValue().textValue());
+                return new HttpFunc(httpHost, injector.getInstance(HttpClient.class));
             }
+            return null;
         }
     }
 
@@ -71,12 +131,30 @@ public class LibProxyMainModule implements Module {
         binder.bindMultiBean(StartListener.class, ProxyStartListener.class);
         binder.bind(ProxyStartListener.class, new ProxyStartListener());
         binder.bind(ConfigWatcher.class, ConfigWatcher.NOOP_WATCHER);
+        binder.bindFactory(UrlHandlerManager.class, UrlHandlerManager::new);
     }
 
     public static ScriptHandler createProject(Injector injector, String projectName, String code) throws Exception {
         SubModule subModule = injector.getInstance(SubModule.class);
         assert subModule.engineInjector == injector;
         return subModule.createProject(projectName, code);
+    }
+
+    public static UrlMappingRouter createUrlMappingRouter(Injector injector,
+                                                          String projectName,
+                                                          List<UrlRoute> routes,
+                                                          CorsConfig defCorsConfig) throws Exception {
+        SubModule subModule = injector.getInstance(SubModule.class);
+        assert subModule.engineInjector == injector;
+        return subModule.createProject(projectName, routes, defCorsConfig);
+    }
+
+    public static CorsScriptHandler createProject(Injector injector,
+                                                  String projectName,
+                                                  String code,
+                                                  CorsConfig corsConfig) throws Exception {
+        ScriptHandler scriptHandler = createProject(injector, projectName, code);
+        return CorsScriptHandler.create(scriptHandler, corsConfig);
     }
 
     public static HttpEngine createEngineWithSPI(ClassLoader loader) throws Exception {

@@ -3,24 +3,22 @@ package io.fiber.net.proxy;
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.utils.RefResourcePool;
 
-import java.io.File;
-import java.nio.file.Files;
-
 public class UrlHandlerManager extends RefResourcePool<UrlHandlerManager.ScriptRef> {
     private final Injector injector;
-    private final File path;
+    private ScriptCodeSource scriptCodeSource;
 
-    public UrlHandlerManager(Injector injector, File path) {
+    public UrlHandlerManager(Injector injector) {
         super("scripts");
         this.injector = injector;
-        this.path = path;
     }
 
     @Override
     protected ScriptRef doCreateRef(String key) {
+        if (scriptCodeSource == null) {
+            scriptCodeSource = injector.getInstance(ScriptCodeSource.class);
+        }
         try {
-            byte[] bytes = Files.readAllBytes(new File(path, key + ".js").toPath());
-            ScriptHandler handler = LibProxyMainModule.createProject(injector, key, new String(bytes));
+            ScriptHandler handler = LibProxyMainModule.createProject(injector, key, scriptCodeSource.getScript(key));
             return new ScriptRef(this, handler);
         } catch (Exception e) {
             throw new RuntimeException(e);

@@ -13,19 +13,14 @@ public class ScriptHandler implements RouterHandler<HttpExchange> {
 
     private final Injector injector;
     private final String name;
-    private Script script;
-
+    private final Script script;
 
     public ScriptHandler(Injector injector,
-                         String name) {
+                         String name, Script script) {
         this.injector = injector;
         this.name = name;
-    }
-
-    public void setScript(Script script) {
         this.script = script;
     }
-
 
     @Override
     public String getRouterName() {
@@ -55,5 +50,13 @@ public class ScriptHandler implements RouterHandler<HttpExchange> {
     @Override
     public void destroy() {
         injector.destroy();
+    }
+
+    public Script getScript() {
+        return script;
+    }
+
+    public Injector getInjector() {
+        return injector;
     }
 }

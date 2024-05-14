@@ -1,5 +1,6 @@
 package io.fiber.net.proxy.lib;
 
+import io.fiber.net.common.RouterHandler;
 import io.fiber.net.common.json.*;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.JsonUtil;
@@ -7,7 +8,6 @@ import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.http.util.MultiMap;
 import io.fiber.net.http.util.UrlEncoded;
 import io.fiber.net.proxy.RoutePathMatcher;
-import io.fiber.net.proxy.ScriptHandler;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
@@ -216,7 +216,7 @@ public class ReqFunc {
 
         @Override
         public JsonNode call(ExecutionContext context) {
-            RoutePathMatcher.MappingResult<ScriptHandler> result
+            RoutePathMatcher.MappingResult<RouterHandler<HttpExchange>> result
                     = MAPPING_RESULT_ATTR.get(HttpDynamicFunc.httpExchange(context));
             if (result == null) {
                 return MissingNode.getInstance();
@@ -245,6 +245,6 @@ public class ReqFunc {
         ASYNC_FC_MAP.put("req.readBinary", new ReadBinaryBody());
     }
 
-    public static final HttpExchange.Attr<RoutePathMatcher.MappingResult<ScriptHandler>> MAPPING_RESULT_ATTR
+    public static final HttpExchange.Attr<RoutePathMatcher.MappingResult<RouterHandler<HttpExchange>>> MAPPING_RESULT_ATTR
             = HttpExchange.createAttr();
 }

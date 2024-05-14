@@ -1,5 +1,6 @@
 package io.fiber.net.proxy;
 
+import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.RouterHandler;
 import io.fiber.net.common.utils.CollectionUtils;
 import io.fiber.net.proxy.lib.ReqFunc;
@@ -9,8 +10,8 @@ import java.util.List;
 
 public class UrlMappingRouter implements RouterHandler<HttpExchange> {
     private final String name;
-    private RoutePathMatcher<ScriptHandler> matcher;
-    private List<UrlHandlerManager.ScriptRef> refs;
+    private RoutePathMatcher<RouterHandler<HttpExchange>> matcher;
+    List<UrlHandlerManager.ScriptRef> refs;
 
     public UrlMappingRouter(String name) {
         this.name = name;
@@ -21,7 +22,7 @@ public class UrlMappingRouter implements RouterHandler<HttpExchange> {
         return name;
     }
 
-    public void setMatcher(RoutePathMatcher<ScriptHandler> matcher) {
+    public void setMatcher(RoutePathMatcher<RouterHandler<HttpExchange>> matcher) {
         this.matcher = matcher;
     }
 
@@ -31,16 +32,23 @@ public class UrlMappingRouter implements RouterHandler<HttpExchange> {
 
     @Override
     public void invoke(HttpExchange exchange) throws Exception {
-        RoutePathMatcher.MappingResult<ScriptHandler> result = matcher.matchPath(exchange);
-        ScriptHandler script = result.getHandler();
-        if (script == null) {
+        if (exchange.getRequestMethod() == HttpMethod.CONNECT) {
+            exchange.discardReqBody();
+            exchange.writeJson(501, "NO_IMPLEMENTS");
+            return;
+        }
+        RoutePathMatcher.MappingResult<RouterHandler<HttpExchange>> result = matcher.matchPath(exchange);
+        RouterHandler<HttpExchange> handler = result.getHandler();
+        if (handler == null) {
             exchange.discardReqBody();
             exchange.writeJson(404, "URL_NOT_MATCHED");
             return;
         }
 
-        ReqFunc.MAPPING_RESULT_ATTR.set(exchange, result);
-        script.invoke(exchange);
+        if (!result.isForCors()) {
+            ReqFunc.MAPPING_RESULT_ATTR.set(exchange, result);
+        }
+        handler.invoke(exchange);
     }
 
     @Override
@@ -51,4 +59,5 @@ public class UrlMappingRouter implements RouterHandler<HttpExchange> {
             }
         }
     }
+
 }

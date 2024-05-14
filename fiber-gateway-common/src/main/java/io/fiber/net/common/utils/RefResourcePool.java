@@ -7,6 +7,10 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
+/**
+ * cycle dependency may be cause deadlock
+ * @param <V>
+ */
 public abstract class RefResourcePool<V extends RefResourcePool.Ref> {
     private static final Logger log = LoggerFactory.getLogger(RefResourcePool.class);
     private final Map<String, V> map = new ConcurrentHashMap<>();

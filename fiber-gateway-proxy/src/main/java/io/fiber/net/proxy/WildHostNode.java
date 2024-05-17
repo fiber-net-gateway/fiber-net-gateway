@@ -40,7 +40,7 @@ public class WildHostNode {
     }
 
     public void addDomainPattern(String domainPattern) {
-        addDomainPattern(CharArrUtil.toByteArr(domainPattern));
+        addDomainPattern(CharArrUtil.toReadOnlyAsciiCharArr(domainPattern));
     }
 
     private void addDomainPattern(byte[] cs) {
@@ -100,12 +100,12 @@ public class WildHostNode {
     }
 
     public boolean matchHost(String host) {
-        byte[] chars = CharArrUtil.toByteArr(host);
+        byte[] chars = CharArrUtil.toReadOnlyAsciiCharArr(host);
         return matchHost(chars, 0, chars.length);
     }
 
     public boolean matchHost(String host, int from) {
-        byte[] chars = CharArrUtil.toByteArr(host);
+        byte[] chars = CharArrUtil.toReadOnlyAsciiCharArr(host);
         return matchHost(chars, from, chars.length);
     }
 

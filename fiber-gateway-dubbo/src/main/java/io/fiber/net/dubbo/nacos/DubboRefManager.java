@@ -1,5 +1,6 @@
 package io.fiber.net.dubbo.nacos;
 
+import io.fiber.net.common.FiberException;
 import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.async.Single;
 import io.fiber.net.common.ioc.Destroyable;
@@ -73,24 +74,22 @@ public class DubboRefManager implements Destroyable {
 
 
         public Single<JsonNode> invoke(String methodName, Object[] args) {
-            return Single.create(emitter -> {
-                RpcContext.getClientAttachment().setObjectAttachment(CommonConstants.TIMEOUT_KEY, timeout);
-                genericService.$invokeAsync(methodName, null, args).whenComplete((o, throwable) -> {
-                    if (throwable != null) {
-                        emitter.onError(throwable);
-                    } else {
-                        emitter.onSuccess(o);
-                    }
-                });
-            }).map(o -> {
-                if (o instanceof JsonNode) {
-                    return (JsonNode) o;
-                } else if (o != null) {
-                    return JsonUtil.valueToTree(o);
-                } else {
-                    return NullNode.getInstance();
-                }
-            }).notifyOn(Scheduler.current());
+            return Single.<JsonNode>create(emitter -> {
+                        RpcContext.getClientAttachment().setObjectAttachment(CommonConstants.TIMEOUT_KEY, timeout);
+                        genericService.$invokeAsync(methodName, null, args)
+                                .whenComplete((o, throwable) -> {
+                                    if (throwable != null) {
+                                        emitter.onError(throwable);
+                                    } else if (o instanceof JsonNode) {
+                                        emitter.onSuccess((JsonNode) o);
+                                    } else if (o != null) {
+                                        emitter.onSuccess(JsonUtil.valueToTree(o));
+                                    } else {
+                                        emitter.onSuccess(NullNode.getInstance());
+                                    }
+                                });
+                    }).mapError(e -> new FiberException(e.getMessage(), e, 500, "DUBBO_INVOCATION"))
+                    .notifyOn(Scheduler.current());
         }
 
         public Single<JsonNode> invoke(String methodName, ArrayNode args) {

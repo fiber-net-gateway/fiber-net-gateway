@@ -136,12 +136,11 @@ public class ReqHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        logger.error("error in io handler", cause);
-
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         if (httpExchange != null) {
             httpExchange.abortBody(cause);
             requestEnd();
+            logger.error("error in io handler", cause);
         }
     }
 

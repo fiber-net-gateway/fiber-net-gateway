@@ -57,4 +57,8 @@ public interface Single<T> {
         }
         return new SchedulerNotifySingle<>(scheduler, this);
     }
+
+    default Single<T> mapError(Function<Throwable, Throwable> mapErr) {
+        return new ErrMappedSingle<>(mapErr, this);
+    }
 }

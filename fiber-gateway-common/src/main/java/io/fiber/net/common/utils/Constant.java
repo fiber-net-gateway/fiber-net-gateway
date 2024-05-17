@@ -1,7 +1,7 @@
 package io.fiber.net.common.utils;
 
-import io.fiber.net.common.json.TextNode;
 import io.fiber.net.common.HttpMethod;
+import io.fiber.net.common.json.TextNode;
 
 public class Constant {
     public static final String APP_NAME = "appName";
@@ -13,14 +13,14 @@ public class Constant {
     public static final String[] EMPTY_STR_ARR = new String[0];
     public static final byte[] EMPTY_BYTE_ARR = new byte[0];
 
+    public static final HttpMethod[] METHODS = HttpMethod.values();
     public static final TextNode[] METHOD_TEXTS = getMethodTexts();
 
 
     private static TextNode[] getMethodTexts(){
-        HttpMethod[] values = HttpMethod.values();
-        TextNode[] textNodes = new TextNode[values.length];
-        for (int i = 0; i < values.length; i++) {
-            textNodes[i] = TextNode.valueOf(values[i].name());
+        TextNode[] textNodes = new TextNode[METHODS.length];
+        for (int i = 0; i < METHODS.length; i++) {
+            textNodes[i] = TextNode.valueOf(METHODS[i].name());
         }
         return textNodes;
     }

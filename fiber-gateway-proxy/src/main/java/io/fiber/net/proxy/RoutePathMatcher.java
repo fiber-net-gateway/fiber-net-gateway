@@ -5,10 +5,7 @@ import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.MissingNode;
 import io.fiber.net.common.json.ObjectNode;
 import io.fiber.net.common.json.TextNode;
-import io.fiber.net.common.utils.Assert;
-import io.fiber.net.common.utils.CharArrUtil;
-import io.fiber.net.common.utils.JsonUtil;
-import io.fiber.net.common.utils.StringUtils;
+import io.fiber.net.common.utils.*;
 import io.fiber.net.server.HttpExchange;
 
 import java.util.*;
@@ -193,10 +190,13 @@ public class RoutePathMatcher<H> {
         return new Builder<>();
     }
 
-    private static final HttpMethod[] METHODS = HttpMethod.values();
+    private static final HttpMethod[] METHODS = Constant.METHODS;
     private static final int METHOD_CELL = METHODS.length + 1;
     private static final int ALL_METHOD_BIT = 1 << METHODS.length;
-    private static final int ALL_METHOD_MASK = ALL_METHOD_BIT - 1;
+    private static final int ALL_METHOD_MASK = (1 << HttpMethod.GET.ordinal())
+            | (1 << HttpMethod.POST.ordinal())
+            | (1 << HttpMethod.PUT.ordinal())
+            | (1 << HttpMethod.DELETE.ordinal());
 
 
     public static class Builder<H> {
@@ -248,7 +248,7 @@ public class RoutePathMatcher<H> {
             }
 
             Node n = root;
-            byte[] chars = CharArrUtil.toByteArr(path);
+            byte[] chars = CharArrUtil.toReadOnlyAsciiCharArr(path);
             int i = 0;
             int length = chars.length;
             if (length != path.length()) {
@@ -318,7 +318,8 @@ public class RoutePathMatcher<H> {
                         }
                         ns[p++] = h;
                     }
-                    node.handlerMask = ALL_METHOD_MASK;
+                    node.handlerMask &= ~ALL_METHOD_BIT;
+                    node.handlerMask |= ALL_METHOD_MASK;
                 } else {
                     for (int i = node.handlerIdxStart; i <= node.handlerIdxEnd; i++) {
                         ns[p++] = scripts[i];
@@ -391,7 +392,7 @@ public class RoutePathMatcher<H> {
     public MappingResult<H> matchPath(HttpExchange exchange) {
         MappingResult<H> result = new MappingResult<>(handlers, exchange);
 
-        byte[] cs = CharArrUtil.toByteArr(exchange.getPath());
+        byte[] cs = CharArrUtil.toReadOnlyAsciiCharArr(exchange.getPath());
         int idx = 0;
         if (cs[0] == '/') {
             idx = 1;
@@ -411,7 +412,7 @@ public class RoutePathMatcher<H> {
         public MappingResult(H[] handlers, HttpExchange exchange) {
             this.handlers = handlers;
             HttpMethod method = exchange.getRequestMethod();
-            this.methodBit = method.ordinal();
+            this.methodBit = method == HttpMethod.HEAD ? HttpMethod.GET.ordinal() : method.ordinal();
             this.preflightMtdBit = method == HttpMethod.OPTIONS && CorsProcessor.isPreflightReq(exchange) ? computePreflightMtd(exchange) : -1;
         }
 

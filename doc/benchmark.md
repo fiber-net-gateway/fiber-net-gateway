@@ -6,6 +6,7 @@
 ### 环境描述
 
 - 测试工具:  [wrk](https://github.com/wg/wrk)
+- JDK 环境：java 21
 
 - 服务端口
 

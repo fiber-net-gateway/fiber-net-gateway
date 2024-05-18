@@ -154,27 +154,6 @@ public class RoutePathMatcher<H> {
             return wildcard;
         }
 
-        public Iterator<Node> placeholders() {
-            if (placeholderSize == 0) {
-                return Collections.emptyIterator();
-            }
-            return new ChildrenItr();
-        }
-
-        private class ChildrenItr implements Iterator<Node> {
-            private int c;
-
-            @Override
-            public boolean hasNext() {
-                return c < placeholderSize;
-            }
-
-            @Override
-            public Node next() {
-                return placeholders[c++];
-            }
-        }
-
         public String getName() {
             return nameTxt;
         }
@@ -348,7 +327,6 @@ public class RoutePathMatcher<H> {
 
         int i, h = 1;
         byte ch;
-        Iterator<Node> placeholders;
         for (i = idx; i <= length; i++) {
             if (i < length && (ch = cs[i]) != '/') {
                 h = 31 * h + ch;
@@ -363,16 +341,16 @@ public class RoutePathMatcher<H> {
                 continue;
             }
 
-            placeholders = n.placeholders();
-            if (placeholders.hasNext()) {
-                Node c;
-                do {
-                    c = placeholders.next();
+            int phs;
+            if ((phs = n.placeholderSize) != 0) {
+                Node[] placeholders = n.placeholders;
+                for (int pi = 0; pi < phs; pi++) {
+                    Node c = placeholders[pi];
                     if (exec(cs, i + 1, c, context)) {
                         context.addParam(c.getName(), cs, idx, i - idx);
                         return true;
                     }
-                } while (placeholders.hasNext());
+                }
             }
 
             Node wildcard;

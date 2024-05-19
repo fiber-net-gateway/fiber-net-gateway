@@ -1,6 +1,6 @@
 package lua.test;
 
-import io.fiber.net.common.json.IntNode;
+import io.fiber.net.common.async.Maybe;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.ValueNode;
 import io.fiber.net.script.Library;
@@ -35,8 +35,8 @@ public class MyGeneratedVm extends AbstractVm {
         _ASYNC_FUNC_0 = (Library.AsyncFunction) var0[2];
     }
 
-    public MyGeneratedVm(JsonNode var1, Object var2) {
-        super(var1, var2);
+    public MyGeneratedVm(JsonNode var1, Object var2, Maybe.Emitter<JsonNode> resultEmitter) {
+        super(var1, var2, resultEmitter);
     }
 
     public JsonNode getArgVal(int var1) {

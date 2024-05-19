@@ -1,18 +1,14 @@
 package io.fiber.net.script.parse;
 
-import io.fiber.net.common.async.Maybe;
-import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.NullNode;
 import io.fiber.net.script.ComparedMayBeObserver;
+import io.fiber.net.script.Script;
 import io.fiber.net.script.parse.ir.AotClassGenerator;
-import io.fiber.net.script.run.AbstractVm;
-import io.fiber.net.script.run.InterpreterVm;
 import io.fiber.net.test.TestInIOThreadParent;
 import lua.test.MyLib;
 import org.junit.Test;
 
 import java.io.File;
-import java.lang.reflect.Constructor;
 import java.nio.file.Files;
 
 public class AotClassGeneratorTest extends TestInIOThreadParent {
@@ -62,11 +58,11 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
 
     private void testScript(String file) throws Throwable {
         String resourceStr = getResourceStr(file);
-        Compiled compiled = CompilerNodeVisitor.compileFromScript(resourceStr, new MyLib());
-        generateAndInvoke(compiled, file);
+        Script script = Script.compileWithoutOptimization(resourceStr, new MyLib(), true);
+        generateAndInvoke(script, file);
     }
 
-    private static Class<?> generateFile(Compiled compiled) throws Throwable {
+    private static void generateFile(Compiled compiled) throws Throwable {
         AotClassGenerator generator = new AotClassGenerator(compiled);
         byte[] bytes = generator.generateClzData();
         String clzFile = generator.getGeneratedClzName();
@@ -76,22 +72,13 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
         File path = new File("dist/" + clzFile.substring(0, i));
         path.mkdirs();
         Files.write(new File(path, clzFile.substring(i + 1) + ".class").toPath(), bytes);
-        return generator.loadAsClz();
     }
 
-    private static void generateAndInvoke(Compiled compiled, String name) throws Throwable {
+    private static void generateAndInvoke(Script script, String name) throws Throwable {
         ComparedMayBeObserver observer = new ComparedMayBeObserver(name);
-
-
-        InterpreterVm.createFromCompiled(compiled, NullNode.getInstance(), null).exec().subscribe(observer.getOb());
-
-
-        Class<?> clz = generateFile(compiled);
-        Constructor<?> constructor = clz.getConstructor(JsonNode.class, Object.class);
-        AbstractVm abstractVm = (AbstractVm) constructor.newInstance(NullNode.getInstance(), null);
-        Maybe<JsonNode> nodeMaybe = abstractVm.exec();
-        nodeMaybe.subscribe(observer.getOb());
+        generateFile(((CompiledScript) script).getCompiled());
+        script.aotExec(NullNode.getInstance(), null).subscribe(observer.getOb());
+        script.exec(NullNode.getInstance(), null).subscribe(observer.getOb());
     }
-
 
 }

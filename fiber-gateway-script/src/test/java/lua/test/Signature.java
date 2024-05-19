@@ -1,5 +1,6 @@
 package lua.test;
 
+import io.fiber.net.common.async.Maybe;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.run.AbstractVm;
@@ -14,7 +15,7 @@ import java.util.List;
 public class Signature {
     public static void main(String[] args) throws Exception {
         Class<MyGeneratedVm> clazz = MyGeneratedVm.class;
-        System.out.println(Type.getConstructorDescriptor(clazz.getConstructor(JsonNode.class, Object.class)));
+        System.out.println(Type.getConstructorDescriptor(clazz.getConstructor(JsonNode.class, Object.class, Maybe.Emitter.class)));
         System.out.println(Type.getMethodDescriptor(clazz.getMethod("getArgCnt")));
         System.out.println(Type.getMethodDescriptor(clazz.getMethod("getArgVal", int.class)));
         Type type = Type.getType(clazz.getMethod("exec"));

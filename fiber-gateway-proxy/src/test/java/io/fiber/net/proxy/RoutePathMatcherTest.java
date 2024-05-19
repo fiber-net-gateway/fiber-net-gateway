@@ -128,7 +128,7 @@ public class RoutePathMatcherTest {
         }
 
         @Override
-        public Maybe<JsonNode> aotExec(JsonNode root, Object attach) throws Exception {
+        public Maybe<JsonNode> aotExec(JsonNode root, Object attach) {
             return null;
         }
 

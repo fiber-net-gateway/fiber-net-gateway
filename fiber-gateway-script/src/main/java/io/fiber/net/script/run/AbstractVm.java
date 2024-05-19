@@ -1,7 +1,6 @@
 package io.fiber.net.script.run;
 
 import io.fiber.net.common.async.Maybe;
-import io.fiber.net.common.async.internal.MaybeSubject;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.MissingNode;
 import io.fiber.net.script.ExecutionContext;
@@ -24,14 +23,7 @@ public abstract class AbstractVm implements ExecutionContext {
     public static final int STAT_END_ERR = 8;
     public static final int STAT_ABORT = 9;
 
-
-    protected static class ResultSubject extends MaybeSubject<JsonNode> {
-        @Override
-        protected void onDismissClear(JsonNode value) {
-        }
-    }
-
-    private final ResultSubject result = new ResultSubject();
+    private final Maybe.Emitter<JsonNode> resultEmitter;
 
     protected final JsonNode root;
     protected final Object attach;
@@ -40,14 +32,14 @@ public abstract class AbstractVm implements ExecutionContext {
     protected ScriptExecException rtError;
     protected JsonNode rtValue;
 
-    protected AbstractVm(JsonNode root, Object attach) {
+    protected AbstractVm(JsonNode root, Object attach, Maybe.Emitter<JsonNode> resultEmitter) {
         this.root = root;
         this.attach = attach;
+        this.resultEmitter = resultEmitter;
     }
 
-    public final Maybe<JsonNode> exec() {
+    public final void exec() {
         iterate();
-        return result;
     }
 
     public final boolean isEnd() {
@@ -133,20 +125,20 @@ public abstract class AbstractVm implements ExecutionContext {
                 rtError = e;
             } catch (Throwable e) {
                 this.state = STAT_ABORT;
-                result.onError(e);
+                resultEmitter.onError(e);
                 return;
             }
         }
         if (this.state == STAT_END_SEC) {
             JsonNode v = rtValue;
             if (v != null) {
-                result.onSuccess(v);
+                resultEmitter.onSuccess(v);
             } else {
-                result.onComplete();
+                resultEmitter.onComplete();
             }
         } else if (this.state == STAT_END_ERR) {
             assert rtError != null;
-            result.onError(rtError);
+            resultEmitter.onError(rtError);
         }
     }
 

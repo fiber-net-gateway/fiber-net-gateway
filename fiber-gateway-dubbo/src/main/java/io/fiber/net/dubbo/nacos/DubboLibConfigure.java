@@ -1,6 +1,9 @@
 package io.fiber.net.dubbo.nacos;
 
 import io.fiber.net.common.ioc.Injector;
+import io.fiber.net.common.json.ArrayNode;
+import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.proxy.HttpLibConfigure;
 import io.fiber.net.proxy.lib.ExtensiveHttpLib;
 import io.fiber.net.proxy.lib.HttpDynamicFunc;
@@ -39,6 +42,7 @@ public class DubboLibConfigure implements HttpLibConfigure {
         private final String service;
         private final int timeout;
         private final Injector injector;
+        private DyFc dyFc;
 
         private DubboServiceRefDef(String service, int timeout, Injector injector) {
             this.service = service;
@@ -57,7 +61,48 @@ public class DubboLibConfigure implements HttpLibConfigure {
                 DubboRefManager refManager = injector.getInstance(DubboRefManager.class);
                 ref = refManager.ref(service, timeout);
             }
+
+            if ("$dynamicInvoke".equals(function)) {
+                if (dyFc == null) {
+                    dyFc = new DyFc(ref);
+                }
+                return dyFc;
+            }
+
+
             return new Fc(function, ref);
+        }
+    }
+
+    private static class DyFc implements HttpDynamicFunc {
+        private final DubboRefManager.Reference ref;
+
+        private DyFc(DubboRefManager.Reference ref) {
+            this.ref = ref;
+        }
+
+        @Override
+        public void call(ExecutionContext context) {
+            int cnt = context.getArgCnt();
+            String mtd;
+            if (cnt < 1 || StringUtils.isEmpty(mtd = context.getArgVal(0).textValue())) {
+                context.throwErr(new ScriptExecException("$dynamicInvoke require method name", 500, DubboRefManager.DUBBO_ERR_NAME));
+                return;
+            }
+
+            JsonNode args = cnt >= 2 ? context.getArgVal(1) : null;
+            if (args != null && !args.isArray()) {
+                context.throwErr(new ScriptExecException("$dynamicInvoke require arguments of array", 500, DubboRefManager.DUBBO_ERR_NAME));
+                return;
+            }
+
+            ref.invoke(mtd, (ArrayNode) args).subscribe((jsonNode, throwable) -> {
+                if (throwable != null) {
+                    context.throwErr(ScriptExecException.fromThrowable(throwable));
+                } else {
+                    context.returnVal(jsonNode);
+                }
+            });
         }
     }
 

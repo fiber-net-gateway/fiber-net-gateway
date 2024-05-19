@@ -3,8 +3,6 @@ package io.fiber.net.common.utils;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.fiber.net.common.FiberException;
 
-import java.util.Map;
-
 public class ErrorInfo {
 
     public static ErrorInfo of(Throwable e) {
@@ -15,8 +13,10 @@ public class ErrorInfo {
         errorInfo.message = e.getMessage();
 
         if (e instanceof FiberException) {
-            status = ((FiberException) e).getCode();
-            name = ((FiberException) e).getErrorName();
+            FiberException fe = (FiberException) e;
+            status = fe.getCode();
+            name = fe.getErrorName();
+            errorInfo.meta = fe.getMeta();
         } else {
             name = "FIBER_UNKNOWN_ERROR-" + e.getClass().getName();
         }
@@ -29,13 +29,13 @@ public class ErrorInfo {
     private String message;
     @JsonIgnore
     private int status;
-    private Map<String, Object> meta;
+    private Object meta;
 
-    public Map<String, Object> getMeta() {
+    public Object getMeta() {
         return meta;
     }
 
-    public void setMeta(Map<String, Object> meta) {
+    public void setMeta(Object meta) {
         this.meta = meta;
     }
 

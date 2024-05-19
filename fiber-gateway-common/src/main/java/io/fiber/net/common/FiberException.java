@@ -34,6 +34,10 @@ public class FiberException extends Exception {
         this.code = code;
     }
 
+    public Object getMeta() {
+        return null;
+    }
+
     @Override
     public Throwable fillInStackTrace() {
         return this;

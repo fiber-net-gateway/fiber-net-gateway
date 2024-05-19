@@ -1,7 +1,7 @@
 package io.fiber.net.script;
 
-import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.async.Maybe;
+import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.script.ast.Block;
 import io.fiber.net.script.ast.ExpressionNode;
 import io.fiber.net.script.ast.ReturnStatement;
@@ -20,6 +20,16 @@ public interface Script {
 
     static Script compileWithoutAssign(String script) throws ParseException {
         return compile(script, StdLibrary.getDefInstance(), false);
+    }
+
+    static Script compileWithoutOptimization(String script) throws ParseException {
+        return compileWithoutOptimization(script, StdLibrary.getDefInstance(), true);
+    }
+
+    static Script compileWithoutOptimization(String script, Library library, boolean allowAssign) throws ParseException {
+        Parser parser = new Parser(library, allowAssign);
+        Block block = parser.parseScript(script);
+        return CompiledScript.createNonOptimise(script, block);
     }
 
     static Script compile(String script, Library library) throws ParseException {

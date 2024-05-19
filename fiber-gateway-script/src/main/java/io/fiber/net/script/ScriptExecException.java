@@ -2,11 +2,12 @@ package io.fiber.net.script;
 
 
 import io.fiber.net.common.FiberException;
+import io.fiber.net.common.json.ExceptionNode;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.script.ast.AstUtils;
 
 public class ScriptExecException extends FiberException {
-    public static final String ERROR_NAME = "JSON_EXPRESSION_EVALUATION";
+    public static final String ERROR_NAME = "SCRIPT_EVALUATION";
     private long pos = -1;
     private JsonNode errorNode;
 
@@ -70,5 +71,14 @@ public class ScriptExecException extends FiberException {
 
     public void setErrorNode(JsonNode errorNode) {
         this.errorNode = errorNode;
+    }
+
+    @Override
+    public Object getMeta() {
+        JsonNode en = errorNode;
+        if (en != null && !(en instanceof ExceptionNode)) {
+            return en;
+        }
+        return null;
     }
 }

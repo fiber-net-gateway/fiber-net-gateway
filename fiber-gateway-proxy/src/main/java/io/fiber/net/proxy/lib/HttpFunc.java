@@ -88,9 +88,9 @@ public class HttpFunc implements Library.DirectiveDef {
     private static void setMethod(JsonNode param, HttpMethod mtd, ClientExchange exchange) {
         JsonNode node = param.get("method");
         if (node != null && node.isTextual()) {
-            try {
-                mtd = HttpMethod.valueOf(node.textValue().toUpperCase());
-            } catch (RuntimeException ignore) {
+            HttpMethod resolved = HttpMethod.resolve(node.textValue().toUpperCase());
+            if (resolved != null) {
+                mtd = resolved;
             }
         }
         exchange.setMethod(mtd);

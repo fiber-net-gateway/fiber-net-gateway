@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class DubboRefManager implements Destroyable {
+    static final String DUBBO_ERR_NAME = "DUBBO_INVOCATION";
     static final Object[] EMPTY = new Object[0];
 
     private final Injector injector;
@@ -88,7 +89,7 @@ public class DubboRefManager implements Destroyable {
                                         emitter.onSuccess(NullNode.getInstance());
                                     }
                                 });
-                    }).mapError(e -> new FiberException(e.getMessage(), e, 500, "DUBBO_INVOCATION"))
+                    }).mapError(e -> new FiberException(e.getMessage(), e, 500, DUBBO_ERR_NAME))
                     .notifyOn(Scheduler.current());
         }
 

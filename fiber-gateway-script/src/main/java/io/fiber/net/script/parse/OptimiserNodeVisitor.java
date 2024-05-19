@@ -1,5 +1,6 @@
 package io.fiber.net.script.parse;
 
+import io.fiber.net.common.async.Maybe;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.NullNode;
 import io.fiber.net.common.json.ValueNode;
@@ -13,6 +14,31 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class OptimiserNodeVisitor implements NodeVisitor<Node> {
+    private static final NoopEmitter NOOP_EMITTER = new NoopEmitter();
+
+    public static NoopEmitter noopEmitter() {
+        return NOOP_EMITTER;
+    }
+
+    private static class NoopEmitter implements Maybe.Emitter<JsonNode> {
+
+        @Override
+        public void onSuccess(JsonNode jsonNode) {
+        }
+
+        @Override
+        public void onError(Throwable t) {
+        }
+
+        @Override
+        public void onComplete() {
+        }
+
+        @Override
+        public boolean isDisposed() {
+            return false;
+        }
+    }
 
     static Node optimiseAst(Node node) {
         return node.accept(new OptimiserNodeVisitor());
@@ -94,7 +120,7 @@ public class OptimiserNodeVisitor implements NodeVisitor<Node> {
         }
 
         Block block = new Block(0, Collections.singletonList(new ReturnStatement(0, node)), Block.Type.SCRIPT);
-        InterpreterVm vm = CompiledScript.createVM(CompilerNodeVisitor.compile(block), NullNode.getInstance(), null);
+        InterpreterVm vm = new InterpreterVm(CompilerNodeVisitor.compile(block), NullNode.getInstance(), null, NOOP_EMITTER);
         JsonNode jsonNode;
         try {
             vm.exec();
@@ -337,8 +363,7 @@ public class OptimiserNodeVisitor implements NodeVisitor<Node> {
         Assert.isTrue(trueBlock.getType() == Block.Type.IF);
         Statement ts = (Statement) trueBlock.accept(this);
         Block elseBlock = ifStatement.getElseBlock();
-        Statement es = elseBlock != null ? (Statement)
-                elseBlock.accept(this) : null;
+        Statement es = elseBlock != null ? (Statement) elseBlock.accept(this) : null;
         if (expressionNode instanceof Literal) {
             if (Compares.logic(((Literal) expressionNode).getLiteralValue())) {
                 if (ts instanceof Block) {
@@ -354,11 +379,7 @@ public class OptimiserNodeVisitor implements NodeVisitor<Node> {
                 return NoopNode.INS;
             }
         }
-        return new IfStatement(ifStatement.getPos(),
-                expressionNode,
-                getBlock(ts, Block.Type.IF),
-                getBlock(es, Block.Type.ELSE)
-        );
+        return new IfStatement(ifStatement.getPos(), expressionNode, getBlock(ts, Block.Type.IF), getBlock(es, Block.Type.ELSE));
     }
 
     private static Block getBlock(Statement statement, Block.Type type) {
@@ -401,17 +422,14 @@ public class OptimiserNodeVisitor implements NodeVisitor<Node> {
             return new ExpressionStatement(foreachStatement.getPos(), node);
         }
 
-        return new ForeachStatement(foreachStatement.getPos(), foreachStatement.getKeyVarName(),
-                foreachStatement.getValVarName(),
-                node, (Block) statement);
+        return new ForeachStatement(foreachStatement.getPos(), foreachStatement.getKeyVarName(), foreachStatement.getValVarName(), node, (Block) statement);
     }
 
     @Override
     public VariableDeclareStatement visit(VariableDeclareStatement variableDeclareStatement) {
 
         if (variableDeclareStatement.getInitialExp() != null) {
-            ExpressionNode init = (ExpressionNode)
-                    variableDeclareStatement.getInitialExp().accept(this);
+            ExpressionNode init = (ExpressionNode) variableDeclareStatement.getInitialExp().accept(this);
             variableDeclareStatement.setInitialExp(init);
         }
         addVarDef(variableDeclareStatement.getVariableName().getName(), variableDeclareStatement.getInitialExp());

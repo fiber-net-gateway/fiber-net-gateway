@@ -4,6 +4,7 @@ import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.NullNode;
 import io.fiber.net.script.parse.Compiled;
 import io.fiber.net.script.parse.CompilerNodeVisitor;
+import io.fiber.net.script.parse.OptimiserNodeVisitor;
 import io.fiber.net.script.parse.ir.AotClassGenerator;
 import lua.test.MyLib;
 import org.apache.commons.io.IOUtils;
@@ -33,7 +34,10 @@ public class Benchmark {
 
     private static void run(Compiled compiled) {
         for (int i = 0; i < 100000000; i++) {
-            InterpreterVm fromCompiled = InterpreterVm.createFromCompiled(compiled, NullNode.getInstance(), null);
+            InterpreterVm fromCompiled = InterpreterVm.createFromCompiled(compiled,
+                    NullNode.getInstance(),
+                    null,
+                    OptimiserNodeVisitor.noopEmitter());
             fromCompiled.exec();
         }
     }

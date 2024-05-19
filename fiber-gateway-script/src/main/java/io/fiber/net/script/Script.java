@@ -64,6 +64,6 @@ public interface Script {
 
     Maybe<JsonNode> exec(JsonNode root, Object attach);
 
-    Maybe<JsonNode> aotExec(JsonNode root, Object attach) throws Exception;
+    Maybe<JsonNode> aotExec(JsonNode root, Object attach);
 
 }

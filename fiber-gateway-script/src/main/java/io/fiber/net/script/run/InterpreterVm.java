@@ -1,5 +1,6 @@
 package io.fiber.net.script.run;
 
+import io.fiber.net.common.async.Maybe;
 import io.fiber.net.common.json.ArrayNode;
 import io.fiber.net.common.json.BooleanNode;
 import io.fiber.net.common.json.IteratorNode;
@@ -64,8 +65,8 @@ public class InterpreterVm extends AbstractVm {
         return pc - 1;
     }
 
-    public InterpreterVm(JsonNode root, Object attach, Compiled compiled) {
-        super(root, attach);
+    public InterpreterVm(Compiled compiled, JsonNode root, Object attach, Maybe.Emitter<JsonNode> resultEmitter) {
+        super(root, attach, resultEmitter);
         this.code = compiled.getCodes();
         this.extVal = compiled.getOperands();
         this.stack = new JsonNode[compiled.getStackSize()];
@@ -413,9 +414,7 @@ public class InterpreterVm extends AbstractVm {
     private int searchCatch(int epc) {
         int[] expIns;
         int len, l, r;
-        if ((expIns = this.expIns) == null
-                || epc < expIns[l = 0]
-                || expIns[(r = len = expIns.length >> 1) - 1] <= epc) {
+        if ((expIns = this.expIns) == null || epc < expIns[l = 0] || expIns[(r = len = expIns.length >> 1) - 1] <= epc) {
             return -1;
         }
 
@@ -454,7 +453,7 @@ public class InterpreterVm extends AbstractVm {
         return false;
     }
 
-    public static InterpreterVm createFromCompiled(Compiled compiled, JsonNode root, Object attach) {
-        return new InterpreterVm(root, attach, compiled);
+    public static InterpreterVm createFromCompiled(Compiled compiled, JsonNode root, Object attach, Maybe.Emitter<JsonNode> resultEmitter) {
+        return new InterpreterVm(compiled, root, attach, resultEmitter);
     }
 }

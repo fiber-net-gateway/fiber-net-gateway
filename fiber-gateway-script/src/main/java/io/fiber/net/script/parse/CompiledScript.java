@@ -45,7 +45,7 @@ public class CompiledScript implements Script {
     }
 
     private static final Logger log = LoggerFactory.getLogger(CompiledScript.class);
-    private static final MethodType METHOD_TYPE = MethodType.methodType(void.class, JsonNode.class, Object.class);
+    private static final MethodType METHOD_TYPE = MethodType.methodType(void.class, JsonNode.class, Object.class, Maybe.Emitter.class);
 
     private final String expressionString;
     private final Compiled compiled;
@@ -75,31 +75,26 @@ public class CompiledScript implements Script {
         }
     }
 
-
-    static InterpreterVm createVM(Compiled compiled, JsonNode root, Object attach) {
-        return new InterpreterVm(root, attach, compiled);
-    }
-
     @Override
     public Maybe<JsonNode> exec(JsonNode root, Object attach) {
-        return createVM(compiled, root, attach).exec();
+        return Maybe.create(emitter -> createInterpreterVm(root, attach, emitter).exec());
     }
 
     @Override
-    public Maybe<JsonNode> aotExec(JsonNode root, Object attach) throws Exception {
-        return createAotVm(root, attach).exec();
+    public Maybe<JsonNode> aotExec(JsonNode root, Object attach) {
+        return Maybe.create(emitter -> createAotVm(root, attach, emitter).exec());
     }
 
-    public InterpreterVm createInterpreterVm(JsonNode root, Object attach) {
-        return createVM(compiled, root, attach);
+    public InterpreterVm createInterpreterVm(JsonNode root, Object attach, Maybe.Emitter<JsonNode> resultEmitter) {
+        return new InterpreterVm(compiled, root, attach, resultEmitter);
     }
 
-    public AbstractVm createAotVm(JsonNode root, Object attach) throws Exception {
+    public AbstractVm createAotVm(JsonNode root, Object attach, Maybe.Emitter<JsonNode> resultEmitter) throws Exception {
         if (handle == null) {
             throw new IllegalStateException("aot compile failed");
         }
         try {
-            return (AbstractVm) handle.invoke(root, attach);
+            return (AbstractVm) handle.invoke(root, attach, resultEmitter);
         } catch (Exception e) {
             throw e;
         } catch (Throwable e) {

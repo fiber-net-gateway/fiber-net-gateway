@@ -58,7 +58,8 @@ public class ClzAssembler {
     private static final String[] INTERFACES = new String[0];
     private static final String SUPER_NAME = Type.getInternalName(AbstractVm.class);
     private static final String CLZ_PREFIX = "io/fiber/net/script/run/GeneratedVm_";
-    private static final String CLZ_CONSTRUCTOR_DESC = "(Lio/fiber/net/common/json/JsonNode;Ljava/lang/Object;)V";
+    private static final String CLZ_CONSTRUCTOR_DESC = "(Lio/fiber/net/common/json/JsonNode;Ljava/lang/Object;Lio/fiber/net/common/async/Maybe$Emitter;)V";
+    private static final String CLZ_CONSTRUCTOR_SIGN = "(Lio/fiber/net/common/json/JsonNode;Ljava/lang/Object;Lio/fiber/net/common/async/Maybe$Emitter<Lio/fiber/net/common/json/JsonNode;>;)V";
     private static final String CLZ_GET_ARG_CNT_DESC = "()I";
     private static final String CLZ_GET_ARG_VAL_DESC = "(I)Lio/fiber/net/common/json/JsonNode;";
     private static final String CLZ_EXEC_DESC = "()Lio/fiber/net/common/async/Maybe;";
@@ -598,12 +599,13 @@ public class ClzAssembler {
 
     private void asmConstructor() {
         MethodVisitor methodVisitor = writer.visitMethod(Opcodes.ACC_PUBLIC, "<init>",
-                CLZ_CONSTRUCTOR_DESC, null, null
+                CLZ_CONSTRUCTOR_DESC, CLZ_CONSTRUCTOR_SIGN, null
         );
         methodVisitor.visitCode();
         methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
         methodVisitor.visitVarInsn(Opcodes.ALOAD, 1);
         methodVisitor.visitVarInsn(Opcodes.ALOAD, 2);
+        methodVisitor.visitVarInsn(Opcodes.ALOAD, 3);
         methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL,
                 SUPER_NAME,
                 "<init>",

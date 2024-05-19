@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.type.WritableTypeId;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
 import io.fiber.net.common.json.ExceptionNode;
+import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.script.ScriptExecException;
 
 import java.io.IOException;
@@ -18,7 +19,9 @@ public class ScriptExceptionNode extends ExceptionNode {
 
     public static ScriptExceptionNode of(ScriptExecException e) {
         ScriptExceptionNode node = new ScriptExceptionNode(e);
-        e.setErrorNode(node);
+        if (e.getErrorNode() == null) {
+            e.setErrorNode(node);
+        }
         return node;
     }
 
@@ -51,6 +54,12 @@ public class ScriptExceptionNode extends ExceptionNode {
         if (exception.getPos() >= 0) {
             g.writeNumberField("beginPos", exception.getBeginPos());
             g.writeNumberField("endPos", exception.getEndPos());
+        }
+        JsonNode errorNode = exception.getErrorNode();
+        if (errorNode != null && errorNode != this) {
+            g.writeObjectField("meta", errorNode);
+            g.writeTree(errorNode);
+            return;
         }
         g.writeEndObject();
     }

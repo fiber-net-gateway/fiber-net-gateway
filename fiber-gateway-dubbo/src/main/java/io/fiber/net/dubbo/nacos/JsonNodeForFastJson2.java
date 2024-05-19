@@ -1,6 +1,7 @@
 package io.fiber.net.dubbo.nacos;
 
 import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.modules.ObjectWriterModule;
 import com.alibaba.fastjson2.writer.ObjectWriter;
 import com.alibaba.fastjson2.writer.ObjectWriterProvider;
 import io.fiber.net.common.json.*;
@@ -69,6 +70,9 @@ public class JsonNodeForFastJson2 {
                         do {
                             Map.Entry<String, JsonNode> next = fields.next();
                             jsonWriter.writeName(next.getKey());
+                            if (!jsonWriter.jsonb) {
+                                jsonWriter.writeColon();
+                            }
                             write(jsonWriter, next.getValue(), null, null, l);
                         } while (fields.hasNext());
                     }
@@ -88,7 +92,21 @@ public class JsonNodeForFastJson2 {
         }
     }
 
+    private static class JsonNodeWriterModule implements ObjectWriterModule {
+        private static final JsonNodeWriterModule INSTANCE = new JsonNodeWriterModule();
+
+        @SuppressWarnings("rawtypes")
+        @Override
+        public ObjectWriter getObjectWriter(Type objectType, Class objectClass) {
+            if (JsonNode.class.isAssignableFrom(objectClass)) {
+                return JsonNodeWriter.INSTANCE;
+            }
+            return null;
+        }
+    }
+
     public static void config(ObjectWriterProvider provider) {
+        provider.register(JsonNodeWriterModule.INSTANCE);
 
         provider.register(ArrayNode.class, JsonNodeWriter.INSTANCE, true);
         provider.register(BaseJsonNode.class, JsonNodeWriter.INSTANCE, true);

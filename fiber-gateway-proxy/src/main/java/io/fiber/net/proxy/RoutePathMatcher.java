@@ -175,7 +175,8 @@ public class RoutePathMatcher<H> {
     private static final int ALL_METHOD_MASK = (1 << HttpMethod.GET.ordinal())
             | (1 << HttpMethod.POST.ordinal())
             | (1 << HttpMethod.PUT.ordinal())
-            | (1 << HttpMethod.DELETE.ordinal());
+            | (1 << HttpMethod.DELETE.ordinal()
+            | (1 << HttpMethod.PATCH.ordinal()));
 
 
     public static class Builder<H> {
@@ -275,7 +276,8 @@ public class RoutePathMatcher<H> {
             for (Node node : nodes) {
                 if ((node.handlerMask & ALL_METHOD_BIT) != 0) {
                     Assert.isTrue(node.handlerIdxEnd == node.handlerIdxStart + METHODS.length);
-                    len += METHODS.length;
+                    int hm = (node.handlerMask & ~ALL_METHOD_BIT) | ALL_METHOD_MASK;
+                    len += 32 - Integer.numberOfLeadingZeros(hm);
                 } else {
                     int cl = node.handlerIdxEnd - node.handlerIdxStart + 1;
                     Assert.isTrue(cl > 0);
@@ -289,16 +291,17 @@ public class RoutePathMatcher<H> {
             for (Node node : nodes) {
                 int currentPos = p;
                 if ((node.handlerMask & ALL_METHOD_BIT) != 0) {
+                    int hm = (node.handlerMask & ~ALL_METHOD_BIT) | ALL_METHOD_MASK;
                     H am = scripts[node.handlerIdxStart + METHODS.length];
-                    for (int i = node.handlerIdxStart; i < node.handlerIdxEnd; i++) {
-                        H h = scripts[i];
-                        if (h == null) {
+                    int nodeLen = 32 - Integer.numberOfLeadingZeros(hm);
+                    for (int i = 0; i < nodeLen; i++) {
+                        H h = scripts[node.handlerIdxStart + i];
+                        if (h == null && ((1 << i) & ALL_METHOD_MASK) != 0) {
                             h = am;
                         }
                         ns[p++] = h;
                     }
-                    node.handlerMask &= ~ALL_METHOD_BIT;
-                    node.handlerMask |= ALL_METHOD_MASK;
+                    node.handlerMask = hm;
                 } else {
                     for (int i = node.handlerIdxStart; i <= node.handlerIdxEnd; i++) {
                         ns[p++] = scripts[i];
@@ -307,6 +310,7 @@ public class RoutePathMatcher<H> {
                 node.handlerIdxStart = currentPos;
                 node.handlerIdxEnd = p;
             }
+            Assert.isTrue(len == p);
             return new RoutePathMatcher<>(root, ns);
         }
 

@@ -3,7 +3,7 @@ package io.fiber.net.common;
 import io.fiber.net.common.utils.StringUtils;
 
 public enum HttpMethod {
-    GET, POST, PUT, DELETE, HEAD, TRACE, OPTIONS, PATCH, CONNECT;
+    GET, POST, PUT, DELETE, PATCH, HEAD, TRACE, OPTIONS, CONNECT;
 
 
     public static HttpMethod resolve(String methodTxt) {

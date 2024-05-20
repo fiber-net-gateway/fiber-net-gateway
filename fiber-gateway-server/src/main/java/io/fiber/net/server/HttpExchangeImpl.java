@@ -164,7 +164,7 @@ class HttpExchangeImpl extends HttpExchange {
         }
         responseWrote = true;
         if (!ch.isActive()) {
-            buf.readByte();
+            buf.release();
             throw new FiberException("error serializing result:", 500, "WRITE_JSON_BODY");
         }
 

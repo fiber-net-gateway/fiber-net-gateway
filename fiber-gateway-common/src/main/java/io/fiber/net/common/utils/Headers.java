@@ -22,13 +22,22 @@ public class Headers {
         HOP_HEADERS.put(HttpHeaderNames.TRAILER, Boolean.TRUE);
         HOP_HEADERS.put(HttpHeaderNames.TRANSFER_ENCODING, Boolean.TRUE);
         HOP_HEADERS.put(HttpHeaderNames.UPGRADE, Boolean.TRUE);
+        HOP_HEADERS.put(HttpHeaderNames.HOST, Boolean.FALSE);
     }
 
     public static boolean isHopHeaders(CharSequence key) {
         if (key == null) {
             return false;
         }
-        return HOP_HEADERS.get(key) != null;
+        Boolean b;
+        return (b = HOP_HEADERS.get(key)) != null && b;
+    }
+
+    public static Boolean getHopHeaders(CharSequence key) {
+        if (key == null) {
+            return null;
+        }
+        return HOP_HEADERS.get(key);
     }
 
 }

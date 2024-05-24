@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.SerializerProvider;
+import io.fiber.net.common.utils.Constant;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -18,7 +19,7 @@ public class BinaryNode
         extends ValueNode {
     private static final long serialVersionUID = 2L;
 
-    final static BinaryNode EMPTY_BINARY_NODE = new BinaryNode(new byte[0]);
+    final static BinaryNode EMPTY_BINARY_NODE = new BinaryNode(Constant.EMPTY_BYTE_ARR);
 
     protected final byte[] _data;
 
@@ -108,5 +109,9 @@ public class BinaryNode
     @Override
     public int hashCode() {
         return (_data == null) ? -1 : _data.length;
+    }
+
+    public static BinaryNode getEmpty() {
+        return EMPTY_BINARY_NODE;
     }
 }

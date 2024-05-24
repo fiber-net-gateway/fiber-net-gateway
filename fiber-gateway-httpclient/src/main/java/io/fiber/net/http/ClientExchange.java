@@ -1,15 +1,20 @@
 package io.fiber.net.http;
 
 import io.fiber.net.common.HttpMethod;
-import io.fiber.net.common.async.*;
+import io.fiber.net.common.async.Function;
+import io.fiber.net.common.async.Observable;
+import io.fiber.net.common.async.Scheduler;
+import io.fiber.net.common.async.Single;
 import io.fiber.net.common.async.internal.SingleSubject;
+import io.fiber.net.common.utils.CollectionUtils;
 import io.fiber.net.common.utils.Headers;
 import io.fiber.net.http.impl.ConnectionPool;
-import io.fiber.net.http.impl.HttpConnection;
 import io.fiber.net.http.impl.PoolConfig;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.util.internal.PlatformDependent;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -98,11 +103,142 @@ public class ClientExchange {
         return new Attr<>();
     }
 
+    public interface Listener {
+        default void onStart(ClientExchange exchange) {
+        }
+
+        default void onConnected(ClientExchange exchange) {
+        }
+
+        default void onResponse(ClientResponse response) {
+        }
+
+        default void onError(ClientExchange exchange, Throwable err) {
+        }
+
+        default void onComplete(ClientExchange exchange) {
+        }
+    }
+
+    private static final class Invocation {
+        private static final int FIELD_SZ = 6;
+        private static final long DST_OFT;
+        private static final long DST_SZ;
+        // optimize memory alloc
+
+        static {
+            long s, e;
+            try {
+                s = PlatformDependent.objectFieldOffset(Invocation.class.getDeclaredField("listener_0"));
+                e = PlatformDependent.objectFieldOffset(Invocation.class.getDeclaredField("listener_5"));
+            } catch (Throwable err) {
+                err.printStackTrace(System.err);
+                throw new RuntimeException(err);
+            }
+            DST_OFT = s;
+            DST_SZ = (e - s) / (FIELD_SZ - 1);
+        }
+
+        private final ClientExchange exchange;
+
+        private int len;
+        private Listener[] others;
+        @SuppressWarnings("unused")
+        Listener listener_0, listener_1, listener_2, listener_3, listener_4, listener_5;
+
+        Invocation(ClientExchange exchange, Listener listener) {
+            this.exchange = exchange;
+            this.listener_0 = listener;
+            len = 1;
+        }
+
+        void invokeStart() {
+            ClientExchange ce = exchange;
+            Listener[] listeners = others;
+            for (int i = 0, len = this.len; i < len; i++) {
+                if (i < 6) {
+                    ((Listener) PlatformDependent.getObject(this, DST_OFT + DST_SZ * i))
+                            .onStart(ce);
+                } else {
+                    listeners[i - FIELD_SZ].onStart(ce);
+                }
+            }
+        }
+
+        void invokeConnected() {
+            ClientExchange ce = exchange;
+            Listener[] listeners = others;
+            for (int i = 0, len = this.len; i < len; i++) {
+                if (i < 6) {
+                    ((Listener) PlatformDependent.getObject(this, DST_OFT + DST_SZ * i))
+                            .onConnected(ce);
+                } else {
+                    listeners[i - FIELD_SZ].onConnected(ce);
+                }
+            }
+        }
+
+        void invokeResponse(ClientResponse response) {
+            Listener[] listeners = others;
+            for (int i = 0, len = this.len; i < len; i++) {
+                if (i < 6) {
+                    ((Listener) PlatformDependent.getObject(this, DST_OFT + DST_SZ * i))
+                            .onResponse(response);
+                } else {
+                    listeners[i - FIELD_SZ].onResponse(response);
+                }
+            }
+        }
+
+        void invokeError(Throwable error) {
+            ClientExchange ce = exchange;
+            Listener[] listeners = others;
+            for (int i = 0, len = this.len; i < len; i++) {
+                if (i < 6) {
+                    ((Listener) PlatformDependent.getObject(this, DST_OFT + DST_SZ * i))
+                            .onError(ce, error);
+                } else {
+                    listeners[i - FIELD_SZ].onError(ce, error);
+                }
+            }
+        }
+
+        void invokeCompleted() {
+            ClientExchange ce = exchange;
+            Listener[] listeners = others;
+            for (int i = 0, len = this.len; i < len; i++) {
+                if (i < 6) {
+                    ((Listener) PlatformDependent.getObject(this, DST_OFT + DST_SZ * i))
+                            .onComplete(ce);
+                } else {
+                    listeners[i - FIELD_SZ].onComplete(ce);
+                }
+            }
+        }
+
+        private void add(Listener listener) {
+            int len = this.len;
+            if (len < FIELD_SZ) {
+                PlatformDependent.putObject(this, DST_OFT + DST_SZ * len, listener);
+            } else {
+                int olen = len - FIELD_SZ;
+                if (others == null) {
+                    others = new Listener[8];
+                } else if (olen >= others.length) {
+                    others = Arrays.copyOf(others, olen << 2);
+                }
+                others[olen] = listener;
+            }
+            this.len++;
+        }
+    }
+
     private Object[] attrs;
+    private Invocation invocation;
 
     private final ConnectionPool connectionPool;
-    protected final HostFetcher hostFetcher;
     private final DefaultHttpHeaders headers = new DefaultHttpHeaders();
+    protected HttpHost host;
     protected String uri = "/";
     protected HttpMethod method = HttpMethod.GET;
     protected int connectTimeout = PoolConfig.DEF_CONNECT_TIMEOUT;
@@ -110,17 +246,22 @@ public class ClientExchange {
     protected int requestTimeout = PoolConfig.DEF_REQUEST_TIMEOUT;
     protected Function<ClientExchange, Observable<ByteBuf>> reqBodyFunc;
     protected Function<ClientExchange, ByteBuf> reqBufFullFunc;
-    protected BiConsumer<ClientExchange, HttpConnection> peekConn;
     protected boolean flushRequest;
     private ResponseOb responseOb;
+    private boolean userSetHost;
 
-    protected ClientExchange(ConnectionPool connectionPool, HostFetcher hostFetcher) {
+    protected ClientExchange(ConnectionPool connectionPool, HttpHost host) {
         this.connectionPool = connectionPool;
-        this.hostFetcher = hostFetcher;
+        this.host = host;
+        headers.set(HttpHeaderNames.HOST, host.getHostText());
     }
 
     public void setConnectTimeout(int connectTimeout) {
         this.connectTimeout = connectTimeout;
+    }
+
+    public void setRequestTimeout(int requestTimeout) {
+        this.requestTimeout = requestTimeout;
     }
 
     public String getUri() {
@@ -140,24 +281,65 @@ public class ClientExchange {
     }
 
     public final void addHeader(String name, String value) {
-        if (Headers.isHopHeaders(name)) {
+        Boolean b = Headers.getHopHeaders(name);
+        if (b == null) {
+            headers.add(name, value);
             return;
         }
-        headers.add(name, value);
+        if (b) {
+            return;
+        }
+        userSetHost = true;
+        headers.set(HttpHeaderNames.HOST, value);
+    }
+
+    public final void addHeader(String name, List<String> values) {
+        if (CollectionUtils.isNotEmpty(values)) {
+            Boolean b = Headers.getHopHeaders(name);
+            if (b == null) {
+                headers.add(name, values);
+                return;
+            }
+            if (b) {
+                return;
+            }
+            userSetHost = true;
+            headers.set(HttpHeaderNames.HOST, values.get(0));
+        }
+    }
+
+    public final void addListener(Listener listener) {
+        if (invocation == null) {
+            invocation = new Invocation(this, listener);
+        } else {
+            invocation.add(listener);
+        }
     }
 
     public final void removeHeader(String name) {
-        if (Headers.isHopHeaders(name)) {
+        Boolean b = Headers.getHopHeaders(name);
+        if (b == null) {
+            headers.remove(name);
             return;
         }
-        headers.remove(name);
+        if (b || !userSetHost) {
+            return;
+        }
+        userSetHost = false;
+        headers.set(HttpHeaderNames.HOST, host.getHostText());
     }
 
     public final void setHeader(String name, String value) {
-        if (Headers.isHopHeaders(name)) {
+        Boolean b = Headers.getHopHeaders(name);
+        if (b == null) {
+            headers.set(name, value);
             return;
         }
-        headers.set(name, value);
+        if (b) {
+            return;
+        }
+        userSetHost = true;
+        headers.set(HttpHeaderNames.HOST, value);
     }
 
     public final String getHeader(String name) {
@@ -168,8 +350,19 @@ public class ClientExchange {
         return headers.getAll(name);
     }
 
-    public final Collection<String> getNames() {
+    public final Collection<String> getHeaderNames() {
         return headers.names();
+    }
+
+    public final void resetHost(HttpHost httpHost) {
+        host = httpHost;
+        if (!userSetHost) {
+            headers.set(HttpHeaderNames.HOST, httpHost.getHostText());
+        }
+    }
+
+    public final HttpHost getHost() {
+        return host;
     }
 
     HttpHeaders headers() {
@@ -186,10 +379,6 @@ public class ClientExchange {
         this.reqBodyFunc = null;
         flushRequest = false;
         this.reqBufFullFunc = reqBufFullFunc;
-    }
-
-    public void setPeekConn(BiConsumer<ClientExchange, HttpConnection> peekConn) {
-        this.peekConn = peekConn;
     }
 
     public boolean isRequestHeaderSent() {
@@ -217,63 +406,103 @@ public class ClientExchange {
      * @return ob
      */
     public Single<ClientResponse> sendForResp(Scheduler scheduler) {
+        Invocation ivc = invocation;
+        if (ivc != null) {
+            ivc.invokeStart();
+        }
         responseOb = new ResponseOb(this, scheduler);
         connectionPool.getConn(responseOb);
         return responseOb.single;
     }
 
     private static class RespSingle extends SingleSubject<ClientResponse> {
-        private final Scheduler scheduler;
-
-        private RespSingle(Scheduler scheduler) {
-            this.scheduler = scheduler == null ? Scheduler.current() : scheduler;
-        }
 
         @Override
         protected void onDismissClear(ClientResponse value) {
             value.discardRespBody();
         }
-
-        @Override
-        public void onError(Throwable e) {
-            if (scheduler.inLoop()) {
-                super.onError(e);
-            } else {
-                scheduler.execute(() -> super.onError(e));
-            }
-        }
-
-        @Override
-        public void onSuccess(ClientResponse clientResponse) {
-            if (scheduler.inLoop()) {
-                super.onSuccess(clientResponse);
-            } else {
-                scheduler.execute(() -> super.onSuccess(clientResponse));
-            }
-        }
     }
 
     private static class ResponseOb extends ExchangeOb {
         private final RespSingle single;
+        private final Scheduler scheduler;
 
         ResponseOb(ClientExchange exchange, Scheduler scheduler) {
             super(exchange);
-            single = new RespSingle(scheduler);
+            single = new RespSingle();
+            this.scheduler = scheduler == null ? Scheduler.current() : scheduler;
         }
 
         @Override
         protected void onNotifyResp() {
+            if (scheduler.inLoop()) {
+                notifyResponse0();
+            } else {
+                scheduler.execute(this::notifyResponse0);
+            }
+        }
+
+        private void notifyResponse0() {
             single.onSuccess(this);
+            Invocation ivc = exchange.invocation;
+            if (ivc != null) {
+                ivc.invokeResponse(this);
+            }
         }
 
         @Override
         protected void onNotifyError(Throwable err) {
+            if (scheduler.inLoop()) {
+                notifyError0(err);
+            } else {
+                scheduler.execute(() -> notifyError0(err));
+            }
+        }
+
+        @Override
+        protected void onConnected() {
+            // not use scheduler
+            Invocation ivc = exchange.invocation;
+            if (ivc != null) {
+                ivc.invokeConnected();
+            }
+        }
+
+        private void notifyError0(Throwable err) {
             single.onError(err);
+            Invocation ivc = exchange.invocation;
+            if (ivc != null) {
+                ivc.invokeError(err);
+            }
         }
 
         @Override
         public ClientExchange getExchange() {
             return exchange;
+        }
+
+        @Override
+        protected void onBodyCompleted() {
+            Invocation ivc = exchange.invocation;
+            if (ivc != null) {
+                if (scheduler.inLoop()) {
+                    ivc.invokeCompleted();
+                } else {
+                    scheduler.execute(ivc::invokeConnected);
+                }
+            }
+        }
+
+        @Override
+        protected void onBodyError(Throwable throwable) {
+            Invocation ivc = exchange.invocation;
+            if (ivc != null) {
+                if (scheduler.inLoop()) {
+                    ivc.invokeError(throwable);
+                } else {
+                    scheduler.execute(() -> ivc.invokeError(throwable));
+                }
+            }
         }
     }
 

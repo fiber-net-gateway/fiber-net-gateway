@@ -22,6 +22,10 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>fiber-gateway-support</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>fiber-gateway-server</artifactId>
         </dependency>
         <dependency>

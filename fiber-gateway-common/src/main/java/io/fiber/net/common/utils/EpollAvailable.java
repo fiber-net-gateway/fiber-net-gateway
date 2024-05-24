@@ -15,7 +15,9 @@ public class EpollAvailable {
     private static class EpollFactory0 {
 
         static EventLoopGroup evGroup(int nThreads) {
-            return new EpollEventLoopGroup(nThreads);
+            EpollEventLoopGroup executors = new EpollEventLoopGroup(nThreads);
+            executors.setIoRatio(100);
+            return executors;
         }
 
         static Class<? extends ServerSocketChannel> serverSocketClazz() {
@@ -59,10 +61,13 @@ public class EpollAvailable {
     }
 
     public static EventLoopGroup workerGroup() {
+        int c = Runtime.getRuntime().availableProcessors();
         if (EPOLL_AV) {
-            return EpollFactory0.evGroup(0);
+            return EpollFactory0.evGroup(c);
         }
-        return new NioEventLoopGroup(0);
+        NioEventLoopGroup executors = new NioEventLoopGroup(c);
+        executors.setIoRatio(100);
+        return executors;
     }
 
     public static Class<? extends ServerSocketChannel> serverSocketClazz() {

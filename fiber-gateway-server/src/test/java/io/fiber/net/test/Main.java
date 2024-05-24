@@ -1,7 +1,6 @@
 package io.fiber.net.test;
 
 import io.fiber.net.common.Engine;
-import io.fiber.net.common.FiberException;
 import io.fiber.net.common.async.Disposable;
 import io.fiber.net.common.async.Observable;
 import io.fiber.net.common.async.Scheduler;
@@ -81,10 +80,7 @@ public class Main {
 
         @Override
         public void onSubscribe(Disposable d) {
-            try {
-                httpExchange.writeRawBytes(200, this);
-            } catch (FiberException ignore) {
-            }
+            httpExchange.writeRawBytes(200, this);
         }
 
         @Override

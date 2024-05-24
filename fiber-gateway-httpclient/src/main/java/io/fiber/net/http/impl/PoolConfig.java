@@ -22,10 +22,10 @@ public class PoolConfig {
     public static final int DEF_MAX_HEADER_SIZE =
             SystemPropertyUtil.getInt("fiber.http.client.maxHeaderSize", 64 << 10);
     public static final int DEF_MAX_CHUNK_SIZE =
-            SystemPropertyUtil.getInt("fiber.http.client.maxChunkSize", 128 << 10);
+            SystemPropertyUtil.getInt("fiber.http.client.maxChunkSize", 512 << 10);
 
     public static final int DEF_MAX_BODY_SIZE =
-            SystemPropertyUtil.getInt("fiber.http.client.maxBodySize", 16 << 20);
+            SystemPropertyUtil.getInt("fiber.http.client.maxBodySize", 4 << 20);
     public static final boolean DEF_TCP_NO_DELAY =
             SystemPropertyUtil.getBoolean("fiber.http.client.tcpNoDelay", true);
     public static final boolean DEF_TCP_KEEP_ALIVE =

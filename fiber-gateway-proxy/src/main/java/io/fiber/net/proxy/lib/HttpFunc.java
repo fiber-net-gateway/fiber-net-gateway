@@ -1,16 +1,13 @@
 package io.fiber.net.proxy.lib;
 
-import io.fiber.net.common.FiberException;
 import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.async.internal.SerializeJsonObservable;
-import io.fiber.net.common.json.IntNode;
-import io.fiber.net.common.json.JsonNode;
-import io.fiber.net.common.json.NullNode;
-import io.fiber.net.common.json.ObjectNode;
+import io.fiber.net.common.json.*;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.http.ClientExchange;
+import io.fiber.net.http.ClientResponse;
 import io.fiber.net.http.HttpClient;
 import io.fiber.net.http.HttpHost;
 import io.fiber.net.http.util.UrlEncoded;
@@ -58,7 +55,7 @@ public class HttpFunc implements Library.DirectiveDef {
             setMethod(param, HttpMethod.GET, exchange);
             setUri(param, "/", null, exchange);
             addHeader(exchange, param);
-
+            setTimeout(param, exchange);
             JsonNode node = param.get("body");
             if (node != null) {
                 if (node.isBinary()) {
@@ -68,21 +65,42 @@ public class HttpFunc implements Library.DirectiveDef {
                     exchange.setReqBodyFunc(ec -> new SerializeJsonObservable(node, ByteBufAllocator.DEFAULT), false);
                 }
             }
+            boolean includeHeaders = param.path("includeHeaders").asBoolean();
             exchange.sendForResp().subscribe((response, e) -> {
                 if (e != null) {
                     context.throwErr(new ScriptExecException("error send http", e));
                 } else {
                     ObjectNode nodes = JsonUtil.createObjectNode();
                     nodes.put("status", response.status());
+                    if (includeHeaders) {
+                        nodes.set("headers", readHeaders(response));
+                    }
+
                     response.readFullRespBody().subscribe((buf, e2) -> {
-                        byte[] bytes = ByteBufUtil.getBytes(buf);
-                        nodes.put("body", bytes);
-                        buf.release();
+                        if (e2 != null) {
+                            context.throwErr(ScriptExecException.fromThrowable(e2));
+                            return;
+                        }
+                        if (buf != null) {
+                            byte[] bytes = ByteBufUtil.getBytes(buf);
+                            buf.release();
+                            nodes.put("body", bytes);
+                        } else {
+                            nodes.set("body", BinaryNode.getEmpty());
+                        }
                         context.returnVal(nodes);
                     });
                 }
             });
         }
+    }
+
+    private static ObjectNode readHeaders(ClientResponse ce) {
+        ObjectNode hs = JsonUtil.createObjectNode();
+        for (String headerName : ce.getHeaderNames()) {
+            hs.put(headerName, ce.getHeader(headerName));
+        }
+        return hs;
     }
 
     private static void setMethod(JsonNode param, HttpMethod mtd, ClientExchange exchange) {
@@ -165,8 +183,9 @@ public class HttpFunc implements Library.DirectiveDef {
             ClientExchange exchange = httpClient.refer(httpHost);
             setMethod(param, httpExchange.getRequestMethod(), exchange);
             setUri(param, httpExchange.getPath(), httpExchange.getQuery(), exchange);
+            setTimeout(param, exchange);
             for (String headerName : httpExchange.getRequestHeaderNames()) {
-                exchange.setHeader(headerName, httpExchange.getRequestHeader(headerName));
+                exchange.addHeader(headerName, httpExchange.getRequestHeaderList(headerName));
             }
             addHeader(exchange, param);
             exchange.setReqBodyFunc(ec -> httpExchange.readBodyUnsafe(), false);
@@ -178,19 +197,24 @@ public class HttpFunc implements Library.DirectiveDef {
                 } else {
                     int status = response.status();
                     for (String name : response.getHeaderNames()) {
-                        httpExchange.setResponseHeader(name, response.getHeader(name));
+                        httpExchange.addResponseHeader(name, response.getHeaderList(name));
                     }
                     addResponseHeaders(node, httpExchange);
-                    try {
-                        httpExchange.writeRawBytes(status, response.readRespBodyUnsafe());
-                    } catch (FiberException ex) {
-                        context.throwErr(new ScriptExecException(ex.getMessage(), ex));
-                        return;
-                    }
+                    httpExchange.writeRawBytes(status, response.readRespBodyUnsafe());
                     context.returnVal(IntNode.valueOf(status));
                 }
             });
         }
+    }
+
+    private static void setTimeout(JsonNode param, ClientExchange exchange) {
+        JsonNode node = param.get("timeout");
+        if (node == null || !node.isIntegralNumber()) {
+            return;
+        }
+        int timeout = node.intValue();
+        exchange.setRequestTimeout(timeout);
+        exchange.setConnectTimeout(timeout);
     }
 
     private static void addResponseHeaders(JsonNode node, HttpExchange exchange) {

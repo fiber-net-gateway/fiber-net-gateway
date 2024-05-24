@@ -1,7 +1,8 @@
 package io.fiber.net.http.impl;
 
+import io.fiber.net.common.FiberException;
 import io.fiber.net.common.utils.BodyBufSubject;
-import io.fiber.net.http.HttpHost;
+import io.fiber.net.http.HttpClientException;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
@@ -44,9 +45,9 @@ public abstract class ClientHttpExchange {
 
     protected abstract long maxBodyLength();
 
-    protected HttpHost getHost() {
-        return null;
-    }
+    protected abstract void onBodyError(Throwable throwable);
+
+    protected abstract void onBodyCompleted();
 
     protected abstract void onResp(int code, HttpHeaders headers);
 
@@ -57,8 +58,14 @@ public abstract class ClientHttpExchange {
             return;
         }
         requestErr = true;
+
+        if (!(exception instanceof FiberException)) {
+            exception = new HttpClientException(exception.getMessage(), exception, 502, "HTTP_CONNECTION_ERROR");
+        }
+
         if (respBody != null) {
             respBody.onError(exception);
+            onBodyError(exception);
         } else {
             onSocketErr(exception);
         }
@@ -68,6 +75,7 @@ public abstract class ClientHttpExchange {
         respBody.onNext(buf);
         if (last) {
             respBody.onComplete();
+            onBodyCompleted();
         }
     }
 }

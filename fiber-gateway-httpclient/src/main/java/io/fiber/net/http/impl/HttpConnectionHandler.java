@@ -115,16 +115,14 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
             HttpResponse response = (HttpResponse) msg;
             closeByProto |= !HttpUtil.isKeepAlive(response);
             exchange.onResp(response.status().code(), response.headers());
-            if (maxBodyLength > 0) {
-                long len = HttpUtil.getContentLength(response, -1L);
-                if (len > 0 && len > maxBodyLength) {
-                    ReferenceCountUtil.release(msg);
-                    ioErrorAndClose(new HttpClientException("body size is too big：" + len, 500, "READ_RESP_BODY"));
-                    return;
-                } else {
-                    // chunked
-                    chunkedBody = true;
-                }
+            long len = HttpUtil.getContentLength(response, -1L);
+            if (maxBodyLength > 0L && len > maxBodyLength) {
+                ReferenceCountUtil.release(msg);
+                ioErrorAndClose(new HttpClientException("body size is too big：" + len, 500, "READ_RESP_BODY"));
+                return;
+            } else if (len == -1L) {
+                // chunked
+                chunkedBody = true;
             }
         }
 
@@ -186,7 +184,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         if (!isClosed() && exchange != null) {
-            ioErrorAndClose(new HttpClientException("io error:" + cause.getMessage(), cause, 502, "IO_ERROR"));
+            ioErrorAndClose(new HttpClientException("io error on http connection", cause, 502, "IO_ERROR"));
         }
     }
 
@@ -197,14 +195,6 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
 
     HttpHeaders headerForSend(ClientHttpExchange exchange, int contentLength) {
         HttpHeaders headers = exchange.requestHeaders();
-        if (!headers.contains(HttpHeaderNames.HOST)) {
-            HttpHost httpHost = exchange.getHost();
-            if (httpHost == null) {
-                httpHost = getHttpHost();
-            }
-            headers.set(HttpHeaderNames.HOST, httpHost.getHostText());
-        }
-
         if (!headers.contains(HttpHeaderNames.USER_AGENT)) {
             headers.set(HttpHeaderNames.USER_AGENT, config.userAgent);
         }
@@ -369,7 +359,9 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     }
 
     private void requestTimer(long timeout) {
-        requestTimerFut = eventLoop.schedule(this, timeout, TimeUnit.MILLISECONDS);
+        if (timeout >= 0) {
+            requestTimerFut = eventLoop.schedule(this, timeout, TimeUnit.MILLISECONDS);
+        }
     }
 
     @Override

@@ -51,6 +51,8 @@ public abstract class Scheduler {
 
     public abstract ScheduledFuture<?> schedule(Runnable task, long timeoutMs);
 
+    public abstract ScheduledFuture<?> scheduleInNano(Runnable task, long timeoutNano);
+
     public abstract boolean inLoop();
 
     private static class IOScheduler extends Scheduler {
@@ -70,6 +72,11 @@ public abstract class Scheduler {
             return eventExecutor.schedule(task, timeoutMs, TimeUnit.MILLISECONDS);
         }
 
+        @Override
+        public ScheduledFuture<?> scheduleInNano(Runnable task, long timeoutNano) {
+            return eventExecutor.schedule(task, timeoutNano, TimeUnit.NANOSECONDS);
+        }
+
         public boolean inLoop() {
             return eventExecutor.inEventLoop();
         }
@@ -87,6 +94,11 @@ public abstract class Scheduler {
         @Override
         public ScheduledFuture<?> schedule(Runnable task, long timeoutMs) {
             return current().schedule(task, timeoutMs);
+        }
+
+        @Override
+        public ScheduledFuture<?> scheduleInNano(Runnable task, long timeoutNano) {
+            return current().scheduleInNano(task, timeoutNano);
         }
 
         @Override

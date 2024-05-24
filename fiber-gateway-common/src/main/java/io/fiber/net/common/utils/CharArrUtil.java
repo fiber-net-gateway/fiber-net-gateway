@@ -8,14 +8,14 @@ import java.nio.charset.StandardCharsets;
 public class CharArrUtil {
 
     private static class Unsafe {
-        static final int ASCII_OFT;
-        static final int BYTE_OFT;
+        static final long ASCII_OFT;
+        static final long BYTE_OFT;
 
         static {
-            int af = -1, bf = -1;
+            long af = -1, bf = -1;
             try {
-                af = (int) PlatformDependent.objectFieldOffset(String.class.getDeclaredField("coder"));
-                bf = (int) PlatformDependent.objectFieldOffset(String.class.getDeclaredField("value"));
+                af = PlatformDependent.objectFieldOffset(String.class.getDeclaredField("coder"));
+                bf = PlatformDependent.objectFieldOffset(String.class.getDeclaredField("value"));
             } catch (NoSuchFieldException ignore) {
             }
             ASCII_OFT = af;
@@ -32,7 +32,8 @@ public class CharArrUtil {
 
     private static final boolean UNSAFE_BYTES =
             PlatformDependent.hasUnsafe() &&
-                    PlatformDependent.javaVersion() >= 11;
+                    PlatformDependent.javaVersion() >= 8
+                    && Unsafe.BYTE_OFT != -1L;
 
 
     public static final char[] EMPTY = new char[0];

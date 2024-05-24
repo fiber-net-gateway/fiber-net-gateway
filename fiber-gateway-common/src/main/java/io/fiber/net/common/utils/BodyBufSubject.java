@@ -10,6 +10,7 @@ import io.netty.buffer.CompositeByteBuf;
 
 public class BodyBufSubject extends Subject<ByteBuf> {
     private final Scheduler scheduler;
+    private int received;
 
     public BodyBufSubject() {
         this(Scheduler.current());
@@ -48,10 +49,12 @@ public class BodyBufSubject extends Subject<ByteBuf> {
     @Override
     public void onNext(ByteBuf value) {
         assert scheduler.inLoop();
-        if (value.readableBytes() == 0) {
+        int i = value.readableBytes();
+        if (i == 0) {
             value.release();
             return;
         }
+        received += i;
         super.onNext(value);
     }
 
@@ -73,5 +76,9 @@ public class BodyBufSubject extends Subject<ByteBuf> {
             return this;
         }
         return super.notifyOn(scheduler);
+    }
+
+    public int getReceived() {
+        return received;
     }
 }

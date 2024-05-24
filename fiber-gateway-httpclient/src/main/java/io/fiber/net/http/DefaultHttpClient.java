@@ -23,17 +23,12 @@ public class DefaultHttpClient implements HttpClient {
 
     @Override
     public ClientExchange refer(String host, int port) {
-        return refer(new SingleHostFetcher(host, port));
+        return refer(HttpHost.create(host, port));
     }
 
     @Override
     public ClientExchange refer(HttpHost httpHost) {
-        return refer(new SingleHostFetcher(httpHost));
-    }
-
-    @Override
-    public ClientExchange refer(HostFetcher hostFetcher) {
-        return new ClientExchange(connectionPool, hostFetcher);
+        return new ClientExchange(connectionPool, httpHost);
     }
 
 

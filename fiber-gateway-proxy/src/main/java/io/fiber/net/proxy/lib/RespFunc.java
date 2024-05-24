@@ -1,6 +1,6 @@
 package io.fiber.net.proxy.lib;
 
-import io.fiber.net.common.FiberException;
+import io.fiber.net.common.json.BooleanNode;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.NullNode;
 import io.fiber.net.common.utils.Constant;
@@ -11,6 +11,10 @@ import io.fiber.net.server.HttpExchange;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.http.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.CookieHeaderNames;
+import io.netty.handler.codec.http.cookie.DefaultCookie;
+import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -82,11 +86,8 @@ public class RespFunc {
             int status = context.getArgVal(0).asInt(200);
 
             if (context.getArgCnt() == 1) {
-                try {
-                    exchange.writeRawBytes(status, Unpooled.EMPTY_BUFFER);
-                } catch (FiberException e) {
-                    throw new ScriptExecException("error write empty response", e);
-                }
+                exchange.writeRawBytes(status, Unpooled.EMPTY_BUFFER);
+                return NullNode.getInstance();
             }
 
             JsonNode body = context.getArgVal(1);
@@ -117,11 +118,84 @@ public class RespFunc {
         }
     }
 
+    private static class AddCookie implements SyncHttpFunc {
+
+        @Override
+        public JsonNode call(ExecutionContext context) {
+            if (context.noArgs()) {
+                return BooleanNode.FALSE;
+            }
+
+            JsonNode node = context.getArgVal(0);
+            if (!node.isObject()) {
+                return BooleanNode.FALSE;
+            }
+
+            HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
+
+            /* ==========================
+            private final String name;
+            private String value;
+            private boolean wrap;
+            private String domain;
+            private String path;
+            private long maxAge = UNDEFINED_MAX_AGE;
+            private boolean secure;
+            private boolean httpOnly;
+            private SameSite sameSite;
+            ================================*/
+            String name = node.path("name").textValue();
+            if (StringUtils.isEmpty(name)) {
+                return BooleanNode.FALSE;
+            }
+            String value = node.path("value").asText();
+            String domain = node.path("domain").textValue();
+            String path = node.path("path").textValue();
+            long maxAge = node.path("maxAge").asLong(Cookie.UNDEFINED_MAX_AGE);
+            boolean secure = node.path("secure").asBoolean();
+            boolean httpOnly = node.path("httpOnly").asBoolean();
+            String sameSite = node.path("sameSite").textValue();
+
+            String encode;
+            try {
+                DefaultCookie cookie = new DefaultCookie(name, value);
+                cookie.setDomain(domain);
+                cookie.setPath(path);
+                cookie.setMaxAge(maxAge);
+                cookie.setSecure(secure);
+                cookie.setHttpOnly(httpOnly);
+                cookie.setSameSite(ofSameSite(sameSite));
+                encode = ServerCookieEncoder.STRICT.encode(cookie);
+            } catch (RuntimeException ignore) {
+                return BooleanNode.FALSE;
+            }
+            exchange.addResponseHeader("Set-Cookie", encode);
+            return BooleanNode.TRUE;
+        }
+
+        private static CookieHeaderNames.SameSite ofSameSite(String sameSite) {
+            if (StringUtils.isEmpty(sameSite)) {
+                return null;
+            }
+            switch (sameSite) {
+                case "Lax":
+                    return CookieHeaderNames.SameSite.Lax;
+                case "Strict":
+                    return CookieHeaderNames.SameSite.Strict;
+                case "None":
+                    return CookieHeaderNames.SameSite.None;
+                default:
+                    return null;
+            }
+        }
+    }
+
     static final Map<String, SyncHttpFunc> FC_MAP = new HashMap<>();
 
     static {
         FC_MAP.put("resp.setHeader", new SetHeader());
         FC_MAP.put("resp.addHeader", new AddHeader());
+        FC_MAP.put("resp.addCookie", new AddCookie());
         FC_MAP.put("resp.sendJson", new SendJson());
         FC_MAP.put("resp.send", new Send());
     }

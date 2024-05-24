@@ -1,11 +1,6 @@
 package io.fiber.net.http;
 
 
-import io.fiber.net.http.util.IpUtils;
-
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-
 public class SingleHostFetcher implements HostFetcher {
 
     private final HttpHost httpHost;
@@ -17,12 +12,7 @@ public class SingleHostFetcher implements HostFetcher {
     }
 
     public SingleHostFetcher(String host, int port) {
-        InetAddress address = IpUtils.tryToInetAddress(host);
-        if (address != null) {
-            httpHost = new HttpHost(new InetSocketAddress(address, port), host, null);
-        } else {
-            httpHost = new HttpHost(host, port, null);
-        }
+        httpHost = HttpHost.create(host, port);
         if (port > 0) {
             this.key = host + ":" + port;
         } else {

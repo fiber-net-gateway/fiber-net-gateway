@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true" scanPeriod="10 seconds">
+    <!-- 日志级别从低到高分为TRACE < DEBUG < INFO < WARN < ERROR < FATAL，如果设置为WARN，则低于WARN的信息都不会输出 -->
+    <!-- scan:当此属性设置为true时，配置文件如果发生改变，将会被重新加载，默认值为true -->
+    <!-- scanPeriod:设置监测配置文件是否有修改的时间间隔，如果没有给出时间单位，默认单位是毫秒。当scan为true时，此属性生效。默认的时间间隔为1分钟。 -->
+    <!-- debug:当此属性设置为true时，将打印出logback内部日志信息，实时查看logback运行状态。默认值为false。 -->
+    <contextName>logback</contextName>
+    <property name="log.path" value="logs"/>
+    <property name="Console_Pattern" value="%d{HH:mm:ss.SSS} %-5level [%logger{20}][%t] - %msg%n"/>
+
+    <appender name="Console" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <Pattern>${Console_Pattern}</Pattern>
+            <!-- 设置字符集 -->
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- 时间滚动输出 level为 INFO 日志 -->
+    <appender name="dubboLog" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${log.path}/dubbo.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%logger{30}] - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <!-- 日志记录器的滚动策略，按日期，按大小记录 -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${log.path}/dubbo-%d{yyyy-MM-dd}.%i{2}.log</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <!--日志文件保留天数-->
+            <maxHistory>15</maxHistory>
+        </rollingPolicy>
+        <!-- 此日志文件只记录info级别的 -->
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>INFO</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+    </appender>
+
+    <!-- 时间滚动输出 level为 WARN 日志 -->
+    <appender name="nacosLog" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${log.path}/nacos.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%logger{50}] - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${log.path}/nacos-%d{yyyy-MM-dd}.%i{2}.log</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <!--日志文件保留天数-->
+            <maxHistory>15</maxHistory>
+        </rollingPolicy>
+        <!-- 此日志文件只记录warn级别的 -->
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>INFO</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+    </appender>
+
+    <!-- 时间滚动输出 level为 ERROR 日志 -->
+    <appender name="RollingFileError" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${log.path}/error.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%logger{50}] - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${log.path}/error-%d{yyyy-MM-dd}.%i{2}.log</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <!--日志文件保留天数-->
+            <maxHistory>15</maxHistory>
+        </rollingPolicy>
+        <!-- 此日志文件只记录ERROR级别的 -->
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+    </appender>
+    <!-- 时间滚动输出 level为 ERROR 日志 -->
+    <appender name="RollingFileWARN" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${log.path}/warn.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%logger{50}] - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${log.path}/warn-%d{yyyy-MM-dd}.%i{2}.log</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <!--日志文件保留天数-->
+            <maxHistory>15</maxHistory>
+        </rollingPolicy>
+        <!-- 此日志文件只记录ERROR级别的 -->
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>WARN</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+    </appender>
+
+    <!-- 从低到高为：All < Trace < Debug < Info < Warn < Error < Fatal < OFF-->
+<!--    <root level="Debug">-->
+<!--        <appender-ref ref="Console"/>-->
+<!--        <appender-ref ref="RollingFileWarn"/>-->
+<!--        <appender-ref ref="RollingFileError"/>-->
+<!--    </root>-->
+
+    <logger name="org.apache.dubbo" level="error">
+        <appender-ref ref="dubboLog"/>
+        <appender-ref ref="RollingFileError"/>
+    </logger>
+    <logger name="com.alibaba" level="error">
+        <appender-ref ref="nacosLog"/>
+        <appender-ref ref="RollingFileError"/>
+    </logger>
+    <logger name="io.fiber.net" level="info">
+        <appender-ref ref="Console"/>
+        <appender-ref ref="RollingFileWARN"/>
+        <appender-ref ref="RollingFileError"/>
+    </logger>
+    <!--生产环境:输出到文件-->
+    <!--    <springProfile name="pro">-->
+    <!--        <root level="INFO">-->
+    <!--            <appender-ref ref="Console"/>-->
+    <!--            <appender-ref ref="RollingFileInfo"/>-->
+    <!--            <appender-ref ref="RollingFileWarn"/>-->
+    <!--            <appender-ref ref="RollingFileError"/>-->
+    <!--        </root>-->
+    <!--    </springProfile>-->
+</configuration>

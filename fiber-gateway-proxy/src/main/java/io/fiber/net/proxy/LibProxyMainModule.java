@@ -59,7 +59,7 @@ public class LibProxyMainModule implements Module {
                                                     CorsConfig defCorsConfig) throws Exception {
             Assert.isTrue(CollectionUtils.isNotEmpty(routes));
             UrlHandlerManager urlHandlerManager = engineInjector.getInstance(UrlHandlerManager.class);
-            UrlMappingRouterBuilder builder = UrlMappingRouterBuilder.builder(urlHandlerManager);
+            UrlMappingRouter.Builder builder = UrlMappingRouter.builder(urlHandlerManager);
             return builder.setName(projectName)
                     .setRoutes(routes)
                     .setDefaultCorsConfig(defCorsConfig)

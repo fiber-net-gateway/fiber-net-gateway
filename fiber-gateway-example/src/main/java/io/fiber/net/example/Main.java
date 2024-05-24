@@ -1,5 +1,6 @@
 package io.fiber.net.example;
 
+import io.fiber.net.common.ext.Interceptor;
 import io.fiber.net.common.ioc.Binder;
 import io.fiber.net.common.utils.ArrayUtils;
 import io.fiber.net.common.utils.StringUtils;
@@ -46,6 +47,9 @@ public class Main {
     }
 
     private static void install(Binder binder, File file) {
+        binder.bindMultiBean(Interceptor.class, StatisticInterceptor.class);
+        binder.bindFactory(StatisticInterceptor.class, i -> new StatisticInterceptor());
+
         binder.forceBindFactory(ConfigWatcher.class, i -> new DirectoryFilesConfigWatcher(file));
         File fileDir = new File(file, "file");
         fileDir.mkdirs();

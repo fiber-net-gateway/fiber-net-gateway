@@ -18,6 +18,7 @@ import io.netty.util.AsciiString;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
+import java.net.SocketAddress;
 import java.util.Collection;
 import java.util.List;
 
@@ -37,6 +38,9 @@ class HttpExchangeImpl extends HttpExchange {
     private final String path;
     private final String query;
     private final BodyBufSubject reqBufSubject;
+    private final SocketAddress localAddress;
+    private final SocketAddress remoteAddress;
+    private int wroteStatus;
 
     public HttpExchangeImpl(Channel ch, HttpRequest request, Scheduler scheduler) {
         this.ch = ch;
@@ -52,6 +56,8 @@ class HttpExchangeImpl extends HttpExchange {
             path = uri;
             query = null;
         }
+        remoteAddress = ch.remoteAddress();
+        localAddress = ch.localAddress();
     }
 
     @Override
@@ -67,6 +73,16 @@ class HttpExchangeImpl extends HttpExchange {
     @Override
     public String getUri() {
         return uri;
+    }
+
+    @Override
+    public SocketAddress getRemoteAddress() {
+        return remoteAddress;
+    }
+
+    @Override
+    public SocketAddress getLocalAddress() {
+        return localAddress;
     }
 
     @Override
@@ -109,8 +125,17 @@ class HttpExchangeImpl extends HttpExchange {
     }
 
     @Override
+    public void addResponseHeader(String name, List<String> values) {
+        if (!Headers.isHopHeaders(name)) {
+            headers.add(name, values);
+        }
+    }
+
+    @Override
     public void removeResponseHeader(String name) {
-        headers.remove(name);
+        if (!Headers.isHopHeaders(name)) {
+            headers.remove(name);
+        }
     }
 
     @Override
@@ -134,7 +159,7 @@ class HttpExchangeImpl extends HttpExchange {
     }
 
     @Override
-    public void writeJson(int status, Object result) throws FiberException {
+    public void writeJson(int status, Object result) {
         if (responseWrote) {
             if (logger.isDebugEnabled()) {
                 logger.debug("response is wrote");
@@ -145,8 +170,9 @@ class HttpExchangeImpl extends HttpExchange {
 
         Channel ch = this.ch;
         if (!ch.isActive()) {
-            onDestroy();
-            throw new FiberException("error serializing result:", 500, "WRITE_JSON_BODY");
+            invokeHeaderSent(status);
+            onDestroy(STATE_CLOSE_REQ);
+            return;
         }
 
         headers.set(HttpHeaderNames.CONTENT_TYPE, APPLICATION_JSON_UTF8);
@@ -154,7 +180,7 @@ class HttpExchangeImpl extends HttpExchange {
     }
 
     @Override
-    public void writeRawBytes(int status, ByteBuf buf) throws FiberException {
+    public void writeRawBytes(int status, ByteBuf buf) {
         if (responseWrote) {
             buf.release();
             if (logger.isDebugEnabled()) {
@@ -165,14 +191,17 @@ class HttpExchangeImpl extends HttpExchange {
         responseWrote = true;
         if (!ch.isActive()) {
             buf.release();
-            throw new FiberException("error serializing result:", 500, "WRITE_JSON_BODY");
+            invokeHeaderSent(status);
+            onDestroy(STATE_CLOSE_REQ);
+            return;
         }
 
         writeBody0(buf, status);
+        onDestroy(wroteStatus);
     }
 
     @Override
-    public void writeRawBytes(int status, Observable<ByteBuf> bufOb, boolean flush) throws FiberException {
+    public void writeRawBytes(int status, Observable<ByteBuf> bufOb, boolean flush) {
         if (responseWrote) {
             if (logger.isDebugEnabled()) {
                 logger.debug("response is wrote");
@@ -183,8 +212,9 @@ class HttpExchangeImpl extends HttpExchange {
         responseWrote = true;
         if (!ch.isActive()) {
             bufOb.subscribe(NoopBufObserver.INSTANCE);
-            onDestroy();
-            throw new FiberException("error serializing result:", 500, "WRITE_JSON_BODY");
+            invokeHeaderSent(status);
+            onDestroy(STATE_CLOSE_REQ);
+            return;
         }
 
         bufOb.subscribe(new RespWriteOb(flush, status));
@@ -194,11 +224,11 @@ class HttpExchangeImpl extends HttpExchange {
         if ((status == 0 || status == 200) && buf.readableBytes() == 0) {
             status = 204;
         }
+        wroteStatus = status;
         DefaultHttpHeaders headers = headerForSend(buf.readableBytes());
         DefaultFullHttpResponse resp = new DefaultFullHttpResponse(request.protocolVersion(), HttpResponseStatus.valueOf(status), buf, headers, EmptyHttpHeaders.INSTANCE);
         Channel ch = this.ch;
         ch.writeAndFlush(resp, ch.voidPromise());
-        onDestroy();
     }
 
     @Override
@@ -248,16 +278,17 @@ class HttpExchangeImpl extends HttpExchange {
         reqBufSubject.onError(e);
     }
 
-    void onDestroy() {
-        if (!responseWrote) {
+    void onDestroy(int state) {
+        if (!responseWrote && ch.isActive()) {
             logger.warn("no response write after request ending");
-            try {
-                writeRawBytes(204, Unpooled.EMPTY_BUFFER);
-            } catch (Throwable e) {
-                logger.error("error write unkonown error", e);
-            }
+            writeBody0(Unpooled.EMPTY_BUFFER, 204);
         }
         reqBufSubject.dismiss();
+        FilterInvocation ivc = invocation;
+        if (ivc != null) {
+            invocation = null;
+            ivc.invokeBodySent(state);
+        }
     }
 
     private class RespWriteOb implements Observable.Observer<ByteBuf> {
@@ -266,6 +297,7 @@ class HttpExchangeImpl extends HttpExchange {
         private boolean headerSent;
         private HttpResponseStatus status;
         private Disposable disposable;
+        private boolean abortNotify;
 
         public RespWriteOb(boolean flush, int status) {
             this.flush = flush;
@@ -283,8 +315,9 @@ class HttpExchangeImpl extends HttpExchange {
         @Override
         public void onNext(ByteBuf buf) {
             if (!ch.isActive()) {
-                disposable.dispose();
                 buf.release();
+                disposable.dispose();
+                abortResponse();
                 return;
             }
             if (buf.readableBytes() == 0) {
@@ -296,6 +329,25 @@ class HttpExchangeImpl extends HttpExchange {
             } else {
                 scheduler.execute(() -> writeBuf(buf));
             }
+        }
+
+        private void abortResponse() {
+            if (abortNotify) {
+                return;
+            }
+            abortNotify = true;
+            if (scheduler.inLoop()) {
+                abortResponse0();
+            } else {
+                scheduler.execute(this::abortResponse0);
+            }
+        }
+
+        private void abortResponse0() {
+            if (!headerSent) {
+                invokeHeaderSent(wroteStatus);
+            }
+            onDestroy(STATE_CLOSE_RESP_BODY);
         }
 
         private void writeBuf(ByteBuf buf) {
@@ -310,6 +362,7 @@ class HttpExchangeImpl extends HttpExchange {
         private void writeHeader(boolean flush) {
             if (!headerSent) {
                 headerSent = true;
+                wroteStatus = status.code();
                 DefaultHttpResponse msg = new DefaultHttpResponse(request.protocolVersion(), status, headerForSend(-1));
                 if (flush) {
                     ch.writeAndFlush(msg, ch.voidPromise());
@@ -339,12 +392,13 @@ class HttpExchangeImpl extends HttpExchange {
             } else {
                 ch.close();
             }
-            onDestroy();
+            onDestroy(STATE_ERR_RESP_BODY);
         }
 
         @Override
         public void onComplete() {
             if (!ch.isActive()) {
+                abortResponse();
                 return;
             }
             if (scheduler.inLoop()) {
@@ -357,9 +411,16 @@ class HttpExchangeImpl extends HttpExchange {
         private void onComplete0() {
             writeHeader(false);
             ch.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT, ch.voidPromise());
-            onDestroy();
+            onDestroy(wroteStatus);
         }
 
+    }
+
+    private void invokeHeaderSent(int status) {
+        FilterInvocation inc = invocation;
+        if (inc != null) {
+            inc.invokeHeaderSend(status);
+        }
     }
 
     private DefaultHttpHeaders headerForSend(int contentLen) {
@@ -368,6 +429,7 @@ class HttpExchangeImpl extends HttpExchange {
             headers.set(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.APPLICATION_OCTET_STREAM);
         }
         ReqHandler.addConnectionHeader(headers);
+        invokeHeaderSent(wroteStatus);
         if (ioError) {
             headers.set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
         }

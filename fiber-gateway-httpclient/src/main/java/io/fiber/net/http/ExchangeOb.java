@@ -1,6 +1,9 @@
 package io.fiber.net.http;
 
-import io.fiber.net.common.async.*;
+import io.fiber.net.common.async.Function;
+import io.fiber.net.common.async.Maybe;
+import io.fiber.net.common.async.Observable;
+import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.utils.BodyBufSubject;
 import io.fiber.net.http.impl.ClientHttpExchange;
 import io.fiber.net.http.impl.ConnectionPool;
@@ -16,7 +19,6 @@ abstract class ExchangeOb extends ClientHttpExchange implements ConnectionPool.C
     private int respStatus;
     private HttpHeaders respHeaders;
     final ClientExchange exchange;
-    private HttpHost host;
     HttpConnection cn;
 
     ExchangeOb(ClientExchange exchange) {
@@ -25,19 +27,10 @@ abstract class ExchangeOb extends ClientHttpExchange implements ConnectionPool.C
 
     @Override
     public void onConnSuccess(HttpConnection connection) {
-        BiConsumer<ClientExchange, HttpConnection> peekConn = exchange.peekConn;
         Function<ClientExchange, ByteBuf> reqBufFullFunc = exchange.reqBufFullFunc;
         Function<ClientExchange, Observable<ByteBuf>> reqBodyFunc = exchange.reqBodyFunc;
 
-        if (peekConn != null) {
-            try {
-                peekConn.accept(exchange, connection);
-            } catch (Throwable e) {
-                connection.dismiss();
-                onNotifyError(e);
-                return;
-            }
-        }
+        onConnected();
 
         if (reqBufFullFunc != null) {
             try {
@@ -75,16 +68,8 @@ abstract class ExchangeOb extends ClientHttpExchange implements ConnectionPool.C
     }
 
     @Override
-    public HttpHost getHost() {
-        if (host == null) {
-            host = exchange.hostFetcher.getHttpHost();
-        }
-        return host;
-    }
-
-    @Override
     public HttpHost httpHost() {
-        return getHost();
+        return exchange.host;
     }
 
     @Override
@@ -171,8 +156,21 @@ abstract class ExchangeOb extends ClientHttpExchange implements ConnectionPool.C
         return respBody.toMaybe().notifyOn(scheduler);
     }
 
+    @Override
+    public int getReceivedBodySize() {
+        return respBody.getReceived();
+    }
+
     protected abstract void onNotifyResp() throws Throwable;
 
     protected abstract void onNotifyError(Throwable err);
+
+    protected abstract void onConnected();
+
+    @Override
+    protected abstract void onBodyError(Throwable throwable);
+
+    @Override
+    protected abstract void onBodyCompleted();
 
 }

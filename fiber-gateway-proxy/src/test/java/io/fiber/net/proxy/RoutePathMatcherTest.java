@@ -1,6 +1,5 @@
 package io.fiber.net.proxy;
 
-import io.fiber.net.common.FiberException;
 import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.async.Maybe;
 import io.fiber.net.common.async.Observable;
@@ -13,6 +12,7 @@ import io.netty.buffer.ByteBuf;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.net.SocketAddress;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -179,6 +179,16 @@ public class RoutePathMatcherTest {
         }
 
         @Override
+        public SocketAddress getRemoteAddress() {
+            return null;
+        }
+
+        @Override
+        public SocketAddress getLocalAddress() {
+            return null;
+        }
+
+        @Override
         public void setRequestHeader(String name, String value) {
 
         }
@@ -214,6 +224,11 @@ public class RoutePathMatcherTest {
         }
 
         @Override
+        public void addResponseHeader(String name, List<String> values) {
+
+        }
+
+        @Override
         public void removeResponseHeader(String name) {
 
         }
@@ -239,17 +254,17 @@ public class RoutePathMatcherTest {
         }
 
         @Override
-        public void writeJson(int status, Object result) throws FiberException {
+        public void writeJson(int status, Object result) {
 
         }
 
         @Override
-        public void writeRawBytes(int status, ByteBuf buf) throws FiberException {
+        public void writeRawBytes(int status, ByteBuf buf) {
 
         }
 
         @Override
-        public void writeRawBytes(int status, Observable<ByteBuf> bufOb, boolean flush) throws FiberException {
+        public void writeRawBytes(int status, Observable<ByteBuf> bufOb, boolean flush) {
 
         }
 

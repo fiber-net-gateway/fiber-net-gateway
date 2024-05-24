@@ -61,4 +61,8 @@ public interface Single<T> {
     default Single<T> mapError(Function<Throwable, Throwable> mapErr) {
         return new ErrMappedSingle<>(mapErr, this);
     }
+
+    default <R> Observable<R> switchToObservable(Function<? super T, Observable<? extends R>> function) {
+        return new SingleToObservable<T, R>(function, this);
+    }
 }

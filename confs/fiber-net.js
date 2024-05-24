@@ -1,10 +1,23 @@
 directive fy from http "https://fanyi.baidu.com";
 directive bd from http "https://www.baidu.com";
 directive demoService from dubbo "com.test.dubbo.DemoService";
+directive lh from http "http://127.0.0.1:16688";
+
+resp.addCookie({name:"aaaa", value: "AAA", maxAge: 100000, "domain":".baidu.com", path: "/"});
+resp.addHeader("Set-Cookie", "vvv=AAA; Expires="+time.format()+"; Path=/; Domain=.baidu.com");
 
 if (req.getMethod() == "GET") {
+    lh.proxyPass({
+        headers: {
+         "X-Fiber-Project": 'bench-proxy'
+        }
+    });
+} else if(req.getMethod() == "PUT") {
     let dubboResult = demoService.createUser(req.getHeader("Host"));
-    resp.send(200, {dubboResult, success:true});
+    resp.send(200, [{
+        dubboResult,
+        success:true
+    },demoService.$dynamicInvoke("createUser", [req.getHeader("Host")+"222"])]);
 } else if (req.getMethod() == "POST") {
     req.discardBody();
     let res = bd.request({path: "/", headers: {"User-Agent": "curl/7.88.1"}});

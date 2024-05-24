@@ -6,6 +6,7 @@ import io.fiber.net.common.json.TextNode;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
+import io.netty.handler.codec.DateFormatter;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -22,7 +23,7 @@ public class TimeFuncs {
         @Override
         public JsonNode call(ExecutionContext context) throws ScriptExecException {
             if (context.noArgs()) {
-                return LongNode.valueOf(System.currentTimeMillis() / 1000);
+                return LongNode.valueOf(System.currentTimeMillis());
             }
             SimpleDateFormat format;
             try {
@@ -43,7 +44,7 @@ public class TimeFuncs {
         @Override
         public JsonNode call(ExecutionContext context) throws ScriptExecException {
             if (context.noArgs()) {
-                return TextNode.valueOf(new Date().toString());
+                return TextNode.valueOf(DateFormatter.format(new Date()));
             }
             SimpleDateFormat format;
             try {
@@ -54,13 +55,15 @@ public class TimeFuncs {
 
             Date date = new Date();
             if (context.getArgCnt() > 1) {
-                date.setTime(context.getArgVal(1).asLong(date.getTime()));
+                long time = date.getTime();
+                date.setTime(context.getArgVal(1).asLong(time));
             }
             return TextNode.valueOf(format.format(date));
         }
     }
 
     static final Map<String, Library.Function> FUNC = new HashMap<>();
+
     static {
         FUNC.put("time.now", new NowFunc());
         FUNC.put("time.format", new FormatFunc());

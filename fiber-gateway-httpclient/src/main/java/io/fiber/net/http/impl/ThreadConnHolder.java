@@ -212,10 +212,11 @@ public class ThreadConnHolder {
         if (connection.connList == null) {
             connection.connList = list;
             list.incrementTotal();
-        } else {
-            if (log.isDebugEnabled()) {
-                log.debug("creating ConnList for Host {}", connection.getHttpHost());
-            }
+        } else if (log.isDebugEnabled()) {
+            log.debug("creating ConnList for Host {}", connection.getHttpHost());
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("connection created for Host {}", connection.getHttpHost());
         }
     }
 

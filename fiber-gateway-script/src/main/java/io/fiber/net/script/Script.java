@@ -58,7 +58,7 @@ public interface Script {
         return exec(root, null);
     }
 
-    default Maybe<JsonNode> aotExec(JsonNode root) throws Exception {
+    default Maybe<JsonNode> aotExec(JsonNode root) {
         return aotExec(root, null);
     }
 

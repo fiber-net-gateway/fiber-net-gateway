@@ -1,6 +1,5 @@
 package io.fiber.net.proxy;
 
-import io.fiber.net.common.FiberException;
 import io.fiber.net.common.RouterHandler;
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.json.NullNode;
@@ -28,21 +27,18 @@ public class ScriptHandler implements RouterHandler<HttpExchange> {
     }
 
     @Override
-    public void invoke(HttpExchange exchange) throws Exception {
+    public void invoke(HttpExchange exchange) {
         script.aotExec(NullNode.getInstance(), exchange).subscribe((node, throwable) -> {
             if (exchange.isResponseWrote()) {
                 return;
             }
-            try {
-                if (throwable != null) {
-                    ErrorInfo info = ErrorInfo.of(throwable);
-                    exchange.writeJson(info.getStatus(), info);
-                } else if (node != null) {
-                    exchange.writeJson(200, node);
-                } else {
-                    exchange.writeRawBytes(204, Unpooled.EMPTY_BUFFER);
-                }
-            } catch (FiberException ignore) {
+            if (throwable != null) {
+                ErrorInfo info = ErrorInfo.of(throwable);
+                exchange.writeJson(info.getStatus(), info);
+            } else if (node != null) {
+                exchange.writeJson(200, node);
+            } else {
+                exchange.writeRawBytes(204, Unpooled.EMPTY_BUFFER);
             }
         });
     }

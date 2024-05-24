@@ -2,8 +2,10 @@ package io.fiber.net.http;
 
 import io.fiber.net.common.utils.Predictions;
 import io.fiber.net.common.utils.StringUtils;
+import io.fiber.net.http.util.IpUtils;
 
 import java.io.Serializable;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Locale;
@@ -209,4 +211,12 @@ public final class HttpHost implements Cloneable, Serializable {
         return "https".equals(schemeName);
     }
 
+    public static HttpHost create(String host, int port) {
+        InetAddress address = IpUtils.tryToInetAddress(host);
+        if (address != null) {
+            return new HttpHost(new InetSocketAddress(address, port), host, null);
+        } else {
+            return new HttpHost(host, port, null);
+        }
+    }
 }

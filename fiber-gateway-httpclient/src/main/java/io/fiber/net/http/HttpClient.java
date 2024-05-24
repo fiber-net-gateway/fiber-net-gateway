@@ -5,6 +5,4 @@ public interface HttpClient {
     ClientExchange refer(String host, int port);
     ClientExchange refer(HttpHost httpHost);
 
-    ClientExchange refer(HostFetcher hostFetcher);
-
 }

@@ -2,6 +2,7 @@ package io.fiber.net.proxy.lib;
 
 import io.fiber.net.common.RouterHandler;
 import io.fiber.net.common.json.*;
+import io.fiber.net.common.utils.CollectionUtils;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.common.utils.StringUtils;
@@ -14,6 +15,8 @@ import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.server.HttpExchange;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufUtil;
+import io.netty.handler.codec.http.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -28,6 +31,7 @@ public class ReqFunc {
         private final HttpExchange exchange;
         private ObjectNode query;
         private ObjectNode headers;
+        private ObjectNode cookies;
 
         private Ctx(HttpExchange exchange) {
             this.exchange = exchange;
@@ -60,6 +64,22 @@ public class ReqFunc {
                 }
             }
             return headers;
+        }
+
+        public ObjectNode getCookies() {
+            ObjectNode cookieNodes = this.cookies;
+            if (cookieNodes == null) {
+                cookieNodes = this.cookies = JsonUtil.createObjectNode();
+                List<String> cookies = exchange.getRequestHeaderList("cookie");
+                if (CollectionUtils.isNotEmpty(cookies)) {
+                    for (String cookie : cookies) {
+                        for (Cookie c : ServerCookieDecoder.STRICT.decodeAll(cookie)) {
+                            cookieNodes.put(c.name(), c.value());
+                        }
+                    }
+                }
+            }
+            return cookieNodes;
         }
 
     }
@@ -230,6 +250,18 @@ public class ReqFunc {
         }
     }
 
+    private static class GetCookie implements SyncHttpFunc {
+
+        @Override
+        public JsonNode call(ExecutionContext context) {
+            ObjectNode nodes = getOrCreateCtx(context).getCookies();
+            if (context.noArgs()) {
+                return nodes;
+            }
+            return nodes.path(context.getArgVal(0).asText());
+        }
+    }
+
     static final Map<String, Library.AsyncFunction> ASYNC_FC_MAP = new HashMap<>();
     static final Map<String, Library.Function> FC_MAP = new HashMap<>();
 
@@ -239,6 +271,7 @@ public class ReqFunc {
         FC_MAP.put("req.getQueryStr", new GetQueryText());
         FC_MAP.put("req.getMethod", new GetMethodText());
         FC_MAP.put("req.getHeader", new GetHeader());
+        FC_MAP.put("req.getCookie", new GetCookie());
         FC_MAP.put("req.getQuery", new GetQuery());
         FC_MAP.put("req.discardBody", new DiscardBody());
         ASYNC_FC_MAP.put("req.readJson", new ReadJsonBody());

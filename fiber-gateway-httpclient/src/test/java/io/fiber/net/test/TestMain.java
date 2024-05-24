@@ -35,7 +35,6 @@ public class TestMain {
         System.out.println(Thread.currentThread());
         Scheduler current = Scheduler.current();
         ClientExchange exchange = client.refer("www.baidu.com", 443);
-        exchange.setPeekConn((ex, connection) -> System.out.println("connnection: " + connection));
         exchange.sendForResp()
                 .subscribe((clientResponse, throwable) -> {
                     assert current.inLoop();

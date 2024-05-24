@@ -41,4 +41,6 @@ public interface ClientResponse {
     Maybe<ByteBuf> readFullRespBody(Scheduler scheduler);
 
     ClientExchange getExchange();
+
+    int getReceivedBodySize();
 }

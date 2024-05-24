@@ -3,6 +3,7 @@ package io.fiber.net.dubbo.nacos;
 import com.alibaba.fastjson2.JSONFactory;
 import io.fiber.net.common.utils.RefResourcePool;
 import io.fiber.net.common.utils.StringUtils;
+import org.apache.dubbo.common.constants.CommonConstants;
 import org.apache.dubbo.config.ApplicationConfig;
 import org.apache.dubbo.config.ProtocolConfig;
 import org.apache.dubbo.config.ReferenceConfig;
@@ -26,6 +27,7 @@ public class DubboClient extends RefResourcePool<DubboClient.Service> {
         ApplicationConfig config = new ApplicationConfig(dubboConfig.getApplicationName());
         config.setQosCheck(false);
         config.setQosEnable(false);
+        config.setMetadataType(CommonConstants.REMOTE_METADATA_STORAGE_TYPE);
         ApplicationModel model = ApplicationModel.defaultModel();
         model.getApplicationConfigManager().setApplication(config);
 

@@ -77,7 +77,7 @@ public class RefResourcePoolTest {
         });
         thread.start();
 
-        Pool.R a = pool.getOrCreate("aaa");
+//        Pool.R a = pool.getOrCreate("aaa");
         thread.join();
     }
 }

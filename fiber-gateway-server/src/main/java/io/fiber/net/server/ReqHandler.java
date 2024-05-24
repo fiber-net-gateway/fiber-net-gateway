@@ -31,7 +31,6 @@ public class ReqHandler extends ChannelDuplexHandler {
         X_POWER_BY = "fiber-net(" + SystemPropertyUtil.get(Constant.APP_NAME, "fn") + ")/" + Fiber.VERSION + "/" + Fiber.GIT_HASH;
     }
 
-    private static final AsciiString X_POWERED_BY_HEADER = AsciiString.cached(Constant.X_POWERED_BY_HEADER);
     private static final AsciiString X_POWERED_BY_VALUE = AsciiString.cached(X_POWER_BY);
 
 
@@ -66,7 +65,7 @@ public class ReqHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
+    public void channelRegistered(ChannelHandlerContext ctx) {
         scheduler = Scheduler.current();
     }
 
@@ -86,11 +85,9 @@ public class ReqHandler extends ChannelDuplexHandler {
                     engine.run(httpExchange);
                 } catch (Throwable e) {
                     logger.error("error run engine", e);
-                    try {
-                        httpExchange.writeJson(500, "RUN_ENGINE_ERROR");
-                    } catch (FiberException ex) {
-                        logger.error("error write RUN_ENGINE_ERROR", e);
-                    }
+                    httpExchange.writeJson(500, "RUN_ENGINE_ERROR");
+                    httpExchange = null;
+                    ReferenceCountUtil.release(msg);
                     return;
                 }
             } else if (!lingeringSend) {
@@ -119,6 +116,7 @@ public class ReqHandler extends ChannelDuplexHandler {
 
             HttpExchangeImpl httpExchange;
             if ((httpExchange = this.httpExchange) == null) {
+                ReferenceCountUtil.release(content);
                 return;
             }
 
@@ -127,6 +125,11 @@ public class ReqHandler extends ChannelDuplexHandler {
             }
 
         }
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        super.channelInactive(ctx);
     }
 
     private void requestEnd() {

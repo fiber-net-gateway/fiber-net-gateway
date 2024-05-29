@@ -30,6 +30,7 @@ build/
 !**/src/test/**/build/
 /fiber-gateway-script/dist
 /fiber-gateway-*/logs
+/scripts
 
 ### VS Code ###
 .vscode/

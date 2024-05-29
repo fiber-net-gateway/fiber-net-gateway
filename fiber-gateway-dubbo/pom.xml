@@ -14,7 +14,7 @@
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>fiber-gateway-proxy</artifactId>
+            <artifactId>fiber-gateway-common</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.dubbo</groupId>

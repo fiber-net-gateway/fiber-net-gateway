@@ -25,14 +25,14 @@ public abstract class RefResourcePool<V extends RefResourcePool.Ref> {
             V ref = map.computeIfAbsent(key, k -> {
                 V v = doCreateRef(k);
                 v.setKey(k);
-                log.info("ref object({}) of {} is created", k, poolName);
+                log.info("ref ({}) of {} is created", k, poolName);
                 return v;
             });
             if (ref.addRef()) {
                 return ref;
             }
             if (map.remove(key, ref)) {
-                log.info("ref object({}) of {} is destroying", key, poolName);
+                log.info("ref ({}) of {} is destroying", key, poolName);
                 ref.doClose();
             }
         }

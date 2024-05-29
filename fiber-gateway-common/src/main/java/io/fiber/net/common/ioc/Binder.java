@@ -22,4 +22,6 @@ public interface Binder {
     <T, V extends T> void bindMultiBean(Class<T> clz, Class<V> real);
 
     <T> boolean removeBind(Class<T> clz);
+
+    boolean contains(Class<?> clz);
 }

@@ -157,8 +157,14 @@ public class InjectorImpl extends Injector {
                 }
 
                 instance = CREATING;
+                Object o;
+                try {
+                    o = bean.get(injector);
+                } catch (Throwable e) {
+                    instance = null;
+                    throw e;
+                }
 
-                Object o = bean.get(injector);
                 if (o == null) {
                     instance = NULL;
                     return null;

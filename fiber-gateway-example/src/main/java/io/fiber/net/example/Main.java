@@ -4,21 +4,18 @@ import io.fiber.net.common.ext.Interceptor;
 import io.fiber.net.common.ioc.Binder;
 import io.fiber.net.common.utils.ArrayUtils;
 import io.fiber.net.common.utils.StringUtils;
-import io.fiber.net.dubbo.nacos.DubboModule;
 import io.fiber.net.proxy.ConfigWatcher;
 import io.fiber.net.proxy.LibProxyMainModule;
 import io.fiber.net.proxy.ScriptCodeSource;
 import io.fiber.net.server.HttpEngine;
-import io.fiber.net.server.HttpServer;
-import io.fiber.net.server.ServerConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.prometheus.PrometheusConfig;
+import io.micrometer.prometheus.PrometheusMeterRegistry;
 
 import java.io.File;
 import java.nio.file.Files;
 
 public class Main {
-    private static final Logger log = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) throws Exception {
         if (ArrayUtils.isEmpty(args) || StringUtils.isEmpty(args[0])) {
@@ -28,27 +25,19 @@ public class Main {
         if (!file.exists() || !file.isDirectory()) {
             throw new IllegalArgumentException("onInit path must be directory");
         }
-        HttpEngine engine = LibProxyMainModule.createEngine(
-                new DubboModule(),
-                binder -> install(binder, file));
+        HttpEngine engine = LibProxyMainModule.createEngine(binder -> install(binder, file));
 
-        try {
-            HttpServer server = engine.getInjector().getInstance(HttpServer.class);
-            server.start(new ServerConfig(), engine);
-        } catch (Throwable e) {
-            log.error("error start http server", e);
-            engine.getInjector().destroy();
-            throw e;
-        }
+        engine.addHandlerRouter(engine.getInjector().getInstance(MetricRouteHandler.class));
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            engine.getInjector().destroy();
-        }));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> engine.getInjector().destroy()));
     }
 
     private static void install(Binder binder, File file) {
+        PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+        binder.bind(MeterRegistry.class, registry);
+        binder.bind(MetricRouteHandler.class, new MetricRouteHandler(registry));
         binder.bindMultiBean(Interceptor.class, StatisticInterceptor.class);
-        binder.bindFactory(StatisticInterceptor.class, i -> new StatisticInterceptor());
+        binder.bindFactory(StatisticInterceptor.class, i -> new StatisticInterceptor(registry));
 
         binder.forceBindFactory(ConfigWatcher.class, i -> new DirectoryFilesConfigWatcher(file));
         File fileDir = new File(file, "file");

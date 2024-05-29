@@ -24,6 +24,7 @@ public class DubboClient extends RefResourcePool<DubboClient.Service> {
     public DubboClient(DubboConfig dubboConfig) {
         super("dubboClient");
         System.setProperty("dubbo.application.logger", "slf4j");
+        System.setProperty("dubbo.shutdownHook.listenIgnore", "true");
         ApplicationConfig config = new ApplicationConfig(dubboConfig.getApplicationName());
         config.setQosCheck(false);
         config.setQosEnable(false);

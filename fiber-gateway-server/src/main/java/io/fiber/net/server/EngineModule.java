@@ -2,6 +2,7 @@ package io.fiber.net.server;
 
 import io.fiber.net.common.Engine;
 import io.fiber.net.common.ext.RouterNameFetcher;
+import io.fiber.net.common.ext.StartListener;
 import io.fiber.net.common.ioc.Binder;
 import io.fiber.net.common.ioc.Destroyable;
 import io.fiber.net.common.ioc.Initializable;
@@ -45,5 +46,9 @@ public class EngineModule implements Module {
         binder.bindFactory(EventLoopGroupHolder.class, injector -> new EventLoopGroupHolder());
         binder.bindPrototype(EventLoopGroup.class, injector -> injector.getInstance(EventLoopGroupHolder.class).getGroup());
         binder.bindFactory(HttpServer.class, injector -> new Server(injector.getInstance(EventLoopGroup.class)));
+        binder.bindMultiBean(StartListener.class, HttpServerStartListener.class);
+        if (!binder.contains(HttpServerStartListener.class)) {
+            binder.bindPrototype(HttpServerStartListener.class, i -> new HttpServerStartListener());
+        }
     }
 }

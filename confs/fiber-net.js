@@ -7,11 +7,20 @@ resp.addCookie({name:"aaaa", value: "AAA", maxAge: 100000, "domain":".baidu.com"
 resp.addHeader("Set-Cookie", "vvv=AAA; Expires="+time.format()+"; Path=/; Domain=.baidu.com");
 
 if (req.getMethod() == "GET") {
-    lh.proxyPass({
-        headers: {
-         "X-Fiber-Project": 'bench-proxy'
-        }
-    });
+    if (req.getPath() == "/metric") {
+        lh.proxyPass({
+            headers: {
+             "X-Fiber-Project": 'metric'
+            }
+        });
+    } else if (req.getPath() == '/favicon.ico') {
+        let ico = bd.request({path: "/favicon.ico"});
+        resp.setHeader("Content-Type", "image/x-icon");
+        resp.send(200, ico.body);
+    } else {
+        resp.setHeader("Content-Type", "text/html");
+        resp.send(200, "<h1>Hello, welcome to use fiber-net</h1>");
+    }
 } else if(req.getMethod() == "PUT") {
     let dubboResult = demoService.createUser(req.getHeader("Host"));
     resp.send(200, [{

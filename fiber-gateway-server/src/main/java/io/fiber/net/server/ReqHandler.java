@@ -128,8 +128,11 @@ public class ReqHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        super.channelInactive(ctx);
+    public void channelInactive(ChannelHandlerContext ctx) {
+        if (httpExchange != null) {
+            httpExchange.abortBody(new FiberException("client close stream on request body receiving", 400, "REQ_ERROR"));
+            requestEnd();
+        }
     }
 
     private void requestEnd() {

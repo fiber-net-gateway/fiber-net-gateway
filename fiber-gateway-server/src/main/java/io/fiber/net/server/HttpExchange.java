@@ -128,6 +128,7 @@ public abstract class HttpExchange {
         private Listener[] others;
         @SuppressWarnings("unused")
         Listener listener_0, listener_1, listener_2, listener_3, listener_4, listener_5;
+        private int bodyStatus;
 
         FilterInvocation(HttpExchange exchange, Listener destroy) {
             this.exchange = exchange;
@@ -136,6 +137,7 @@ public abstract class HttpExchange {
         }
 
         void invokeBodySent(int state) {
+            bodyStatus = state;
             Listener[] destroys = others;
             for (int i = len - 1; i >= 0; i--) {
                 if (i < 6) {
@@ -160,19 +162,24 @@ public abstract class HttpExchange {
         }
 
         private void add(Listener destroy) {
-            int len = this.len;
-            if (len < FIELD_SZ) {
-                PlatformDependent.putObject(this, DST_OFT + DST_SZ * len, destroy);
-            } else {
-                int olen = len - FIELD_SZ;
-                if (others == null) {
-                    others = new Listener[8];
-                } else if (olen >= others.length) {
-                    others = Arrays.copyOf(others, olen << 2);
+            int b;
+            if ((b = bodyStatus) == 0) {
+                int len = this.len;
+                if (len < FIELD_SZ) {
+                    PlatformDependent.putObject(this, DST_OFT + DST_SZ * len, destroy);
+                } else {
+                    int olen = len - FIELD_SZ;
+                    if (others == null) {
+                        others = new Listener[8];
+                    } else if (olen >= others.length) {
+                        others = Arrays.copyOf(others, olen << 2);
+                    }
+                    others[olen] = destroy;
                 }
-                others[olen] = destroy;
+                this.len++;
+            } else {
+                destroy.onBodySent(exchange, b);
             }
-            this.len++;
         }
     }
 

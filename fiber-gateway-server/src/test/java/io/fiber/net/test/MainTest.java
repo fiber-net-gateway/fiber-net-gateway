@@ -5,7 +5,6 @@ import io.fiber.net.common.async.Disposable;
 import io.fiber.net.common.async.Observable;
 import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.async.internal.Subject;
-import io.fiber.net.common.ioc.Binder;
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.server.*;
@@ -24,16 +23,9 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class Main {
+public class MainTest {
     static {
         ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.PARANOID);
-    }
-
-    private static class M extends EngineModule {
-        @Override
-        public void install(Binder binder) {
-            super.install(binder);
-        }
     }
 
     private static class Ob extends Subject<ByteBuf> implements Runnable {
@@ -113,8 +105,8 @@ public class Main {
     }
 
     @Test
-    public void main() throws Exception {
-        Injector injector = Injector.getRoot().createChild(new M());
+    public void v() throws Exception {
+        Injector injector = Injector.getRoot().createChild(new EngineModule());
         try {
             HttpEngine instance = (HttpEngine) injector.getInstance(Engine.class);
             instance.installExt();

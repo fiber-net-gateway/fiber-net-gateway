@@ -157,7 +157,7 @@ public abstract class AbstractVm implements ExecutionContext {
         if (node instanceof ScriptExceptionNode) {
             return ((ScriptExceptionNode) node).getException();
         }
-        String name = "EXEC_UNKNOWN_ERROR", msg = "execute scripe error";
+        String name = "EXEC_THROW_ERROR", msg = "execute script throw error";
         int code = 500;
         JsonNode v;
         if ((v = node.get("name")) != null) {

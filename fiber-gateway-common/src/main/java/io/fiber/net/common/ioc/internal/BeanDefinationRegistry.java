@@ -107,6 +107,11 @@ public class BeanDefinationRegistry implements Binder {
         return beanMap.remove(clz) != null || multiBeans.remove(clz) != null;
     }
 
+    @Override
+    public boolean contains(Class<?> clz) {
+        return beanMap.containsKey(clz);
+    }
+
     private boolean containsBean(Class<?> clz, boolean constainsLink) {
         return beanMap.containsKey(clz)
                 || constainsLink && links.containsKey(clz)

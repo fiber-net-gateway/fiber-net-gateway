@@ -18,6 +18,10 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>fiber-gateway-dubbo</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>fiber-gateway-script</artifactId>
         </dependency>
         <dependency>

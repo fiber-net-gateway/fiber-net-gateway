@@ -14,8 +14,12 @@ import java.nio.file.Files;
 public class AotClassGeneratorTest extends TestInIOThreadParent {
 
     @Test
-    public void g() throws Throwable {
+    public void vv() throws Throwable {
         testScript("/test.js");
+    }
+
+    @Test
+    public void g() throws Throwable {
         testScript("/async.js");
         testScript("/break_for.js");
     }
@@ -62,11 +66,11 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
         generateAndInvoke(script, file);
     }
 
-    private static void generateFile(Compiled compiled) throws Throwable {
+    private static void generateFile(String name, Compiled compiled) throws Throwable {
         AotClassGenerator generator = new AotClassGenerator(compiled);
         byte[] bytes = generator.generateClzData();
         String clzFile = generator.getGeneratedClzName();
-        System.out.println(clzFile.replace('/', '.'));
+        System.out.println(name + "->: " + clzFile.replace('/', '.'));
 
         int i = clzFile.lastIndexOf('/');
         File path = new File("dist/" + clzFile.substring(0, i));
@@ -76,7 +80,7 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
 
     private static void generateAndInvoke(Script script, String name) throws Throwable {
         ComparedMayBeObserver observer = new ComparedMayBeObserver(name);
-        generateFile(((CompiledScript) script).getCompiled());
+        generateFile(name, ((CompiledScript) script).getCompiled());
         script.aotExec(NullNode.getInstance(), null).subscribe(observer.getOb());
         script.exec(NullNode.getInstance(), null).subscribe(observer.getOb());
     }

@@ -1,12 +1,12 @@
-package io.fiber.net.dubbo.nacos;
+package io.fiber.net.proxy.lib;
 
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.json.ArrayNode;
 import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.StringUtils;
+import io.fiber.net.dubbo.nacos.DubboRefManager;
 import io.fiber.net.proxy.HttpLibConfigure;
-import io.fiber.net.proxy.lib.ExtensiveHttpLib;
-import io.fiber.net.proxy.lib.HttpDynamicFunc;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
@@ -15,6 +15,7 @@ import io.fiber.net.script.ast.Literal;
 import java.util.List;
 
 public class DubboLibConfigure implements HttpLibConfigure {
+    private static final String ERROR_NAME = "SCRIPT_INVOKE_DUBBO";
     private final Injector injector;
 
     public DubboLibConfigure(Injector injector) {
@@ -86,13 +87,13 @@ public class DubboLibConfigure implements HttpLibConfigure {
             int cnt = context.getArgCnt();
             String mtd;
             if (cnt < 1 || StringUtils.isEmpty(mtd = context.getArgVal(0).textValue())) {
-                context.throwErr(new ScriptExecException("$dynamicInvoke require method name", 500, DubboRefManager.DUBBO_ERR_NAME));
+                context.throwErr(new ScriptExecException("$dynamicInvoke require method name", 500, ERROR_NAME));
                 return;
             }
 
             JsonNode args = cnt >= 2 ? context.getArgVal(1) : null;
             if (args != null && !args.isArray()) {
-                context.throwErr(new ScriptExecException("$dynamicInvoke require arguments of array", 500, DubboRefManager.DUBBO_ERR_NAME));
+                context.throwErr(new ScriptExecException("$dynamicInvoke require arguments of array", 500, ERROR_NAME));
                 return;
             }
 
@@ -125,7 +126,7 @@ public class DubboLibConfigure implements HttpLibConfigure {
                     args[i] = context.getArgVal(i);
                 }
             } else {
-                args = DubboRefManager.EMPTY;
+                args = Constant.EMPTY_ARRAY;
             }
             ref.invoke(method, args).subscribe((jsonNode, throwable) -> {
                 if (throwable != null) {

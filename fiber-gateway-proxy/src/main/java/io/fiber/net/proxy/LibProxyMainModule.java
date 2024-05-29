@@ -1,17 +1,18 @@
 package io.fiber.net.proxy;
 
 import io.fiber.net.common.Engine;
-import io.fiber.net.common.ext.StartListener;
 import io.fiber.net.common.ioc.Binder;
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.ioc.Module;
-import io.fiber.net.common.utils.ArrayUtils;
-import io.fiber.net.common.utils.Assert;
-import io.fiber.net.common.utils.CollectionUtils;
-import io.fiber.net.common.utils.StringUtils;
+import io.fiber.net.common.utils.*;
+import io.fiber.net.dubbo.nacos.DubboClient;
+import io.fiber.net.dubbo.nacos.DubboConfig;
+import io.fiber.net.dubbo.nacos.DubboRefManager;
 import io.fiber.net.http.DefaultHttpClient;
 import io.fiber.net.http.HttpClient;
 import io.fiber.net.http.HttpHost;
+import io.fiber.net.proxy.gov.GovLibConfigure;
+import io.fiber.net.proxy.lib.DubboLibConfigure;
 import io.fiber.net.proxy.lib.ExtensiveHttpLib;
 import io.fiber.net.proxy.lib.HttpFunc;
 import io.fiber.net.script.Library;
@@ -19,7 +20,8 @@ import io.fiber.net.script.Script;
 import io.fiber.net.script.ast.Literal;
 import io.fiber.net.server.EngineModule;
 import io.fiber.net.server.HttpEngine;
-import io.fiber.net.server.HttpExchange;
+import io.fiber.net.server.HttpServerStartListener;
+import io.netty.channel.EventLoopGroup;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,6 +42,11 @@ public class LibProxyMainModule implements Module {
         public void install(Binder binder) {
             binder.bindMultiBean(HttpLibConfigure.class, ProxyHttpLibConfigure.class);
             binder.bindPrototype(ProxyHttpLibConfigure.class, ProxyHttpLibConfigure::new);
+            binder.bindMultiBean(HttpLibConfigure.class, GovLibConfigure.class);
+            binder.bind(GovLibConfigure.class, new GovLibConfigure());
+            binder.bindPrototype(DubboLibConfigure.class, DubboLibConfigure::new);
+            binder.bindMultiBean(HttpLibConfigure.class, DubboLibConfigure.class);
+            binder.bindFactory(DubboRefManager.class, DubboRefManager::new);
         }
 
         synchronized ScriptHandler createProject(String projectName, String code) throws Exception {
@@ -112,26 +119,36 @@ public class LibProxyMainModule implements Module {
         }
     }
 
-    private static class ProxyStartListener implements StartListener<HttpExchange, HttpEngine> {
+    private static class ProxyStartListener extends HttpServerStartListener {
         @Override
-        public void onStart(HttpEngine engine) throws Exception {
+        protected void beforeServerStart(HttpEngine engine) throws Exception {
             ConfigWatcher watcher = engine.getInjector().getInstance(ConfigWatcher.class);
             watcher.startWatch(engine);
         }
     }
 
+    private static DubboConfig defaultConfig() {
+        String registry = SystemPropertyUtil.get("fiber.dubbo.registry");
+        if (StringUtils.isEmpty(registry)) {
+            throw new IllegalStateException("no dubbo registry configured. -Dfiber.dubbo.registry=");
+        }
+        DubboConfig config = new DubboConfig();
+        config.setRegistryAddr(registry);
+        config.setApplicationName(SystemPropertyUtil.get("fiber.dubbo.appName", config.getApplicationName()));
+        config.setProtocol(SystemPropertyUtil.get("fiber.dubbo.protocol", config.getProtocol()));
+        return config;
+    }
+
+
     @Override
     public void install(Binder binder) {
-        binder.bindFactory(HttpClient.class, injector -> {
-            EngineModule.EventLoopGroupHolder groupHolder = injector.getInstance(EngineModule.EventLoopGroupHolder.class);
-            return new DefaultHttpClient(groupHolder.getGroup());
-        });
+        binder.bindFactory(HttpClient.class, injector -> new DefaultHttpClient(injector.getInstance(EventLoopGroup.class)));
         binder.bindMultiBean(ProxyModule.class, SubModule.class);
         binder.bindFactory(SubModule.class, SubModule::new);
-        binder.bindMultiBean(StartListener.class, ProxyStartListener.class);
-        binder.bind(ProxyStartListener.class, new ProxyStartListener());
+        binder.forceBind(HttpServerStartListener.class, new ProxyStartListener());
         binder.bind(ConfigWatcher.class, ConfigWatcher.NOOP_WATCHER);
         binder.bindFactory(UrlHandlerManager.class, UrlHandlerManager::new);
+        binder.bindFactory(DubboClient.class, injector -> new DubboClient(defaultConfig()));
     }
 
     public static ScriptHandler createProject(Injector injector, String projectName, String code) throws Exception {
@@ -169,8 +186,8 @@ public class LibProxyMainModule implements Module {
 
     public static HttpEngine createEngine(Iterable<Module> extModules) throws Exception {
         List<Module> modules = new ArrayList<>();
-        modules.add(new EngineModule());
         modules.add(new LibProxyMainModule());
+        modules.add(new EngineModule());
         for (Module module : extModules) {
             modules.add(module);
         }

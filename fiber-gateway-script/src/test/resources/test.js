@@ -1,4 +1,4 @@
-let a = $.a + 10;
+let a = ($.a || 0) + 10;
 
 sleep(1 + a);
 
@@ -7,7 +7,9 @@ try {
 } catch (e) {
     print(e);
 }
-let c = [1,2, sleep(1 + 3), a > 5? a+1: a+2];
+let s = 0;
+let c = [1,2, s = s + sleep(1 + 3), a > 5? a+1: a+2];
+print("s = " + s);
 
 try {
     for(let a,b of c) {

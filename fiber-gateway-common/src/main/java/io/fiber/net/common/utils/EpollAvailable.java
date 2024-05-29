@@ -57,7 +57,9 @@ public class EpollAvailable {
         if (EPOLL_AV) {
             return EpollFactory0.evGroup(1);
         }
-        return new NioEventLoopGroup(1);
+        NioEventLoopGroup executors = new NioEventLoopGroup(1);
+        executors.setIoRatio(100);
+        return executors;
     }
 
     public static EventLoopGroup workerGroup() {

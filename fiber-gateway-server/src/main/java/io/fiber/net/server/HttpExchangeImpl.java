@@ -286,7 +286,6 @@ class HttpExchangeImpl extends HttpExchange {
         reqBufSubject.dismiss();
         FilterInvocation ivc = invocation;
         if (ivc != null) {
-            invocation = null;
             ivc.invokeBodySent(state);
         }
     }

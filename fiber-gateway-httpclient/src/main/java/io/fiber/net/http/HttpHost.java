@@ -11,7 +11,7 @@ import java.net.SocketAddress;
 import java.util.Locale;
 import java.util.Objects;
 
-public final class HttpHost implements Cloneable, Serializable {
+public class HttpHost implements Cloneable, Serializable {
 
     private static final long serialVersionUID = -7529410654042457626L;
     private static final int HASH_SEED = 17;
@@ -172,7 +172,7 @@ public final class HttpHost implements Cloneable, Serializable {
 
 
     @Override
-    public boolean equals(final Object obj) {
+    public final boolean equals(final Object obj) {
         if (this == obj) {
             return true;
         }
@@ -189,7 +189,7 @@ public final class HttpHost implements Cloneable, Serializable {
      * @see java.lang.Object#hashCode()
      */
     @Override
-    public int hashCode() {
+    public final int hashCode() {
         return hash;
     }
 

@@ -1,6 +1,8 @@
 package io.fiber.net.support;
 
-import java.util.concurrent.atomic.AtomicLongArray;
+import io.fiber.net.common.utils.Predictions;
+
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 public class CircuitBreakerStateMachine implements CircuitBreaker {
@@ -9,106 +11,38 @@ public class CircuitBreakerStateMachine implements CircuitBreaker {
     private static final int STATE_OPEN = 1;
     private static final int STATE_HALF_OPEN = 2;
 
-    private static final AtomicLongFieldUpdater<CircuitBreakerStateMachine> UPDATER
-            = AtomicLongFieldUpdater.newUpdater(CircuitBreakerStateMachine.class, "state");
-    private static final AtomicLongFieldUpdater<CircuitBreakerStateMachine> NOT_PERMITTED
-            = AtomicLongFieldUpdater.newUpdater(CircuitBreakerStateMachine.class, "notPermittedNum");
+    private static final AtomicLongFieldUpdater<CircuitBreakerStateMachine> UPDATER = AtomicLongFieldUpdater.newUpdater(CircuitBreakerStateMachine.class, "state");
 
     private final String name;
     private final float failureRateThreshold;
-    private final float halfOpenRatio;
-    private final int totalNumThreshold;
-    private final long timeWindowNano;
-    private final long startNano;
+    private final int halfOpenReqNum;
+    private final long openWaitTimeMS;
+    private final long startMS;
 
     private volatile long state;
-    private volatile long notPermittedNum;
 
-    // metric
-    private static final AtomicLongFieldUpdater<CircuitBreakerStateMachine> TOTAL
-            = AtomicLongFieldUpdater.newUpdater(CircuitBreakerStateMachine.class, "totalNum");
-    private static final AtomicLongFieldUpdater<CircuitBreakerStateMachine> BULK_ID
-            = AtomicLongFieldUpdater.newUpdater(CircuitBreakerStateMachine.class, "lastBulkCycle");
-    private static final int BULK_SIZE = 16;
-    private static final int BULK_MASK = BULK_SIZE - 1;
-
-    private final AtomicLongArray window;
-
-    private final long windowNano;
-    private volatile long totalNum;
-    private volatile long lastBulkCycle;
-
-
-    private static long add(long num, int all, int error) {
-        int errNum = ((int) (num >>> 32)) + error;
-        int allNum = (int) (num & 0xFFFFFFFFL) + all;
-        return ((long) errNum << 32) | ((long) allNum << 32);
-    }
-
-    private long recode(long currentNano, boolean error) {
-        long currentBulk = currentNano / windowNano;
-        int i = (int) (currentBulk & BULK_MASK);
-        AtomicLongArray window = this.window;
-
-        long lastBulk;
-        long num, total, sub = 0;
-
-        {
-            long[] subs = null;
-            while ((lastBulk = this.lastBulkCycle) < currentBulk) {
-                int len = (int) Math.min(currentBulk - lastBulk, BULK_SIZE);
-                if (subs == null) {
-                    subs = new long[len];
-                    for (int j = 0; j < len; j++) {
-                        subs[j] = window.get((i - j + BULK_SIZE) & BULK_MASK);
-                    }
-                }
-                if (BULK_ID.compareAndSet(this, lastBulk, currentBulk)) {
-                    for (int j = 0; j < len; j++) {
-                        long v;
-                        if ((v = subs[j]) == 0) {
-                            continue;
-                        }
-                        int a = (int) (v & 0xFFFFFFFFL);
-                        int e = (int) (v >>> 32);
-                        int idx = (i - j + BULK_SIZE) & BULK_MASK;
-                        do {
-                            v = add(num = window.get(idx), -a, -e);
-                        } while (!window.compareAndSet(idx, num, v));
-                        sub = add(sub, a, e);
-                    }
-                    break;
-                }
-            }
-        }
-        int a = -(int) (sub & 0xFFFFFFFFL) + 1;
-        int e = -(int) (sub >>> 32) + (error ? 1 : 0);
-        do {
-            total = add(num = TOTAL.get(this), a, e);
-        } while (!TOTAL.compareAndSet(this, num, total));
-        do {
-            sub = add(num = window.get(i), a, e);
-        } while (!window.compareAndSet(i, num, sub));
-        return total;
-    }
+    private final Metric closeMetric;
+    private final Metric halfOpenMetric;
 
     public CircuitBreakerStateMachine(String name,
                                       float failureRateThreshold,
-                                      float halfOpenRatio,
                                       int totalNumThreshold,
-                                      long timeWindowNano) {
+                                      int halfOpenReqNum,
+                                      long openWaitTimeMS) {
+
+        Predictions.assertTrue(openWaitTimeMS >= 10L, "open wait time MS >= 10");
+        Predictions.assertTrue(halfOpenReqNum > 0, "half open num >= 10");
         this.name = name;
         this.failureRateThreshold = failureRateThreshold;
-        this.halfOpenRatio = halfOpenRatio;
-        this.totalNumThreshold = totalNumThreshold;
-        this.timeWindowNano = timeWindowNano;
-        this.windowNano = timeWindowNano / BULK_SIZE;
-        this.window = new AtomicLongArray(BULK_SIZE);
-        this.startNano = System.nanoTime();
+        this.halfOpenReqNum = (int) (halfOpenReqNum * 1.2F);
+        this.openWaitTimeMS = openWaitTimeMS;
+        this.closeMetric = new Metric(totalNumThreshold);
+        this.halfOpenMetric = new Metric(halfOpenReqNum);
+        startMS = System.currentTimeMillis();
     }
 
-    private long currentNano() {
-        return System.nanoTime() - startNano;
+    private long now() {
+        return System.currentTimeMillis() - startMS;
     }
 
     private static final int CYCLE_BIT_NUM = 60;
@@ -137,28 +71,165 @@ public class CircuitBreakerStateMachine implements CircuitBreaker {
             case STATE_CLOSE:
                 return false;
             case STATE_OPEN:
-                NOT_PERMITTED.incrementAndGet(this);
-                return true;
+                if (now() < brokenCycle(activatedState)) {
+                    return true;
+                }
+                translateToHalfOpen(activatedState);
+                return false;
             case STATE_HALF_OPEN: {
-                // TODO
-
-                return true;
+                return decrementHalfOpenPermits();
             }
             default:
                 throw new IllegalStateException("unknown state:" + brokenState(activatedState));
         }
     }
 
+    private boolean decrementHalfOpenPermits() {
+        long activatedState;
+        long available;
+        do {
+            if (brokenState(activatedState = UPDATER.get(this)) != STATE_HALF_OPEN
+                    || (available = brokenCycle(activatedState)) <= 0) {
+                return true;
+            }
+        } while (!UPDATER.compareAndSet(this, activatedState, state(available - 1, STATE_HALF_OPEN)));
+        return false;
+    }
+
+    private void translateToHalfOpen(long activatedState) {
+        long update = state(halfOpenReqNum, STATE_HALF_OPEN);
+        do {
+            if (UPDATER.compareAndSet(this, activatedState, update)) {
+                break;
+            }
+        } while (brokenState(activatedState = UPDATER.get(this)) == STATE_OPEN);
+    }
+
+    private void translateToClose() {
+        long activatedState;
+        do {
+            if (brokenState(activatedState = UPDATER.get(this)) != STATE_HALF_OPEN) {
+                return;
+            }
+        } while (!UPDATER.compareAndSet(this, activatedState, state(0, STATE_CLOSE)));
+    }
+
+    private void translateToOpen(int currentState) {
+        assert currentState != STATE_OPEN;
+        long deadline = now() + openWaitTimeMS;
+        long activatedState;
+        do {
+            if (brokenState(activatedState = UPDATER.get(this)) != currentState) {
+                return;
+            }
+        } while (!UPDATER.compareAndSet(this, activatedState, state(deadline, STATE_OPEN)));
+    }
+
     @Override
     public void voteSuccess() {
-        long currentNano = currentNano();
-        long recode = recode(currentNano, false);
-
+        switch (brokenState(UPDATER.get(this))) {
+            case STATE_CLOSE:
+                closeMetric.record(false); // close -> open must be triggered after error
+                break;
+            case STATE_OPEN:
+                break;
+            case STATE_HALF_OPEN:
+                translateFromHalfOpen(false);
+                break;
+        }
     }
 
     @Override
     public void voteError() {
-        long currentNano = currentNano();
-        long recode = recode(currentNano, true);
+        switch (brokenState(UPDATER.get(this))) {
+            case STATE_CLOSE: {
+                long recorded = closeMetric.record(true);
+                int total = Metric.totalNum(recorded);
+                int error = Metric.errorNum(recorded);
+                if (total >= closeMetric.windowSize) {
+                    if (error * 100.0f / total >= failureRateThreshold) {
+                        translateToOpen(STATE_CLOSE);
+                    }
+                }
+                break;
+            }
+            case STATE_OPEN:
+                break;
+            case STATE_HALF_OPEN:
+                translateFromHalfOpen(true);
+                break;
+        }
     }
+
+    private void translateFromHalfOpen(boolean err) {
+        long recorded = halfOpenMetric.record(err);
+        int total = Metric.totalNum(recorded);
+        int error = Metric.errorNum(recorded);
+        if (total >= halfOpenMetric.windowSize) {
+            halfOpenMetric.reset();
+            if (error * 100.0f / total < failureRateThreshold) {
+                translateToClose();
+            } else {
+                translateToOpen(STATE_HALF_OPEN);
+            }
+        }
+    }
+
+    @Override
+    public String getName() {
+        return name;
+    }
+
+    private static class Metric {
+
+        private static int totalNum(long recorder) {
+            return (int) (recorder & Integer.MAX_VALUE);
+        }
+
+        private static int errorNum(long recorder) {
+            return (int) ((recorder >>> 32) & Integer.MAX_VALUE);
+        }
+
+        private final int windowSize;
+        private int[] winData;
+
+        private int reqNum;
+        private int total;
+        private int error;
+
+        private Metric(int windowSize) {
+            Predictions.assertTrue(windowSize > 1, "window size > 1");
+            this.windowSize = windowSize;
+            winData = new int[(windowSize + 31) >> 5];
+        }
+
+        private synchronized void reset() {
+            reqNum = 0;
+            total = 0;
+            error = 0;
+            if (winData.length < 16) {
+                Arrays.fill(winData, 0);
+            } else {
+                winData = new int[winData.length];
+            }
+        }
+
+        private long record(boolean err) {
+            int t, e;
+            synchronized (this) {
+                int raw = (reqNum = (reqNum + 1) & Integer.MAX_VALUE) % windowSize;
+                t = total = Math.min(total + 1, windowSize);
+                int bit = 1 << (raw & 31);
+                int winDatum = winData[raw = raw >> 5];
+                if ((winDatum & bit) == (err ? bit : 0)) {
+                    e = error;
+                } else {
+                    winData[raw] = winDatum ^ bit;
+                    e = error += err ? 1 : -1;
+                }
+            }
+            return (((long) e) << 32) | (t);
+        }
+    }
+
 }

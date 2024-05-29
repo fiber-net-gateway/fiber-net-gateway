@@ -68,7 +68,7 @@ public class HttpFunc implements Library.DirectiveDef {
             boolean includeHeaders = param.path("includeHeaders").asBoolean();
             exchange.sendForResp().subscribe((response, e) -> {
                 if (e != null) {
-                    context.throwErr(new ScriptExecException("error send http", e));
+                    context.throwErr(new ScriptExecException("error send http:" + e.getMessage(), e));
                 } else {
                     ObjectNode nodes = JsonUtil.createObjectNode();
                     nodes.put("status", response.status());

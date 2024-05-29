@@ -11,6 +11,7 @@ public class Constant {
     public static final String X_POWERED_BY_HEADER = "X-Powered-By";
     public static final String X_FIBER_PROJECT_HEADER = "X-Fiber-Project";
     public static final String[] EMPTY_STR_ARR = new String[0];
+    public static final Object[] EMPTY_ARRAY = new Object[0];
     public static final byte[] EMPTY_BYTE_ARR = new byte[0];
 
     public static final HttpMethod[] METHODS = HttpMethod.values();

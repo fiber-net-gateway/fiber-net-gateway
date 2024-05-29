@@ -9,6 +9,7 @@ import io.fiber.net.common.json.ArrayNode;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.NullNode;
 import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.JsonUtil;
 import org.apache.dubbo.common.constants.CommonConstants;
 import org.apache.dubbo.rpc.RpcContext;
@@ -19,7 +20,7 @@ import java.util.List;
 
 public class DubboRefManager implements Destroyable {
     static final String DUBBO_ERR_NAME = "DUBBO_INVOCATION";
-    static final Object[] EMPTY = new Object[0];
+    static final Object[] EMPTY = Constant.EMPTY_ARRAY;
 
     private final Injector injector;
 

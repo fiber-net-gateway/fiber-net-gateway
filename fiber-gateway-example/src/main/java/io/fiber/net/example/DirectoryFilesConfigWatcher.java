@@ -44,14 +44,19 @@ public class DirectoryFilesConfigWatcher implements ConfigWatcher, Destroyable, 
     @Override
     public void destroy() {
         stop = true;
+        synchronized (this) {
+            notify();
+        }
     }
 
     @Override
     public void run() {
         while (!stop) {
-            try {
-                Thread.sleep(10000);
-            } catch (InterruptedException ignore) {
+            synchronized (this) {
+                try {
+                    wait(10000);
+                } catch (InterruptedException ignore) {
+                }
             }
             if (stop) {
                 break;
@@ -95,7 +100,6 @@ public class DirectoryFilesConfigWatcher implements ConfigWatcher, Destroyable, 
             lastUpdate.put(name, listFile.lastModified());
         } catch (Exception e) {
             log.error("error init mapping project", e);
-            return;
         }
     }
 

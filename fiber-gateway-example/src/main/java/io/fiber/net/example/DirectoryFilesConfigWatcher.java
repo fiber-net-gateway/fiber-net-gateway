@@ -35,6 +35,7 @@ public class DirectoryFilesConfigWatcher implements ConfigWatcher, Destroyable, 
     @Override
     public void startWatch(HttpEngine engine) throws Exception {
         this.engine = engine;
+        engine.addHandlerRouter(engine.getInjector().getInstance(MetricRouteHandler.class));
         scanFile();
         Thread thread = new Thread(this);
         thread.setDaemon(true);

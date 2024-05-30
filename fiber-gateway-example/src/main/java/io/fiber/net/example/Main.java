@@ -26,9 +26,6 @@ public class Main {
             throw new IllegalArgumentException("onInit path must be directory");
         }
         HttpEngine engine = LibProxyMainModule.createEngine(binder -> install(binder, file));
-
-        engine.addHandlerRouter(engine.getInjector().getInstance(MetricRouteHandler.class));
-
         Runtime.getRuntime().addShutdownHook(new Thread(() -> engine.getInjector().destroy()));
     }
 

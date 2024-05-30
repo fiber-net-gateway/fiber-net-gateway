@@ -4,7 +4,9 @@ import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.async.Single;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.CompositeByteBuf;
 import io.netty.channel.EventLoopGroup;
+import io.netty.util.ReferenceCounted;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -41,10 +43,50 @@ public class BodyBufSubjectTest {
             });
         });
 
-        CountDownLatch latch= new CountDownLatch(1);
+        CountDownLatch latch = new CountDownLatch(4);
         group.execute(() -> {
             Scheduler current = Scheduler.current();
             bufSubjectSingle.subscribe((bodyBufSubject, throwable) -> {
+                bodyBufSubject.fork().toMaybe().notifyOn(current).subscribe((byteBuf, throwable1) -> {
+                    Assert.assertTrue(current.inLoop());
+                    Assert.assertEquals(80000, byteBuf.readableBytes());
+                    byteBuf.release();
+                    latch.countDown();
+                });
+                bodyBufSubject.fork().notifyOn(current).toMaybe(
+                        (a, b) -> {
+                            if (a instanceof CompositeByteBuf) {
+                                ((CompositeByteBuf) a).addFlattenedComponents(true, b);
+                                return a;
+                            } else {
+                                CompositeByteBuf bufs = a.alloc().compositeBuffer();
+                                bufs.addComponent(true, a);
+                                bufs.addComponent(true, b);
+                                return bufs;
+                            }
+                        }, ReferenceCounted::release).subscribe((byteBuf, throwable1) -> {
+                    Assert.assertTrue(current.inLoop());
+                    Assert.assertEquals(80000, byteBuf.readableBytes());
+                    byteBuf.release();
+                    latch.countDown();
+                });
+                bodyBufSubject.fork().notifyOn(current).toMaybe(
+                        (a, b) -> {
+                            if (a instanceof CompositeByteBuf) {
+                                ((CompositeByteBuf) a).addFlattenedComponents(true, b);
+                                return a;
+                            } else {
+                                CompositeByteBuf bufs = a.alloc().compositeBuffer();
+                                bufs.addComponent(true, a);
+                                bufs.addComponent(true, b);
+                                return bufs;
+                            }
+                        }, ReferenceCounted::release).subscribe((byteBuf, throwable1) -> {
+                    Assert.assertTrue(current.inLoop());
+                    Assert.assertEquals(80000, byteBuf.readableBytes());
+                    byteBuf.release();
+                    latch.countDown();
+                });
                 bodyBufSubject.toMaybe().notifyOn(current).subscribe((byteBuf, throwable1) -> {
                     Assert.assertTrue(current.inLoop());
                     Assert.assertEquals(80000, byteBuf.readableBytes());

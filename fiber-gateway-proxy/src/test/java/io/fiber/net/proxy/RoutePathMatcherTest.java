@@ -279,6 +279,11 @@ public class RoutePathMatcherTest {
         }
 
         @Override
+        public Observable<ByteBuf> peekBody() {
+            return null;
+        }
+
+        @Override
         public Observable<ByteBuf> readBodyUnsafe() {
             return null;
         }

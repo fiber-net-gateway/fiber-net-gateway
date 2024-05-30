@@ -1,11 +1,15 @@
 package io.fiber.net.example;
 
 import io.fiber.net.common.HttpMethod;
+import io.fiber.net.common.async.Disposable;
+import io.fiber.net.common.async.Observable;
 import io.fiber.net.common.ext.Interceptor;
 import io.fiber.net.server.HttpExchange;
+import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
+import io.netty.buffer.ByteBuf;
 
 import java.util.concurrent.TimeUnit;
 
@@ -21,8 +25,10 @@ public class StatisticInterceptor implements Interceptor<HttpExchange>, HttpExch
 
     @Override
     public void intercept(String project, HttpExchange exchange, Invocation<HttpExchange> invocation) throws Exception {
-        TIMER.set(exchange, Recorder.of(project, exchange.getPath(), exchange.getRequestMethod()));
+        Recorder recorder = Recorder.of(project, exchange.getPath(), exchange.getRequestMethod());
+        TIMER.set(exchange, recorder);
         exchange.addListener(this);
+        exchange.peekBody().subscribe(recorder);
         invocation.invoke(project, exchange);
     }
 
@@ -35,26 +41,59 @@ public class StatisticInterceptor implements Interceptor<HttpExchange>, HttpExch
     }
 
 
-    private static class Recorder {
+    private static class Recorder implements Observable.Observer<ByteBuf> {
         private final long startTime = System.nanoTime();
         private final Timer.Builder builder;
+        private final String project;
+        private final String url;
+        private final HttpMethod method;
+        private final DistributionSummary.Builder bodySizeBuilder;
+        private int bodyBytes;
 
         static Recorder of(String project, String url, HttpMethod method) {
-            Recorder recorder = new Recorder();
-            recorder.builder.tag("project", project)
-                    .tag("url", url)
-                    .tag("method", method.name());
-            return recorder;
+            return new Recorder(project, url, method);
         }
 
-        Recorder() {
+        Recorder(String project, String url, HttpMethod method) {
+            this.project = project;
+            this.url = url;
+            this.method = method;
             builder = Timer.builder("fiber_net_server_requests");
+            bodySizeBuilder = DistributionSummary.builder("fiber_net_request_body_size");
         }
 
         public void record(MeterRegistry registry, int status) {
-            builder.tag("status", String.valueOf(status))
+            builder.tag("project", project)
+                    .tag("url", url)
+                    .tag("method", method.name())
+                    .tag("status", String.valueOf(status))
                     .register(registry)
                     .record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
+            bodySizeBuilder.tag("project", project)
+                    .tag("url", url)
+                    .tag("method", method.name())
+                    .register(registry).record(bodyBytes);
+        }
+
+        @Override
+        public void onSubscribe(Disposable d) {
+
+        }
+
+        @Override
+        public void onNext(ByteBuf byteBuf) {
+            bodyBytes += byteBuf.readableBytes();
+            byteBuf.release();
+        }
+
+        @Override
+        public void onError(Throwable e) {
+            bodySizeBuilder.tag("abort", "true");
+        }
+
+        @Override
+        public void onComplete() {
+            bodySizeBuilder.tag("abort", "false");
         }
     }
 }

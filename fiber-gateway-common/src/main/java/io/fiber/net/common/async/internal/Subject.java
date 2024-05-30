@@ -59,7 +59,7 @@ public abstract class Subject<T> implements Observable<T> {
         }
     }
 
-    public final boolean dismiss() {
+    public boolean dismiss() {
         ObE e;
         for (; ; ) {
             e = UPDATER.get(this);
@@ -221,7 +221,7 @@ public abstract class Subject<T> implements Observable<T> {
         private final Observer<? super T> observer;
         private final Subject<T> sender;
 
-        private ObE(Observer<? super T> observer, Subject<T> sender) {
+        public ObE(Observer<? super T> observer, Subject<T> sender) {
             this.observer = observer;
             this.sender = sender;
         }

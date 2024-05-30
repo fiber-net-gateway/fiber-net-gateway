@@ -19,7 +19,7 @@ if (req.getMethod() == "GET") {
         resp.send(200, ico.body);
     } else {
         resp.setHeader("Content-Type", "text/html");
-        resp.send(200, "<h1>Hello, welcome to use fiber-net</h1>");
+        resp.send(200, "<h1>Hello, welcome to use \"fiber-net\"</h1>");
     }
 } else if(req.getMethod() == "PUT") {
     let dubboResult = demoService.createUser(req.getHeader("Host"));

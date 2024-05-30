@@ -1,8 +1,7 @@
 package io.fiber.net.common.async.internal;
 
 import io.fiber.net.common.async.Consumer;
-
-import java.util.function.BiFunction;
+import io.fiber.net.common.async.Function2;
 
 public class Functions {
     private Functions() {
@@ -10,7 +9,7 @@ public class Functions {
 
     final static Consumer<?> NOOP_CONSUMER = a -> {
     };
-    final static BiFunction<Object, Object, Object> USE_LATER_MERGER = (a, b) -> b;
+    final static Function2<Object, Object, Object> USE_LATER_MERGER = (a, b) -> b;
 
 
     @SuppressWarnings("unchecked")
@@ -19,7 +18,7 @@ public class Functions {
     }
 
     @SuppressWarnings("unchecked")
-    public static <T, P, R> BiFunction<T, P, R> getUseLaterMerger() {
-        return (BiFunction<T, P, R>) USE_LATER_MERGER;
+    public static <T, P, R> Function2<T, P, R> getUseLaterMerger() {
+        return (Function2<T, P, R>) USE_LATER_MERGER;
     }
 }

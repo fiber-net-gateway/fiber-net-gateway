@@ -242,6 +242,11 @@ class HttpExchangeImpl extends HttpExchange {
     }
 
     @Override
+    public Observable<ByteBuf> peekBody() {
+        return reqBufSubject.fork();
+    }
+
+    @Override
     public Observable<ByteBuf> readBodyUnsafe() {
         return reqBufSubject;
     }

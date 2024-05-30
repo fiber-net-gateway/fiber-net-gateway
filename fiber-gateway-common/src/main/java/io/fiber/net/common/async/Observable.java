@@ -51,10 +51,8 @@ public interface Observable<T> {
         return new ObToMaybe<>(this, merge, disFunc);
     }
 
-    @SuppressWarnings("unchecked")
     default Maybe<T> toMaybe() {
-        return toMaybe((Function2<? super T, ? super T, ? extends T>) Functions.getUseLaterMerger(),
-                Functions.getNoopConsumer());
+        return toMaybe(Functions.getUseLaterMerger(), Functions.getNoopConsumer());
     }
 
     default Observable<T> notifyOn(Scheduler scheduler) {

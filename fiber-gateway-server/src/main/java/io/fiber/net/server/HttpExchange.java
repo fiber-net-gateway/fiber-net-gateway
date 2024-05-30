@@ -266,6 +266,12 @@ public abstract class HttpExchange {
     }
 
     /**
+     * this returned value must be subscribed
+     * @return ob
+     */
+    public abstract Observable<ByteBuf> peekBody();
+
+    /**
      * not notify cross thread. for performance.
      *
      * @return ob for body

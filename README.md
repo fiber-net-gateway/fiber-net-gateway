@@ -8,7 +8,6 @@ In the script, you can write some calls to http, dubbo services and other simple
 The project comprises four fundamental components:
 - Netty-based asynchronous HTTP server.
 - Netty-based asynchronous HTTP client, supporting https, DNS and connection pooling.
-- dubbo client encapsulation (nacos/dubbo3/generic call).
 - Scripting engines with both interpreter and AOT (Ahead of Time Compilation).
 
 The performance is very high, and it is the fastest java gateway | FaaS framework in the world (without any other one),
@@ -68,3 +67,6 @@ transfer-encoding: chunked
 For detailed instructions, please refer to the [User Manual](doc/user.md)
 
 For extended secondary development, please refer to [Development Document](doc/dev.md)
+
+# PLUGINS
+there are some plugins for fiber-gateway. [Official Plugins](https://github.com/fiber-net-gateway/fiber-gateway-plugin-parent)

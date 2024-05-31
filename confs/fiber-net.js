@@ -1,6 +1,6 @@
 directive fy from http "https://fanyi.baidu.com";
 directive bd from http "https://www.baidu.com";
-directive demoService from dubbo "com.test.dubbo.DemoService";
+directive sina from http "https://www.sina.com.cn";
 directive lh from http "http://127.0.0.1:16688";
 
 resp.addCookie({name:"aaaa", value: "AAA", maxAge: 100000, "domain":".baidu.com", path: "/"});
@@ -22,11 +22,14 @@ if (req.getMethod() == "GET") {
         resp.send(200, "<h1>Hello, welcome to use \"fiber-net\"</h1>");
     }
 } else if(req.getMethod() == "PUT") {
-    let dubboResult = demoService.createUser(req.getHeader("Host"));
-    resp.send(200, [{
-        dubboResult,
-        success:true
-    },demoService.$dynamicInvoke("createUser", [req.getHeader("Host")+"222"])]);
+    if (req.getPath() == '/favicon.ico') {
+        let ico = sina.request({path: "/favicon.ico"});
+        resp.setHeader("Content-Type", "image/x-icon");
+        resp.send(200, ico.body);
+    } else {
+        resp.setHeader("Content-Type", "text/html");
+        resp.send(200, "<h1>Hello, welcome to use \"fiber-net\"</h1>");
+    }
 } else if (req.getMethod() == "POST") {
     req.discardBody();
     let res = bd.request({path: "/", headers: {"User-Agent": "curl/7.88.1"}});

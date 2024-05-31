@@ -4,15 +4,14 @@ import io.fiber.net.common.Engine;
 import io.fiber.net.common.ioc.Binder;
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.ioc.Module;
-import io.fiber.net.common.utils.*;
-import io.fiber.net.dubbo.nacos.DubboClient;
-import io.fiber.net.dubbo.nacos.DubboConfig;
-import io.fiber.net.dubbo.nacos.DubboRefManager;
+import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.common.utils.Assert;
+import io.fiber.net.common.utils.CollectionUtils;
+import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.http.DefaultHttpClient;
 import io.fiber.net.http.HttpClient;
 import io.fiber.net.http.HttpHost;
 import io.fiber.net.proxy.gov.GovLibConfigure;
-import io.fiber.net.proxy.lib.DubboLibConfigure;
 import io.fiber.net.proxy.lib.ExtensiveHttpLib;
 import io.fiber.net.proxy.lib.HttpFunc;
 import io.fiber.net.script.Library;
@@ -44,9 +43,6 @@ public class LibProxyMainModule implements Module {
             binder.bindPrototype(ProxyHttpLibConfigure.class, ProxyHttpLibConfigure::new);
             binder.bindMultiBean(HttpLibConfigure.class, GovLibConfigure.class);
             binder.bind(GovLibConfigure.class, new GovLibConfigure());
-            binder.bindPrototype(DubboLibConfigure.class, DubboLibConfigure::new);
-            binder.bindMultiBean(HttpLibConfigure.class, DubboLibConfigure.class);
-            binder.bindFactory(DubboRefManager.class, DubboRefManager::new);
         }
 
         synchronized ScriptHandler createProject(String projectName, String code) throws Exception {
@@ -127,18 +123,6 @@ public class LibProxyMainModule implements Module {
         }
     }
 
-    private static DubboConfig defaultConfig() {
-        String registry = SystemPropertyUtil.get("fiber.dubbo.registry");
-        if (StringUtils.isEmpty(registry)) {
-            throw new IllegalStateException("no dubbo registry configured. -Dfiber.dubbo.registry=");
-        }
-        DubboConfig config = new DubboConfig();
-        config.setRegistryAddr(registry);
-        config.setApplicationName(SystemPropertyUtil.get("fiber.dubbo.appName", config.getApplicationName()));
-        config.setProtocol(SystemPropertyUtil.get("fiber.dubbo.protocol", config.getProtocol()));
-        return config;
-    }
-
 
     @Override
     public void install(Binder binder) {
@@ -148,7 +132,6 @@ public class LibProxyMainModule implements Module {
         binder.forceBind(HttpServerStartListener.class, new ProxyStartListener());
         binder.bind(ConfigWatcher.class, ConfigWatcher.NOOP_WATCHER);
         binder.bindFactory(UrlHandlerManager.class, UrlHandlerManager::new);
-        binder.bindFactory(DubboClient.class, injector -> new DubboClient(defaultConfig()));
     }
 
     public static ScriptHandler createProject(Injector injector, String projectName, String code) throws Exception {

@@ -5,10 +5,9 @@
 
 在脚本里，可以写一些调用 http，dubbo 或其它简单逻辑，即可以实现协议转换、反向代理、服务编排，[BFF](https://zhuanlan.zhihu.com/p/634498512)等功能。
 
-本项目包含4个基本组件:
+本项目包含 3 个基本组件:
 - 基于 netty 的异步 http server。
 - 基于 netty 的异步 http client，支持 https DNS 连接池。
-- dubbo client 封装（nacos/dubbo3/泛化调用）。
 - 同时支持解释器和 AOT 的脚本引擎。
 
 性能非常高，是世界上最快的 java 网关｜FaaS 框架了（没有之一）， 
@@ -69,3 +68,4 @@ transfer-encoding: chunked
 
 扩展二次开发请参考 [开发文档](dev.md)
 
+## [官方插件](https://github.com/fiber-net-gateway/fiber-gateway-plugin-parent)

@@ -16,49 +16,6 @@
         </encoder>
     </appender>
 
-    <!-- 时间滚动输出 level为 INFO 日志 -->
-    <appender name="dubboLog" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${log.path}/dubbo.log</file>
-        <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%logger{30}] - %msg%n</pattern>
-            <charset>UTF-8</charset>
-        </encoder>
-        <!-- 日志记录器的滚动策略，按日期，按大小记录 -->
-        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>${log.path}/dubbo-%d{yyyy-MM-dd}.%i{2}.log</fileNamePattern>
-            <maxFileSize>100MB</maxFileSize>
-            <!--日志文件保留天数-->
-            <maxHistory>15</maxHistory>
-        </rollingPolicy>
-        <!-- 此日志文件只记录info级别的 -->
-        <filter class="ch.qos.logback.classic.filter.LevelFilter">
-            <level>INFO</level>
-            <onMatch>ACCEPT</onMatch>
-            <onMismatch>DENY</onMismatch>
-        </filter>
-    </appender>
-
-    <!-- 时间滚动输出 level为 WARN 日志 -->
-    <appender name="nacosLog" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${log.path}/nacos.log</file>
-        <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%logger{50}] - %msg%n</pattern>
-            <charset>UTF-8</charset>
-        </encoder>
-        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>${log.path}/nacos-%d{yyyy-MM-dd}.%i{2}.log</fileNamePattern>
-            <maxFileSize>100MB</maxFileSize>
-            <!--日志文件保留天数-->
-            <maxHistory>15</maxHistory>
-        </rollingPolicy>
-        <!-- 此日志文件只记录warn级别的 -->
-        <filter class="ch.qos.logback.classic.filter.LevelFilter">
-            <level>INFO</level>
-            <onMatch>ACCEPT</onMatch>
-            <onMismatch>DENY</onMismatch>
-        </filter>
-    </appender>
-
     <!-- 时间滚动输出 level为 ERROR 日志 -->
     <appender name="RollingFileError" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${log.path}/error.log</file>
@@ -87,14 +44,6 @@
 <!--        <appender-ref ref="RollingFileError"/>-->
 <!--    </root>-->
 
-    <logger name="org.apache.dubbo" level="info">
-        <appender-ref ref="dubboLog"/>
-        <appender-ref ref="RollingFileError"/>
-    </logger>
-    <logger name="com.alibaba" level="info">
-        <appender-ref ref="nacosLog"/>
-        <appender-ref ref="RollingFileError"/>
-    </logger>
     <logger name="io.fiber.net" level="Debug">
         <appender-ref ref="Console"/>
         <appender-ref ref="RollingFileError"/>

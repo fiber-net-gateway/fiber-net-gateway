@@ -18,12 +18,12 @@ for (let idx, item of jsonBody) {
 }
 
 // 指令，定义一个函数包
-directive demoService from dubbo "com.test.dubbo.DemoService";
+directive bd from http "https://www.baidu.com";
 
 // try catch
 try {
     /* 调用函数包 函数 */
-    result.dubbo = demoService.createUser("This Name");
+    result.http = bd.request({path: "/"});
     if (length(jsonBody) > 3) {
         // throw
         throw "数组太长";

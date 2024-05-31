@@ -15,7 +15,6 @@
         <module>fiber-gateway-httpclient</module>
         <module>fiber-gateway-proxy</module>
         <module>fiber-gateway-example</module>
-        <module>fiber-gateway-dubbo</module>
         <module>fiber-gateway-test</module>
         <module>fiber-gateway-support</module>
     </modules>
@@ -91,11 +90,6 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>fiber-gateway-proxy</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>fiber-gateway-dubbo</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

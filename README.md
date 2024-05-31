@@ -5,7 +5,7 @@ A low-code API gateway | FaaS framework based on a script engine. The function i
 
 In the script, you can write some calls to http, dubbo services and other simple logic, which can implement protocol conversion, reverse proxy, service orchestration, [BFF](https://medium.com/mobilepeople/backend-for-frontend-pattern-why-you-need-to-know-it-46f94ce420b0) and other functions.
 
-The project comprises four fundamental components:
+The project comprises three fundamental components:
 - Netty-based asynchronous HTTP server.
 - Netty-based asynchronous HTTP client, supporting https, DNS and connection pooling.
 - Scripting engines with both interpreter and AOT (Ahead of Time Compilation).

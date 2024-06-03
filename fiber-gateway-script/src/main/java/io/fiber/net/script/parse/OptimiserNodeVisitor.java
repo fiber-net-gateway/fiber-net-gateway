@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 public class OptimiserNodeVisitor implements NodeVisitor<Node> {
     private static final NoopEmitter NOOP_EMITTER = new NoopEmitter();
 
-    public static NoopEmitter noopEmitter() {
+    public static Maybe.Emitter<JsonNode> noopEmitter() {
         return NOOP_EMITTER;
     }
 

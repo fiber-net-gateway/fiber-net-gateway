@@ -8,7 +8,6 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.jsontype.TypeDeserializer;
 import com.fasterxml.jackson.databind.type.LogicalType;
-import io.fiber.net.common.utils.JsonUtil;
 
 import java.io.IOException;
 
@@ -16,7 +15,6 @@ import java.io.IOException;
  * Base class for all actual {@link JsonNode} deserializer
  * implementations
  */
-@SuppressWarnings("serial")
 abstract class BaseNodeDeserializer<T extends JsonNode>
         extends StdDeserializer<T> {
     

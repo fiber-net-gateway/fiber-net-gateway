@@ -97,7 +97,7 @@ public class StringUtils {
     }
 
     public static boolean isEmpty(String str) {
-        return (str == null || "".equals(str));
+        return (str == null || str.isEmpty());
     }
 
     public static boolean hasLength(CharSequence str) {
@@ -190,7 +190,7 @@ public class StringUtils {
         if (startPos < 0) {
             return INDEX_NOT_FOUND;
         }
-        if (searchStr.length() == 0) {
+        if (searchStr.isEmpty()) {
             return startPos;
         }
 
@@ -252,27 +252,23 @@ public class StringUtils {
         if (isEmpty(src)) {
             return src;
         }
-        char[] val = CharArrUtil.toCharArr(src);
-        int len = val.length;
-        int st = 0;
 
-        while ((st < len) && (val[st] <= ' ')) {
-            st++;
+        int i = 0;
+        while (i < src.length() && Character.isWhitespace(src.charAt(i))) {
+            i++;
         }
-        return (st > 0) ? new String(val, st, len) : src;
+        return i >= src.length() ? "" : src.substring(i);
     }
 
     public static String trimRightEmpty(String src) {
         if (isEmpty(src)) {
             return src;
         }
-        char[] val = CharArrUtil.toCharArr(src);
-        int len = val.length;
-
-        while ((0 < len) && (val[len - 1] <= ' ')) {
-            len--;
+        int i = src.length() - 1;
+        while (i >= 0 && Character.isWhitespace(src.charAt(i))) {
+            i--;
         }
-        return len == val.length ? new String(val, 0, len) : src;
+        return i < 0 ? "" : src.substring(0, i + 1);
     }
 
     /**

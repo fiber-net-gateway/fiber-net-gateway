@@ -384,7 +384,7 @@ public class Tokenizer {
     private void lexNumericLiteral(boolean firstCharIsZero) {
         boolean isReal = false;
         int start = pos;
-        char ch = toProcess.charAt(pos + 1);
+        char ch = pos + 1 < max ? toProcess.charAt(pos + 1) : 0;
         boolean isHex = ch == 'x' || ch == 'X';
 
         // deal with hexadecimal
@@ -407,7 +407,12 @@ public class Tokenizer {
         // Consume first part of number
         do {
             pos++;
-        } while (isDigit(toProcess.charAt(pos)));
+        } while (pos < max && isDigit(toProcess.charAt(pos)));
+
+        if (pos >= max) {
+            pushIntToken(subarray(start, pos), false, start, pos);
+            return;
+        }
 
         // a '.' indicates this number is a real
         ch = toProcess.charAt(pos);
@@ -417,7 +422,7 @@ public class Tokenizer {
             // carry on consuming digits
             do {
                 pos++;
-            } while (isDigit(toProcess.charAt(pos)));
+            } while (pos < max && isDigit(toProcess.charAt(pos)));
             if (pos == dotpos + 1) {
                 // the number is something like '3.'. It is really an int but may be
                 // part of something like '3.toString()'. In this case process it as
@@ -429,6 +434,10 @@ public class Tokenizer {
         }
 
         int endOfNumber = pos;
+        if (pos >= max) {
+            pushRealToken(subarray(start, endOfNumber), true, start, endOfNumber);
+            return;
+        }
 
         // Now there may or may not be an exponent
 
@@ -539,6 +548,9 @@ public class Tokenizer {
     private boolean isThreeCharToken(TokenKind kind) {
         Assert.isTrue(kind.tokenChars.length == 3);
         Assert.isTrue(toProcess.charAt(pos) == kind.tokenChars[0]);
+        if (pos + 3 > max) {
+            return false;
+        }
         return toProcess.charAt(pos + 1) == kind.tokenChars[1]
                 && toProcess.charAt(pos + 2) == kind.tokenChars[2];
     }
@@ -549,6 +561,9 @@ public class Tokenizer {
     private boolean isTwoCharToken(TokenKind kind) {
         Assert.isTrue(kind.tokenChars.length == 2);
         Assert.isTrue(toProcess.charAt(pos) == kind.tokenChars[0]);
+        if (pos + 2 > max) {
+            return false;
+        }
         return toProcess.charAt(pos + 1) == kind.tokenChars[1];
     }
 
@@ -586,6 +601,9 @@ public class Tokenizer {
     }
 
     private boolean isChar(char a, char b) {
+        if (pos >= max) {
+            return false;
+        }
         char ch = toProcess.charAt(pos);
         return ch == a || ch == b;
     }

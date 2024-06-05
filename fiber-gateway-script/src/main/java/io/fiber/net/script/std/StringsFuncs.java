@@ -148,9 +148,8 @@ public class StringsFuncs {
             if (!context.getArgVal(1).isTextual()) {
                 return NullNode.getInstance();
             }
-            String value = context.getArgVal(1).textValue();
-            Pattern pattern = Pattern.compile(textNode.textValue());
-            Matcher matcher = pattern.matcher(value);
+            Pattern pattern = Pattern.compile(context.getArgVal(1).textValue());
+            Matcher matcher = pattern.matcher(textNode.textValue());
             ArrayNode arrayNode = JsonUtil.createArrayNode(6);
             int s = 0;
             while (matcher.find(s)) {
@@ -308,7 +307,7 @@ public class StringsFuncs {
                 return NullNode.getInstance();
             }
 
-            return BooleanNode.valueOf(argVal.textValue().matches(textNode.textValue()));
+            return BooleanNode.valueOf(textNode.textValue().matches(argVal.textValue()));
         }
     }
 
@@ -383,7 +382,6 @@ public class StringsFuncs {
         FUNC.put("strings.trimLeft", new TrimLeft());
         FUNC.put("strings.trimRight", new TrimRight());
         FUNC.put("strings.split", new SplitFunc());
-        FUNC.put("strings.join", new ArrayFuncs.ArrayJoinFunc());
         FUNC.put("strings.findAll", new FindAllFunc());
         FUNC.put("strings.contains", new ContainsFunc());
         FUNC.put("strings.contains_any", new ContainsAnyFunc());

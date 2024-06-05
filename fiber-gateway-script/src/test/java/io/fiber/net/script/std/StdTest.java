@@ -93,12 +93,118 @@ public class StdTest extends TestInIOThreadParent {
                 "    && typeof a.a === \"missing\";", "Object.delete");
     }
 
+
+    @Test
+    public void test__string_has_prefix() throws Exception {
+        runAndAssertTrue("return strings.hasPrefix(\"abcdedf\", \"abc\") === true;", "strings.hasPrefix");
+    }
+
+    @Test
+    public void test__string_has_suffix() throws Exception {
+        runAndAssertTrue("return strings.hasSuffix(\"abcdedf\", \"edf\") === true;", "strings.hasSuffix");
+    }
+
+    @Test
+    public void test__strings_toLower() throws Exception {
+        runAndAssertTrue("return strings.toLower('abc123Abc') === 'abc123abc';", "strings.toLower");
+    }
+
+    @Test
+    public void test__strings_toUpper() throws Exception {
+        runAndAssertTrue("return strings.toUpper('abc123Abc') === 'ABC123ABC';", "strings.toUpper");
+    }
+
+    @Test
+    public void test__strings_trim() throws Exception {
+        runAndAssertTrue("return strings.trim(' \tabc \t ') === 'abc';", "strings.trim");
+        runAndAssertTrue("return strings.trim('aaabc a', 'a') === 'bc ';", "strings.trim");
+    }
+
+    @Test
+    public void test__strings_trimLeft() throws Exception {
+        runAndAssertTrue("return strings.trimLeft(' bc a ') === 'bc a '", "strings.trimLeft");
+        runAndAssertTrue("return strings.trimLeft('aa bc a', 'a') === ' bc a'", "strings.trimLeft");
+    }
+
+    @Test
+    public void test__strings_trimRight() throws Exception {
+        runAndAssertTrue("return strings.trimRight(' bc a ') === ' bc a'", "strings.trimRight");
+        runAndAssertTrue("return strings.trimRight(' bc a aa', 'a') === ' bc a '", "strings.trimRight");
+    }
+
+    @Test
+    public void test__strings_split() throws Exception {
+        runAndAssertTrue("let arr = strings.split('abcecdf', 'c'); return length(arr) === 3" +
+                "&& arr[0] === 'ab' && arr[1] === 'e' && arr[2] === 'df'", "strings.split");
+    }
+
+    @Test
+    public void test__strings_findAll() throws Exception {
+        runAndAssertTrue("let arr = strings.findAll(\"abcd-effe-ssf-fd\", \"\\\\w+\");\n" +
+                "return length(arr) === 4\n" +
+                "  && arr[0] === \"abcd\"\n" +
+                "  && arr[1] === \"effe\"\n" +
+                "  && arr[2] === \"ssf\"\n" +
+                "  && arr[3] === \"fd\";", "strings.findAll");
+    }
+
+    @Test
+    public void test__strings_contains() throws Exception {
+        runAndAssertTrue("return strings.contains(\"abcd-effe-ssf-fd\", \"e-ssf\") === true;", "strings.contains");
+    }
+
+    @Test
+    public void test__strings_contains_any() throws Exception {
+        runAndAssertTrue("return strings.contains_any(\"abcd-effe-ssf-fd\", \"ccddeezzz\") === true;", "strings.contains_any");
+    }
+
+    @Test
+    public void test__strings_index() throws Exception {
+        runAndAssertTrue("return strings.index(\"aabbcc\", \"bcc\") === 3;", "strings.index");
+    }
+
+    @Test
+    public void test__strings_indexAny() throws Exception {
+        runAndAssertTrue("return strings.indexAny('acsdfds', 'rss') === 2", "strings.indexAny");
+    }
+
+    @Test
+    public void test__strings_lastIndex() throws Exception {
+        runAndAssertTrue("return strings.lastIndex('cabcd', 'c') === 3", "strings.lastIndex");
+    }
+
+    @Test
+    public void test__strings_lastIndexAny() throws Exception {
+        runAndAssertTrue("return strings.lastIndexAny('cabcd', 'dcz') === 4", "strings.lastIndexAny");
+    }
+
+    @Test
+    public void test__strings_repeat() throws Exception {
+        runAndAssertTrue("return strings.repeat('acd', 3) === 'acdacdacd'", "strings.repeat");
+    }
+
+    @Test
+    public void test__strings_match() throws Exception {
+        runAndAssertTrue("return strings.match('aaabbbbccc', 'a+b+c+') === true", "strings.match");
+    }
+
+    @Test
+    public void test__strings_substring() throws Exception {
+        runAndAssertTrue("return strings.substring('0123456789', 3) === '3456789' && strings.substring('0123456789', 3, 6) === '345'", "strings.substring");
+    }
+
+    @Test
+    public void test__strings_toString() throws Exception {
+        runAndAssertTrue("return strings.toString(null) === \"null\"\n" +
+                "   && strings.toString({}) === \"<ObjectNode>\" && strings.toString(3.5) === '3.5'", "strings.toString");
+    }
+
     private void expressionAssertTrue(String expression) throws Exception {
         runAndAssertTrue("return (" + expression + ");", expression);
     }
 
     private static void runAndAssertTrue(String script, String name) throws Exception {
-        Script compiled = Script.compile(script, StdLibrary.getDefInstance());
+        Script compiled = Script.compileWithoutOptimization(script, StdLibrary.getDefInstance(), true);
         ComparedMayBeObserver observer = new ComparedMayBeObserver(name);
         compiled.aotExec(NullNode.getInstance()).subscribe(observer.getOb());
         compiled.exec(NullNode.getInstance()).subscribe(observer.getOb());

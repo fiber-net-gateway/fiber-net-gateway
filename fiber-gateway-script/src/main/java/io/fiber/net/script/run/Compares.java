@@ -72,11 +72,18 @@ public class Compares {
         }
         if (notComparable(a, b)) return false;
 
-        if (isIntegerNode(a)) {// a 与 b 的类型一定一样
+        if (isIntegerNode(a) && isIntegerNode(b)) {// a 与 b 的类型一定一样
             return a.longValue() == b.longValue();
         }
 
+        if (isSmallNumber(a) && isSmallNumber(b)) {
+            return a.doubleValue() == b.doubleValue();
+        }
         return a.equals(b);
+    }
+
+    private static boolean isSmallNumber(JsonNode n) {
+        return n != null && n.isNumber() && (!n.isBigInteger() && !n.isBigDecimal());
     }
 
     private static boolean isIntegerNode(JsonNode a) {

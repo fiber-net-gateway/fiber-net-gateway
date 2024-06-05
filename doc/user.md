@@ -216,5 +216,93 @@ return b === 1
     && a.b === 2
     && typeof a.a === "missing"; // a.a is deleted
 ```
-
+#### 字符串操作 strings.XXX
+- strings.hasPrefix 前缀
+```javascript
+return strings.hasPrefix("abcdedf", "abc") === true;
+```
+- strings.hasSuffix 后缀
+```javascript
+return strings.hasSuffix("abcdedf", "edf") === true;
+```
+- strings.toLower
+```javascript
+return strings.toLower('abc123Abc') === 'abc123abc';
+```
+- strings.toUpper
+```javascript
+return strings.toUpper('abc123Abc') === 'ABC123ABC';
+```
+- strings.trim
+```javascript
+return strings.trim(' 	abc 	 ') === 'abc' && strings.trim('aaabc a', 'a') === 'bc ';
+```
+- strings.trimLeft
+```javascript
+return strings.trimLeft(' bc a ') === 'bc a '
+       && strings.trimLeft('aa bc a', 'a') === ' bc a'
+```
+- strings.trimRight
+```javascript
+return strings.trimRight(' bc a ') === ' bc a' && strings.trimRight(' bc a aa', 'a') === ' bc a ';
+```
+- strings.split
+```javascript
+let arr = strings.split('abcecdf', 'c');
+return length(arr) === 3
+       && arr[0] === 'ab'
+       && arr[1] === 'e' 
+       && arr[2] === 'df';
+```
+- strings.findAll
+```javascript
+let arr = strings.findAll("abcd-effe-ssf-fd", "\\w+");
+return length(arr) === 4
+  && arr[0] === "abcd"
+  && arr[1] === "effe"
+  && arr[2] === "ssf"
+  && arr[3] === "fd";
+```
+- strings.contains
+```javascript
+return strings.contains("abcd-effe-ssf-fd", "e-ssf") === true;
+```
+- strings.contains_any
+```javascript
+return strings.contains_any("abcd-effe-ssf-fd", "ccddeezzz") === true;
+```
+- strings.index
+```javascript
+return strings.index("aabbcc", "bcc") === 3;
+```
+- strings.indexAny
+```javascript
+return strings.indexAny('acsdfds', 'rss') === 2;
+```
+- strings.lastIndex
+```javascript
+return strings.lastIndex('cabcd', 'c') === 3;
+```
+- strings.lastIndexAny
+```javascript
+return strings.lastIndexAny('cabcd', 'dcz') === 4;
+```
+- strings.repeat
+```javascript
+return strings.repeat('acd', 3) === 'acdacdacd';
+```
+- strings.match
+```javascript
+return strings.match('aaabbbbccc', 'a+b+c+') === true;
+```
+- strings.substring
+```javascript
+return strings.substring('0123456789', 3) === '3456789' && strings.substring('0123456789', 3, 6) === '345';
+```
+- strings.toString
+```javascript
+return strings.toString(null) === "null" 
+    && strings.toString({}) === "<ObjectNode>" 
+    && strings.toString(3.5) === '3.5';
+```
 #### 文档完善中 敬请期待......

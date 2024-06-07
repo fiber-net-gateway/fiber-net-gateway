@@ -16,7 +16,7 @@
 //  ========================================================================
 //
 
-package io.fiber.net.http.util;
+package io.fiber.net.proxy.util;
 
 
 /**

@@ -10,14 +10,16 @@ import io.fiber.net.http.ClientExchange;
 import io.fiber.net.http.ClientResponse;
 import io.fiber.net.http.HttpClient;
 import io.fiber.net.http.HttpHost;
-import io.fiber.net.http.util.UrlEncoded;
+import io.fiber.net.proxy.util.UrlEncoded;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.server.HttpExchange;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.http.HttpUtil;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -56,15 +58,7 @@ public class HttpFunc implements Library.DirectiveDef {
             setUri(param, "/", null, exchange);
             addHeader(exchange, param);
             setTimeout(param, exchange);
-            JsonNode node = param.get("body");
-            if (node != null) {
-                if (node.isBinary()) {
-                    exchange.setReqBufFullFunc(ec -> Unpooled.wrappedBuffer(node.binaryValue()));
-                } else {
-                    exchange.setHeader(Constant.CONTENT_TYPE_HEADER, Constant.CONTENT_TYPE_JSON_UTF8);
-                    exchange.setReqBodyFunc(ec -> new SerializeJsonObservable(node, ByteBufAllocator.DEFAULT), false);
-                }
-            }
+            addBody(param, exchange);
             boolean includeHeaders = param.path("includeHeaders").asBoolean();
             exchange.sendForResp().subscribe((response, e) -> {
                 if (e != null) {
@@ -93,6 +87,100 @@ public class HttpFunc implements Library.DirectiveDef {
                 }
             });
         }
+    }
+
+    private static void addBody(JsonNode param, ClientExchange exchange) {
+        JsonNode node = param.get("body");
+        if (node == null) {
+            return;
+        }
+
+        String ctHeader = exchange.getHeader(Constant.CONTENT_TYPE_HEADER);
+        if (node.isBinary()) {
+            if (StringUtils.isEmpty(ctHeader)) {
+                exchange.setHeader(Constant.CONTENT_TYPE_HEADER, Constant.CONTENT_TYPE_OCTET_STREAM);
+            }
+            exchange.setReqBufFullFunc(ec -> Unpooled.wrappedBuffer(node.binaryValue()));
+            return;
+        }
+
+        if (StringUtils.isEmpty(ctHeader)) {
+            if (node.isMissingNode() || node.isNull()) {
+                return;
+            }
+            if (node.isTextual()) {
+                if (node.textValue().isEmpty()) {
+                    return;
+                }
+                exchange.setHeader(Constant.CONTENT_TYPE_HEADER, "text/plain");
+                String texted = node.textValue();
+                exchange.setReqBufFullFunc(ec -> {
+                    ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer((int) (texted.length() * 1.4) + 1);
+                    buffer.writeCharSequence(texted, StandardCharsets.UTF_8);
+                    return buffer;
+                });
+                return;
+            }
+
+            exchange.setHeader(Constant.CONTENT_TYPE_HEADER, Constant.CONTENT_TYPE_JSON_UTF8);
+            exchange.setReqBodyFunc(ec -> new SerializeJsonObservable(node, ByteBufAllocator.DEFAULT), false);
+            return;
+        }
+
+        String mimeType = HttpUtil.getMimeType(ctHeader).toString();
+        if ("application/json".equalsIgnoreCase(mimeType)) {
+            exchange.setReqBodyFunc(ec -> new SerializeJsonObservable(node, ByteBufAllocator.DEFAULT), false);
+            return;
+        }
+
+        if ("text/plain".equalsIgnoreCase(mimeType)) {
+            String text = JsonUtil.toString(node);
+            exchange.setReqBufFullFunc(ec -> {
+                ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer((int) (text.length() * 1.4) + 1);
+                buffer.writeCharSequence(text, StandardCharsets.UTF_8);
+                return buffer;
+            });
+            return;
+        }
+
+        if ("application/x-www-form-urlencoded".equalsIgnoreCase(mimeType)) {
+            if (node.isTextual()) {
+                String texted = node.textValue();
+                exchange.setReqBufFullFunc(ec -> {
+                    ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer(texted.length());
+                    buffer.writeCharSequence(texted, StandardCharsets.US_ASCII);
+                    return buffer;
+                });
+                return;
+            }
+            if (node.isObject()) {
+                exchange.setReqBufFullFunc(ec -> {
+                    ByteBuf buf = ByteBufAllocator.DEFAULT.buffer();
+                    Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+                    do {
+                        Map.Entry<String, JsonNode> next = fields.next();
+                        JsonNode jsonNode = next.getValue();
+                        String key = next.getKey();
+                        if (jsonNode.isArray()) {
+                            for (JsonNode n : jsonNode) {
+                                UrlEncoded.encodeInto(key, StandardCharsets.UTF_8, buf);
+                                buf.writeByte('=');
+                                UrlEncoded.encodeInto(JsonUtil.toString(n), StandardCharsets.UTF_8, buf);
+                            }
+                        } else {
+                            UrlEncoded.encodeInto(key, StandardCharsets.UTF_8, buf);
+                            buf.writeByte('=');
+                            UrlEncoded.encodeInto(JsonUtil.toString(jsonNode), StandardCharsets.UTF_8, buf);
+                        }
+                        buf.writeByte('&');
+                    } while (fields.hasNext());
+                    return buf;
+                });
+                return;
+            }
+        }
+
+        exchange.setReqBodyFunc(ec -> new SerializeJsonObservable(node, ByteBufAllocator.DEFAULT), false);
     }
 
     private static ObjectNode readHeaders(ClientResponse ce) {

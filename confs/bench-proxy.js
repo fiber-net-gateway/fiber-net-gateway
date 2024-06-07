@@ -1,6 +1,6 @@
-directive bd from http "http://127.0.0.1";
+directive bd from http "http://127.0.0.1:16688";
 
-bd.proxyPass({
+bd.request({
     path: "/",
     method: "GET",
     headers: {

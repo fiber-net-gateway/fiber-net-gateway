@@ -15,6 +15,7 @@ import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.*;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslProvider;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.ScheduledFuture;
@@ -47,7 +48,10 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
         assert eventLoop == ctx.executor();
         ctx.pipeline().addFirst(new HttpClientCodec(config.maxInlineLen, config.maxHeaderLen, config.maxChunkLen));
         if (getHttpHost().isSecure()) {
-            SslContext context = SslContextBuilder.forClient().trustManager(config.trustManager).build();
+            SslContext context = SslContextBuilder.forClient()
+                    .trustManager(config.trustManager)
+                    .sslProvider(SslProvider.OPENSSL_REFCNT)
+                    .build();
             ctx.pipeline().addFirst(context.newHandler(ctx.alloc()));
         }
         ioSch = Scheduler.current();

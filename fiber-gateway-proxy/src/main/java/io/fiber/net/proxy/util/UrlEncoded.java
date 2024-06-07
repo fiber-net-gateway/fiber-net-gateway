@@ -16,7 +16,7 @@
 //  ========================================================================
 //
 
-package io.fiber.net.http.util;
+package io.fiber.net.proxy.util;
 
 
 import io.netty.buffer.ByteBuf;
@@ -323,7 +323,7 @@ public class UrlEncoded extends MultiMap<String> implements Cloneable {
         return needToChange;
     }
 
-    public static void encodeInto(String s, ByteBuf out, Charset charset) {
+    public static void encodeInto(String s, Charset charset, ByteBuf out) {
         CharArrayWriter charArrayWriter = new CharArrayWriter();
         for (int i = 0; i < s.length(); ) {
             int c = s.charAt(i);

@@ -8,6 +8,7 @@ import io.fiber.net.http.HttpHost;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandler;
 import io.netty.channel.EventLoop;
@@ -228,8 +229,12 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
         HttpMethod method = exchange.requestMethod();
         String uri = exchange.requestUri();
         HttpHeaders headers = headerForSend(exchange, buf.readableBytes());
-        ctx.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, uri, buf, headers, EmptyHttpHeaders.INSTANCE),
-                ctx.newPromise().addListener(this::onRequestSent));
+        ChannelFuture f = ctx.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, uri, buf, headers, EmptyHttpHeaders.INSTANCE));
+        if (f.isDone()) {
+            onRequestSent(f);
+        } else {
+            f.addListener(this::onRequestSent);
+        }
     }
 
     @Override
@@ -313,8 +318,12 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
 
         private void onComplete0() {
             sendReq();
-            ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT, ctx.newPromise()
-                    .addListener(HttpConnectionHandler.this::onRequestBodySent));
+            ChannelFuture f = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+            if (f.isDone()) {
+                onRequestSent(f);
+            } else {
+                f.addListener(HttpConnectionHandler.this::onRequestBodySent);
+            }
         }
     }
 

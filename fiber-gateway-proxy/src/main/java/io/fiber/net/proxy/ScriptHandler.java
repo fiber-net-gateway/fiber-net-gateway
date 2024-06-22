@@ -28,7 +28,7 @@ public class ScriptHandler implements RouterHandler<HttpExchange> {
 
     @Override
     public void invoke(HttpExchange exchange) {
-        script.aotExec(NullNode.getInstance(), exchange).subscribe((node, throwable) -> {
+        script.exec(NullNode.getInstance(), exchange).subscribe((node, throwable) -> {
             if (exchange.isResponseWrote()) {
                 return;
             }

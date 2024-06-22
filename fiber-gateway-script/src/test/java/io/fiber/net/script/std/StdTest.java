@@ -4,6 +4,7 @@ import io.fiber.net.common.json.BooleanNode;
 import io.fiber.net.common.json.NullNode;
 import io.fiber.net.script.ComparedMayBeObserver;
 import io.fiber.net.script.Script;
+import io.fiber.net.script.parse.InterpretorScript;
 import io.fiber.net.test.TestInIOThreadParent;
 import org.junit.Assert;
 import org.junit.Test;
@@ -204,9 +205,9 @@ public class StdTest extends TestInIOThreadParent {
     }
 
     private static void runAndAssertTrue(String script, String name) throws Exception {
-        Script compiled = Script.compileWithoutOptimization(script, StdLibrary.getDefInstance(), true);
+        InterpretorScript compiled = (InterpretorScript) Script.compileWithoutOptimization(script, StdLibrary.getDefInstance(), true);
         ComparedMayBeObserver observer = new ComparedMayBeObserver(name);
-        compiled.aotExec(NullNode.getInstance()).subscribe(observer.getOb());
+        compiled.createAotCompiledScript().exec(NullNode.getInstance()).subscribe(observer.getOb());
         compiled.exec(NullNode.getInstance()).subscribe(observer.getOb());
         Assert.assertTrue(observer.isEndAndSec());
         Assert.assertSame(BooleanNode.TRUE, observer.getSameResult());

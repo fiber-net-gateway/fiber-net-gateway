@@ -1,17 +1,16 @@
 package io.fiber.net.proxy;
 
 import io.fiber.net.common.FiberException;
+import io.fiber.net.common.RouterHandler;
 import io.fiber.net.common.async.Disposable;
 import io.fiber.net.common.async.Observable;
 import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.ioc.Injector;
+import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.http.ClientExchange;
 import io.fiber.net.http.HttpClient;
-import io.fiber.net.server.EngineModule;
-import io.fiber.net.server.HttpEngine;
-import io.fiber.net.server.HttpServer;
-import io.fiber.net.server.ServerConfig;
+import io.fiber.net.server.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.EventLoopGroup;
@@ -41,7 +40,19 @@ public class TestClient {
     @Before
     public void init() throws Exception {
         engine = LibProxyMainModule.createEngine();
-        engine.installExt();
+    }
+
+    @After
+    public void destroy() {
+        engine.getInjector().destroy();
+    }
+
+    private static final int REQUESTS_SIZE = 200000;
+    private static final int CONCURRENT_SIZE = 200;
+
+    @Test
+    public void t() throws Exception {
+        Injector injector = engine.getInjector();
         engine.addInterceptor((project, exchange, invocation) -> {
             String size = exchange.getRequestHeader("x-body-size");
             int len = 0;
@@ -57,25 +68,8 @@ public class TestClient {
             int finalLen = len;
             exchange.writeRawBytes(200, exchange.readBodyUnsafe());
         });
-    }
-
-    @After
-    public void destroy() {
-        engine.getInjector().destroy();
-    }
-
-    private static final int REQUESTS_SIZE = 200000;
-    private static final int CONCURRENT_SIZE = 200;
-
-    @Test
-    public void t() throws Exception {
-        Injector injector = engine.getInjector();
         HttpClient client = injector.getInstance(HttpClient.class);
         EngineModule.EventLoopGroupHolder groupHolder = injector.getInstance(EngineModule.EventLoopGroupHolder.class);
-
-        HttpServer server = injector.getInstance(HttpServer.class);
-        server.start(new ServerConfig(), engine);
-
         EventLoopGroup group = groupHolder.getGroup();
 
         Vector<BatchReqExecutor> vector = new Vector<>();
@@ -88,7 +82,7 @@ public class TestClient {
             group.next().execute(() -> {
                 BatchReqExecutor batchReqExecutor = new BatchReqExecutor(client, latch, count);
                 vector.add(batchReqExecutor);
-                batchReqExecutor.exec();
+                batchReqExecutor.start();
                 latch1.countDown();
             });
         }
@@ -128,6 +122,10 @@ public class TestClient {
             int len = 32 * 1024 + ThreadLocalRandom.current().nextInt(32 * 1024);
             buf = ByteBufAllocator.DEFAULT.buffer(len);
             buf.writeZero(len);
+        }
+
+        void start() {
+            Scheduler.current().schedule(this::exec, 3000);
         }
 
         public void exec() {
@@ -205,7 +203,7 @@ public class TestClient {
         @Override
         public void onComplete() {
             assert scheduler.inLoop();
-            log.info("request onComplete {} -> {} | {}", currentReq, currentRespSize, System.currentTimeMillis() - startTime);
+//            log.info("request onComplete {} -> {} | {}", currentReq, currentRespSize, System.currentTimeMillis() - startTime);
             if (currentRespSize != buf.readableBytes()) {
                 errorReq++;
                 log.warn("请求返回不对：{} -> {}/{}", currentReq, currentRespSize, buf.readableBytes());
@@ -217,11 +215,30 @@ public class TestClient {
 
 
     private static final int HTML_BATCH = 100;
+    static final String x = "X";
 
     @Test
     public void t2() throws Exception {
 
         Injector injector = engine.getInjector();
+        engine.addHandlerRouter(new RouterHandler<HttpExchange>() {
+            @Override
+            public String getRouterName() {
+                return x;
+            }
+
+            @Override
+            public void invoke(HttpExchange exchange) throws Exception {
+                ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer(128646);
+                buffer.writeZero(128646);
+                exchange.writeRawBytes(200, buffer);
+            }
+
+            @Override
+            public void destroy() {
+
+            }
+        });
         HttpClient client = injector.getInstance(HttpClient.class);
         EngineModule.EventLoopGroupHolder groupHolder = injector.getInstance(EngineModule.EventLoopGroupHolder.class);
         EventLoopGroup group = groupHolder.getGroup();
@@ -274,7 +291,8 @@ public class TestClient {
                 return;
             }
 
-            ClientExchange exchange = client.refer("127.0.0.1", 80);
+            ClientExchange exchange = client.refer("127.0.0.1", 16688);
+            exchange.setHeader(Constant.X_FIBER_PROJECT_HEADER, x);
             exchange.sendForResp().switchToObservable(r -> {
                 int status = r.status();
                 if (status != 200) {

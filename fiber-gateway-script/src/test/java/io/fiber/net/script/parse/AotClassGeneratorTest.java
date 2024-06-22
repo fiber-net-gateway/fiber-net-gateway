@@ -80,9 +80,10 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
 
     private static void generateAndInvoke(Script script, String name) throws Throwable {
         ComparedMayBeObserver observer = new ComparedMayBeObserver(name);
-        generateFile(name, ((CompiledScript) script).getCompiled());
-        script.aotExec(NullNode.getInstance(), null).subscribe(observer.getOb());
-        script.exec(NullNode.getInstance(), null).subscribe(observer.getOb());
+        InterpretorScript interpretorScript = (InterpretorScript) script;
+        generateFile(name, interpretorScript.getCompiled());
+        interpretorScript.createAotCompiledScript().exec(NullNode.getInstance(), null).subscribe(observer.getOb());
+        interpretorScript.exec(NullNode.getInstance(), null).subscribe(observer.getOb());
     }
 
 }

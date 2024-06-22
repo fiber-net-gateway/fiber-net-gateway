@@ -10,8 +10,6 @@ import io.fiber.net.proxy.lib.ExtensiveHttpLib;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ast.Literal;
 import io.fiber.net.server.HttpEngine;
-import io.fiber.net.server.HttpServer;
-import io.fiber.net.server.ServerConfig;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
@@ -39,14 +37,6 @@ public class TestPipeline {
 
         engine.addHandlerRouter(LibProxyMainModule.createProject(engine.getInjector(),
                 RouterNameFetcher.DEF_ROUTER_NAME, "return sleep(+req.getQuery(\"t\"));"));
-
-        try {
-            HttpServer server = engine.getInjector().getInstance(HttpServer.class);
-            server.start(new ServerConfig(), engine);
-        } catch (Throwable e) {
-            engine.getInjector().destroy();
-            throw e;
-        }
     }
 
     @Test

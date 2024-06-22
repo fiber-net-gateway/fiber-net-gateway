@@ -78,7 +78,7 @@ public class LibProxyMainModule implements Module {
                     configure.onInit(library);
                 }
             }
-            return Script.compile(code, library);
+            return Script.aotCompile(code, library);
         }
 
         private Injector createProjectInjector() {

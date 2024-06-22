@@ -8,7 +8,6 @@ import io.fiber.net.script.Script;
 import io.fiber.net.script.ast.Block;
 import io.fiber.net.script.parse.ir.AotClassGenerator;
 import io.fiber.net.script.run.AbstractVm;
-import io.fiber.net.script.run.InterpreterVm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,41 +18,34 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.nio.file.Files;
 
-
-public class CompiledScript implements Script {
+public class AotCompiledScript implements Script {
+    private static final Logger log = LoggerFactory.getLogger(AotCompiledScript.class);
+    private static final MethodType METHOD_TYPE = MethodType.methodType(void.class, JsonNode.class, Object.class, Maybe.Emitter.class);
     private static final String ERROR_PATH = SystemPropertyUtil.get("fiber.aotErrorClzDumpPath", "/tmp/fiber_err_clz");
 
-    public static CompiledScript create(String script, Library library) throws ParseException {
+    public static AotCompiledScript create(String script, Library library) throws ParseException {
         Parser parser = new Parser(library, true);
         Block block = parser.parseScript(script);
-        return create(script, block);
+        return create(block);
     }
 
-    public static CompiledScript createNonOptimise(String script, Library library) throws ParseException {
+    public static AotCompiledScript createNonOptimise(String script, Library library) throws ParseException {
         Parser parser = new Parser(library, true);
         Block block = parser.parseScript(script);
-        return createNonOptimise(script, block);
+        return createNonOptimise(block);
     }
 
-    public static CompiledScript create(String script, Node ast) throws ParseException {
-        return createNonOptimise(script, OptimiserNodeVisitor.optimiseAst(ast));
+    public static AotCompiledScript create(Node ast) throws ParseException {
+        return createNonOptimise(OptimiserNodeVisitor.optimiseAst(ast));
     }
 
-    public static CompiledScript createNonOptimise(String script, Node ast) throws ParseException {
+    public static AotCompiledScript createNonOptimise(Node ast) throws ParseException {
         Compiled cpd = CompilerNodeVisitor.compile(ast);
-        return new CompiledScript(script, cpd);
+        return of(cpd);
     }
 
-    private static final Logger log = LoggerFactory.getLogger(CompiledScript.class);
-    private static final MethodType METHOD_TYPE = MethodType.methodType(void.class, JsonNode.class, Object.class, Maybe.Emitter.class);
-
-    private final String expressionString;
-    private final Compiled compiled;
-    private MethodHandle handle;
-
-    private CompiledScript(String expressionString, Compiled compiled) {
-        this.expressionString = expressionString;
-        this.compiled = compiled;
+    public static AotCompiledScript of(Compiled compiled) throws ParseException {
+        MethodHandle handle;
         AotClassGenerator generator = new AotClassGenerator(compiled);
         try {
             Class<?> aotClz = generator.generateClz();
@@ -71,25 +63,23 @@ public class CompiledScript implements Script {
             } catch (IOException ex) {
                 log.warn("error write class data", ex);
             }
-            handle = null;
+            throw new ParseException("could not generate clz", e);
         }
+        return new AotCompiledScript(handle);
+    }
+
+    private final MethodHandle handle;
+
+    public AotCompiledScript(MethodHandle handle) {
+        this.handle = handle;
     }
 
     @Override
     public Maybe<JsonNode> exec(JsonNode root, Object attach) {
-        return Maybe.create(emitter -> createInterpreterVm(root, attach, emitter).exec());
-    }
-
-    @Override
-    public Maybe<JsonNode> aotExec(JsonNode root, Object attach) {
         return Maybe.create(emitter -> createAotVm(root, attach, emitter).exec());
     }
 
-    public InterpreterVm createInterpreterVm(JsonNode root, Object attach, Maybe.Emitter<JsonNode> resultEmitter) {
-        return new InterpreterVm(compiled, root, attach, resultEmitter);
-    }
-
-    public AbstractVm createAotVm(JsonNode root, Object attach, Maybe.Emitter<JsonNode> resultEmitter) throws Exception {
+    private AbstractVm createAotVm(JsonNode root, Object attach, Maybe.Emitter<JsonNode> resultEmitter) throws Exception {
         if (handle == null) {
             throw new IllegalStateException("aot compile failed");
         }
@@ -100,13 +90,5 @@ public class CompiledScript implements Script {
         } catch (Throwable e) {
             throw new IllegalStateException("cannot create aot vm", e);
         }
-    }
-
-    public String getExpressionString() {
-        return expressionString;
-    }
-
-    public Compiled getCompiled() {
-        return compiled;
     }
 }

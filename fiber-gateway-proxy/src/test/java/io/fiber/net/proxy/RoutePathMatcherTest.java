@@ -128,11 +128,6 @@ public class RoutePathMatcherTest {
         }
 
         @Override
-        public Maybe<JsonNode> aotExec(JsonNode root, Object attach) {
-            return null;
-        }
-
-        @Override
         public boolean equals(Object object) {
             if (this == object) return true;
             if (object == null || getClass() != object.getClass()) return false;

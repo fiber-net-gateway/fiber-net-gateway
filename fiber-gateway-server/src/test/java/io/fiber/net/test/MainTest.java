@@ -7,7 +7,9 @@ import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.async.internal.Subject;
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.utils.Constant;
-import io.fiber.net.server.*;
+import io.fiber.net.server.EngineModule;
+import io.fiber.net.server.HttpEngine;
+import io.fiber.net.server.HttpExchange;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
@@ -109,7 +111,6 @@ public class MainTest {
         Injector injector = Injector.getRoot().createChild(new EngineModule());
         try {
             HttpEngine instance = (HttpEngine) injector.getInstance(Engine.class);
-            instance.installExt();
             instance.addInterceptor((project, httpExchange, invocation) -> {
                 String path = httpExchange.getPath();
                 if (path.contains("echo")) {
@@ -121,8 +122,7 @@ public class MainTest {
                     httpExchange.readBody().subscribe(new Ob2(httpExchange));
                 }
             });
-            HttpServer server = injector.getInstance(HttpServer.class);
-            server.start(new ServerConfig(), instance);
+            instance.installExt();
             bench();
         } finally {
             injector.destroy();

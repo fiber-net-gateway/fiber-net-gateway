@@ -5,7 +5,8 @@ import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.script.ast.Block;
 import io.fiber.net.script.ast.ExpressionNode;
 import io.fiber.net.script.ast.ReturnStatement;
-import io.fiber.net.script.parse.CompiledScript;
+import io.fiber.net.script.parse.AotCompiledScript;
+import io.fiber.net.script.parse.InterpretorScript;
 import io.fiber.net.script.parse.ParseException;
 import io.fiber.net.script.parse.Parser;
 import io.fiber.net.script.std.StdLibrary;
@@ -29,7 +30,7 @@ public interface Script {
     static Script compileWithoutOptimization(String script, Library library, boolean allowAssign) throws ParseException {
         Parser parser = new Parser(library, allowAssign);
         Block block = parser.parseScript(script);
-        return CompiledScript.createNonOptimise(script, block);
+        return InterpretorScript.createNonOptimise(script, block);
     }
 
     static Script compile(String script, Library library) throws ParseException {
@@ -39,7 +40,7 @@ public interface Script {
     static Script compile(String script, Library library, boolean allowAssign) throws ParseException {
         Parser parser = new Parser(library, allowAssign);
         Block block = parser.parseScript(script);
-        return CompiledScript.create(script, block);
+        return InterpretorScript.create(script, block);
     }
 
     static Script compileExpression(String expression, boolean allowAssign) throws ParseException {
@@ -49,21 +50,54 @@ public interface Script {
     static Script compileExpression(String expression, Library library, boolean allowAssign) throws ParseException {
         Parser parser = new Parser(library, allowAssign);
         ExpressionNode ast = parser.parseExpression(expression);
-        Block block = new Block(ast.getPos(),
-                Collections.singletonList(new ReturnStatement(ast.getPos(), ast)), Block.Type.SCRIPT);
-        return CompiledScript.create(expression, block);
+        Block block = new Block(ast.getPos(), Collections.singletonList(new ReturnStatement(ast.getPos(), ast)), Block.Type.SCRIPT);
+        return InterpretorScript.create(expression, block);
     }
+
+    static Script aotCompile(String script) throws ParseException {
+        return aotCompile(script, StdLibrary.getDefInstance());
+    }
+
+    static Script aotCompileWithoutAssign(String script) throws ParseException {
+        return aotCompile(script, StdLibrary.getDefInstance(), false);
+    }
+
+    static Script aotCompileWithoutOptimization(String script) throws ParseException {
+        return aotCompileWithoutOptimization(script, StdLibrary.getDefInstance(), true);
+    }
+
+    static Script aotCompileWithoutOptimization(String script, Library library, boolean allowAssign) throws ParseException {
+        Parser parser = new Parser(library, allowAssign);
+        Block block = parser.parseScript(script);
+        return AotCompiledScript.createNonOptimise(block);
+    }
+
+    static Script aotCompile(String script, Library library) throws ParseException {
+        return aotCompile(script, library, true);
+    }
+
+    static Script aotCompile(String script, Library library, boolean allowAssign) throws ParseException {
+        Parser parser = new Parser(library, allowAssign);
+        Block block = parser.parseScript(script);
+        return AotCompiledScript.create(block);
+    }
+
+    static Script aotCompileExpression(String expression, boolean allowAssign) throws ParseException {
+        return aotCompileExpression(expression, StdLibrary.getDefInstance(), allowAssign);
+    }
+
+    static Script aotCompileExpression(String expression, Library library, boolean allowAssign) throws ParseException {
+        Parser parser = new Parser(library, allowAssign);
+        ExpressionNode ast = parser.parseExpression(expression);
+        Block block = new Block(ast.getPos(), Collections.singletonList(new ReturnStatement(ast.getPos(), ast)), Block.Type.SCRIPT);
+        return AotCompiledScript.create(block);
+    }
+
 
     default Maybe<JsonNode> exec(JsonNode root) {
         return exec(root, null);
     }
 
-    default Maybe<JsonNode> aotExec(JsonNode root) {
-        return aotExec(root, null);
-    }
-
     Maybe<JsonNode> exec(JsonNode root, Object attach);
-
-    Maybe<JsonNode> aotExec(JsonNode root, Object attach);
 
 }

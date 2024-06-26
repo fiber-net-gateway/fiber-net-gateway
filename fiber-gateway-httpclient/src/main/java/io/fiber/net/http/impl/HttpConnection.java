@@ -58,9 +58,7 @@ public abstract class HttpConnection {
 
     protected final void endRequest() {
         if (connState != STATE_DETACH) {
-            if(!isActive()){
-                close();
-            }
+            close();
             return;
         }
         lastUpdateTime = System.currentTimeMillis();
@@ -79,11 +77,13 @@ public abstract class HttpConnection {
         }
         connList = null;
         if (connState == STATE_POOLED) {
-            connState = STATE_CLOSED;
             list.removeConn(this);
         }
         list.decrementTotal();
-        ch.close();
+        connState = STATE_CLOSED;
+        if (ch.isOpen()) {
+            ch.close();
+        }
         if (log.isDebugEnabled()) {
             log.debug("connection {} is closed", this);
         }

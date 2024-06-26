@@ -160,10 +160,13 @@ public class ThreadConnHolder {
         }
 
         private void startEvictTimer() {
-            if (idleCount > 0 && !this.evictTimerStart) {
+            int count = totalCount;
+            if (count > 0 && !this.evictTimerStart) {
                 this.evictTimerStart = true;
                 holder.executor.schedule(this, holder.evictInterval, TimeUnit.MILLISECONDS);
-            } else if (totalCount == 0) {
+            }
+
+            if (count == 0) {
                 holder.map.remove(httpHost);
                 if (log.isDebugEnabled()) {
                     log.debug("removed ConnList of Host {} from pool because no connection exists", httpHost);
@@ -212,8 +215,11 @@ public class ThreadConnHolder {
         if (connection.connList == null) {
             connection.connList = list;
             list.incrementTotal();
-        } else if (log.isDebugEnabled()) {
-            log.debug("creating ConnList for Host {}", connection.getHttpHost());
+        } else {
+            if (log.isDebugEnabled()) {
+                log.debug("creating ConnList for Host {}", connection.getHttpHost());
+            }
+            list.startEvictTimer();
         }
         if (log.isDebugEnabled()) {
             log.debug("connection created for Host {}", connection.getHttpHost());

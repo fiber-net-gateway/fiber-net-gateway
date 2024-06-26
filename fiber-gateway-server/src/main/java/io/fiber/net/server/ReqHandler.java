@@ -22,6 +22,7 @@ public class ReqHandler extends ChannelDuplexHandler {
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(ReqHandler.class);
     private static final FullHttpResponse EXPECTATION_FAILED = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.EXPECTATION_FAILED, Unpooled.EMPTY_BUFFER);
     private static final FullHttpResponse TOO_LARGE = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, Unpooled.EMPTY_BUFFER);
+    private static final FullHttpResponse TOO_LARGE_CLOSE = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, Unpooled.EMPTY_BUFFER);
     private static final FullHttpResponse CONTINUE =
             new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.CONTINUE, Unpooled.EMPTY_BUFFER);
     static final String X_POWER_BY;
@@ -36,8 +37,8 @@ public class ReqHandler extends ChannelDuplexHandler {
     static {
         EXPECTATION_FAILED.headers().set(HttpHeaderNames.CONTENT_LENGTH, 0);
         EXPECTATION_FAILED.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+        TOO_LARGE_CLOSE.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
         TOO_LARGE.headers().set(HttpHeaderNames.CONTENT_LENGTH, 0);
-        TOO_LARGE.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
     }
 
     static boolean isUnsupportedExpectation(HttpRequest message) {
@@ -55,6 +56,8 @@ public class ReqHandler extends ChannelDuplexHandler {
     private HttpExchangeImpl httpExchange;
     private boolean chunkedBody;
     private int readBodySize;
+    private FullHttpResponse noEngineResp;
+    private boolean lingeringSend;
     private Scheduler scheduler;
 
     public ReqHandler(int maxLength, HttpEngine engine) {
@@ -71,7 +74,6 @@ public class ReqHandler extends ChannelDuplexHandler {
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof HttpRequest) {
             HttpRequest httpRequest = (HttpRequest) msg;
-            FullHttpResponse noEngineResp;
             if ((noEngineResp = notEngineResponse(httpRequest, ctx)) == null) {
                 try {
                     httpExchange = new HttpExchangeImpl(ctx.channel(), httpRequest, scheduler);
@@ -89,8 +91,9 @@ public class ReqHandler extends ChannelDuplexHandler {
                     ReferenceCountUtil.release(msg);
                     return;
                 }
-            } else {
+            } else if (!lingeringSend) {
                 ctx.writeAndFlush(noEngineResp.retainedDuplicate(), ctx.voidPromise());
+                noEngineResp = null;
             }
         }
 
@@ -98,6 +101,20 @@ public class ReqHandler extends ChannelDuplexHandler {
             HttpContent content = (HttpContent) msg;
 
             FullHttpResponse noEngineResp;
+            if ((noEngineResp = this.noEngineResp) != null) {
+                ReferenceCountUtil.release(content);
+                boolean failure = false;
+                if (content instanceof LastHttpContent || (failure = content.decoderResult().isFailure())) {
+                    this.noEngineResp = null;
+                    lingeringSend = false;
+                    if (failure && TOO_LARGE == noEngineResp) {
+                        noEngineResp = TOO_LARGE_CLOSE;
+                    }
+                    ctx.writeAndFlush(noEngineResp.retainedDuplicate(), ctx.voidPromise());
+                }
+                return;
+            }
+
             HttpExchangeImpl httpExchange;
             if ((httpExchange = this.httpExchange) == null) {
                 ReferenceCountUtil.release(content);
@@ -185,6 +202,7 @@ public class ReqHandler extends ChannelDuplexHandler {
         }
 
         if (cl > maxLength) {
+            lingeringSend = true;
             return TOO_LARGE;
         } else if (cl == -1) {
             chunkedBody = true;

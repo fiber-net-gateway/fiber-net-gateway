@@ -74,6 +74,7 @@ public abstract class ClientHttpExchange {
     public void addBuf(ByteBuf buf, boolean last) {
         respBody.onNext(buf);
         if (last) {
+            requestSec = true;
             respBody.onComplete();
             onBodyCompleted();
         }

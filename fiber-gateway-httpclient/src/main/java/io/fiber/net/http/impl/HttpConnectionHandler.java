@@ -7,11 +7,7 @@ import io.fiber.net.http.HttpClientException;
 import io.fiber.net.http.HttpHost;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandler;
-import io.netty.channel.EventLoop;
+import io.netty.channel.*;
 import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.*;
 import io.netty.handler.ssl.SslContext;
@@ -33,7 +29,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     private Scheduler ioSch;
     private boolean chunkedBody;
     private long receivedBodyLength;
-    private boolean requesting;
+    private int requesting;
     private boolean closeByProto;
     private int requests;
     private long maxBodyLength;
@@ -102,8 +98,14 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
         }
 
         onHttpMessage(msg, exchange);
-        if (exchange.isRequestEnd()) {
-            this.exchange = null;
+        if (msg instanceof LastHttpContent) {
+            clearRequesting(2);
+        }
+    }
+
+    private void clearRequesting(int bit) {
+        requesting &= ~bit;
+        if (requesting == 0) {
             dismiss();
         }
     }
@@ -139,20 +141,12 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
 
         if (msg instanceof HttpContent) {
             ByteBuf buf = ((HttpContent) msg).content();
-            boolean last = msg instanceof LastHttpContent;
-            if (last) {
-                this.requesting = false;
-            }
             if (chunkedBody && maxBodyLength > 0 && chunkedExceedMax(buf.readableBytes(), maxBodyLength)) {
                 ReferenceCountUtil.release(msg);
                 ioErrorAndClose(new HttpClientException("chunked body size is too big：" + receivedBodyLength, 500, "READ_RESP_BODY"));
                 return;
             }
-
-            if (last) {
-                exchange.requestSec = true;
-            }
-            exchange.addBuf(buf, last);
+            exchange.addBuf(buf, msg instanceof LastHttpContent);
         }
     }
 
@@ -195,7 +189,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
 
     @Override
     protected boolean isValid() {
-        return !requesting && !closeByProto;
+        return requesting == 0 && !closeByProto;
     }
 
     HttpHeaders headerForSend(ClientHttpExchange exchange, int contentLength) {
@@ -225,7 +219,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     @Override
     public void send(ClientHttpExchange exchange, ByteBuf buf) throws HttpClientException {
         onSend(exchange);
-        requesting = true;
+        requesting = 3;
         HttpMethod method = exchange.requestMethod();
         String uri = exchange.requestUri();
         HttpHeaders headers = headerForSend(exchange, buf.readableBytes());
@@ -261,18 +255,30 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
 
         @Override
         public void onSubscribe(Disposable d) {
+            if (flush) {
+                ChannelFuture future = ctx.writeAndFlush(createReqForSend(), ctx.newPromise());
+                if (future.isDone()) {
+                    onRequestHeaderSent(future);
+                } else {
+                    future.addListener(HttpConnectionHandler.this::onRequestHeaderSent);
+                }
+            }
+        }
+
+        private DefaultHttpRequest createReqForSend() {
+            headerSent = true;
+            requesting = 3;
+            HttpMethod method = exchange.requestMethod();
+            String uri = exchange.requestUri();
+            HttpHeaders headers = headerForSend(exchange, -1);
+            return new DefaultHttpRequest(HttpVersion.HTTP_1_1, method, uri, headers);
         }
 
         private void sendReq() {
             if (headerSent) {
                 return;
             }
-            headerSent = true;
-            requesting = true;
-            HttpMethod method = exchange.requestMethod();
-            String uri = exchange.requestUri();
-            HttpHeaders headers = headerForSend(exchange, -1);
-            ctx.write(new DefaultHttpRequest(HttpVersion.HTTP_1_1, method, uri, headers), ctx.newPromise().addListener(HttpConnectionHandler.this::onRequestHeaderSent));
+            ctx.write(createReqForSend(), ctx.newPromise().addListener(HttpConnectionHandler.this::onRequestHeaderSent));
         }
 
 
@@ -322,7 +328,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
             if (f.isDone()) {
                 onRequestSent(f);
             } else {
-                f.addListener(HttpConnectionHandler.this::onRequestBodySent);
+                f.addListener(HttpConnectionHandler.this::onRequestSent);
             }
         }
     }
@@ -330,7 +336,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     @Override
     protected void onSend(ClientHttpExchange exchange) throws HttpClientException {
         super.onSend(exchange);
-        if (requesting) {
+        if (requesting != 0) {
             throw new IllegalStateException("requesting");
         }
         maxBodyLength = exchange.maxBodyLength();
@@ -342,6 +348,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
                 exchange.bodySent = exchange.headerSent = true;
                 requestTimer(exchange.requestTimeout());
             }
+            clearRequesting(1);
         } else {
             Throwable cause = future.cause();
             ioErrorAndClose(new HttpClientException("send request error:" + cause.getMessage(), cause, 502, "SEND_REQUEST_ERROR"));
@@ -359,20 +366,8 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
         }
     }
 
-    private void onRequestBodySent(Future<? super Void> future) {
-        if (future.isSuccess()) {
-            if (exchange != null) {
-                exchange.bodySent = true;
-                requestTimer(exchange.requestTimeout());
-            }
-        } else {
-            Throwable cause = future.cause();
-            ioErrorAndClose(new HttpClientException("send request error:" + cause.getMessage(), cause, 502, "SEND_REQUEST_ERROR"));
-        }
-    }
-
     private void requestTimer(long timeout) {
-        if (timeout >= 0) {
+        if (timeout >= 0 && !exchange.headerReceived) {
             requestTimerFut = eventLoop.schedule(this, timeout, TimeUnit.MILLISECONDS);
         }
     }
@@ -396,6 +391,6 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
                 exchange.notifyError(exception);
             }
         }
-        dismiss();
+        close();
     }
 }

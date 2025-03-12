@@ -173,6 +173,7 @@ public class CodeEnterPoint {
         VarStore store = varTable.getStore(def.getIdx());
         while (store != null) {
             Assert.isTrue(store.getStoreVar() == def);
+            // 找到 当前 load 变量位置 前面一个 store。
             if (store.getCodeIdx() < idx) {
                 break;
             }
@@ -189,11 +190,13 @@ public class CodeEnterPoint {
             return;
         }
 
+        // 当前代码块已经出现了异步。所以这个变量是异步的
         if (loadVarStage > 0) {
             def.setAsync();
             return;
         }
 
+        // 说明这个变量上一次存储是在前面的代码块，逐个检查
         if (markAsyncAccordingPrevStore(def, visited)) {
             def.setAsync();
         }
@@ -204,6 +207,12 @@ public class CodeEnterPoint {
         boolean result = false;
         int idx = def.getIdx();
         for (CodeEnterPoint prevPoint : prevPoints) {
+
+            if (catchPoint && prevPoint.varStage > 0) {
+                result = true;
+                break;
+            }
+
             if (prevPoint.varTable.getDef(idx) != def) {
                 continue;
             }
@@ -537,7 +546,7 @@ public class CodeEnterPoint {
             ((Unary) in).setOptimiseIf();
         }
 
-        if(in instanceof IterateNext){
+        if (in instanceof IterateNext) {
             ((IterateNext) in).setOptimiseIf();
             return true;
         }

@@ -98,4 +98,21 @@ public class BodyBufSubjectTest {
         latch.await();
     }
 
+
+    @Test
+    public void t2() throws InterruptedException {
+        ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+        ByteBuf buffer = allocator.buffer(100);
+        ByteBuf buf = buffer.writeZero(100);
+        System.out.println(buf.readableBytes());
+
+        ByteBuf byteBuf = buffer.retainedSlice();
+        System.out.println(byteBuf.readableBytes());
+
+        buf.readLong();
+        System.out.println(buf.readableBytes());
+        System.out.println(byteBuf.readableBytes());
+        byteBuf.release();
+
+    }
 }

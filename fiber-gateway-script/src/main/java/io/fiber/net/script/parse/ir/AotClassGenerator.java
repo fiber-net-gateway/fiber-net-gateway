@@ -42,6 +42,7 @@ public class AotClassGenerator {
     }
 
     private void computePoint() {
+        int[] codes = compiled.getCodes();
         int[] expIns = compiled.getExpIns();
         if (expIns != null) {
             for (int i = 0; i < expIns.length; i++) {
@@ -57,9 +58,15 @@ public class AotClassGenerator {
                     point.setCatchPoint();
                 }
             }
+            int[] exceptionTable = compiled.getExceptionTable();
+            for (int i = 0; i < exceptionTable.length; i += 3) {
+                int codeIdx = exceptionTable[i + 2];
+                if (codeIdx < codes.length) {
+                    addPoint(codeIdx);
+                }
+            }
         }
 
-        int[] codes = compiled.getCodes();
         addPoint(0);
         for (int i = 0; i < codes.length; i++) {
             int code = codes[i];

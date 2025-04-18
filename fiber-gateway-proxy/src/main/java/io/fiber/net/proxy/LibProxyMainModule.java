@@ -11,6 +11,7 @@ import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.http.DefaultHttpClient;
 import io.fiber.net.http.HttpClient;
 import io.fiber.net.http.HttpHost;
+import io.fiber.net.http.util.ConnectionFactory;
 import io.fiber.net.proxy.gov.GovLibConfigure;
 import io.fiber.net.proxy.lib.ExtensiveHttpLib;
 import io.fiber.net.proxy.lib.HttpFunc;
@@ -21,6 +22,8 @@ import io.fiber.net.server.EngineModule;
 import io.fiber.net.server.HttpEngine;
 import io.fiber.net.server.HttpServerStartListener;
 import io.netty.channel.EventLoopGroup;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,6 +31,7 @@ import java.util.List;
 import java.util.ServiceLoader;
 
 public class LibProxyMainModule implements Module {
+    private static final Logger log = LoggerFactory.getLogger(LibProxyMainModule.class);
 
     private static class SubModule implements ProxyModule {
         private final Injector engineInjector;
@@ -116,6 +120,10 @@ public class LibProxyMainModule implements Module {
     }
 
     private static class ProxyStartListener extends HttpServerStartListener {
+        public ProxyStartListener(Injector injector) {
+            super(injector);
+        }
+
         @Override
         protected void beforeServerStart(HttpEngine engine) throws Exception {
             ConfigWatcher watcher = engine.getInjector().getInstance(ConfigWatcher.class);
@@ -126,10 +134,12 @@ public class LibProxyMainModule implements Module {
 
     @Override
     public void install(Binder binder) {
-        binder.bindFactory(HttpClient.class, injector -> new DefaultHttpClient(injector.getInstance(EventLoopGroup.class)));
+        binder.bindLink(HttpClient.class, DefaultHttpClient.class);
+        binder.bindFactory(DefaultHttpClient.class, injector -> new DefaultHttpClient(injector.getInstance(EventLoopGroup.class)));
+        binder.bindPrototype(ConnectionFactory.class, injector -> injector.getInstance(DefaultHttpClient.class).getConnectionFactory());
         binder.bindMultiBean(ProxyModule.class, SubModule.class);
         binder.bindFactory(SubModule.class, SubModule::new);
-        binder.forceBind(HttpServerStartListener.class, new ProxyStartListener());
+        binder.forceBindPrototype(HttpServerStartListener.class, ProxyStartListener::new);
         binder.bind(ConfigWatcher.class, ConfigWatcher.NOOP_WATCHER);
         binder.bindFactory(UrlHandlerManager.class, UrlHandlerManager::new);
     }
@@ -180,7 +190,12 @@ public class LibProxyMainModule implements Module {
         try {
             engine.installExt();
         } catch (Throwable e) {
-            injector.destroy();
+            log.error("error install engine", e);
+            try {
+                injector.destroy();
+            } catch (Throwable ex) {
+                log.warn("destroy engine error", ex);
+            }
             throw e;
         }
         return engine;

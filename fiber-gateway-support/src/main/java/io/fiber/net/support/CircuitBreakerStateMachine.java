@@ -34,7 +34,7 @@ public class CircuitBreakerStateMachine implements CircuitBreaker {
         Predictions.assertTrue(halfOpenReqNum > 0, "half open num >= 10");
         this.name = name;
         this.failureRateThreshold = failureRateThreshold;
-        this.halfOpenReqNum = (int) (halfOpenReqNum * 1.2F);
+        this.halfOpenReqNum = (int) (halfOpenReqNum * 1.5F);
         this.openWaitTimeMS = openWaitTimeMS;
         this.closeMetric = new Metric(totalNumThreshold);
         this.halfOpenMetric = new Metric(halfOpenReqNum);
@@ -90,7 +90,7 @@ public class CircuitBreakerStateMachine implements CircuitBreaker {
         do {
             if (brokenState(activatedState = UPDATER.get(this)) != STATE_HALF_OPEN
                     || (available = brokenCycle(activatedState)) <= 0) {
-                return true;
+                return brokenState(activatedState) != STATE_CLOSE;
             }
         } while (!UPDATER.compareAndSet(this, activatedState, state(available - 1, STATE_HALF_OPEN)));
         return false;
@@ -149,6 +149,7 @@ public class CircuitBreakerStateMachine implements CircuitBreaker {
                 if (total >= closeMetric.windowSize) {
                     if (error * 100.0f / total >= failureRateThreshold) {
                         translateToOpen(STATE_CLOSE);
+                        closeMetric.reset();
                     }
                 }
                 break;
@@ -166,12 +167,12 @@ public class CircuitBreakerStateMachine implements CircuitBreaker {
         int total = Metric.totalNum(recorded);
         int error = Metric.errorNum(recorded);
         if (total >= halfOpenMetric.windowSize) {
-            halfOpenMetric.reset();
             if (error * 100.0f / total < failureRateThreshold) {
                 translateToClose();
             } else {
                 translateToOpen(STATE_HALF_OPEN);
             }
+            halfOpenMetric.reset();
         }
     }
 
@@ -207,26 +208,34 @@ public class CircuitBreakerStateMachine implements CircuitBreaker {
             reqNum = 0;
             total = 0;
             error = 0;
-            if (winData.length < 16) {
-                Arrays.fill(winData, 0);
-            } else {
-                winData = new int[winData.length];
-            }
+            Arrays.fill(winData, 0);
         }
 
         private long record(boolean err) {
             int t, e;
             synchronized (this) {
-                int raw = (reqNum = (reqNum + 1) & Integer.MAX_VALUE) % windowSize;
-                t = total = Math.min(total + 1, windowSize);
+                int ws = windowSize;
+                e = error;
+                t = total;
+
+                int raw = (reqNum = (reqNum + 1) & Integer.MAX_VALUE) % ws;
                 int bit = 1 << (raw & 31);
                 int winDatum = winData[raw = raw >> 5];
-                if ((winDatum & bit) == (err ? bit : 0)) {
-                    e = error;
-                } else {
-                    winData[raw] = winDatum ^ bit;
-                    e = error += err ? 1 : -1;
+
+                if (t < ws) {
+                    ++t;
+                } else if ((winDatum & bit) != 0) {
+                    --e;
                 }
+                if (err) {
+                    ++e;
+                    winDatum |= bit;
+                } else {
+                    winDatum &= ~bit;
+                }
+                total = t;
+                error = e;
+                winData[raw] = winDatum;
             }
             return (((long) e) << 32) | (t);
         }

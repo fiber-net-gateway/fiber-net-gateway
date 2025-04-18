@@ -2,11 +2,12 @@ package io.fiber.net.http.impl;
 
 import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.http.HttpHost;
+import io.fiber.net.http.util.ConnectionFactory;
+import io.netty.channel.Channel;
 import io.netty.channel.EventLoop;
 import io.netty.channel.EventLoopGroup;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.FastThreadLocal;
-import io.netty.util.concurrent.Future;
 
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
@@ -15,15 +16,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ConnectionPool {
 
     private static final FastThreadLocal<ThreadConnHolder> TH = new FastThreadLocal<>();
-
-    private final HttpConnectionFactory connectionFactory;
-    private final CompletableFuture<Void> startPromise;
+    private final ConnectionFactory connectionFactory;
     private final EventLoopGroup group;
+    private final CompletableFuture<Void> startPromise;
     private final PoolConfig config;
 
-    public ConnectionPool(EventLoopGroup group, PoolConfig config) {
-        this.group = group;
-        this.connectionFactory = new HttpConnectionFactory(group, config);
+    public ConnectionPool(ConnectionFactory connectionFactory, PoolConfig config) {
+        this.connectionFactory = connectionFactory;
+        this.group = connectionFactory.getGroup();
         this.config = config;
         startPromise = new CompletableFuture<>();
         init(group);
@@ -68,6 +68,10 @@ public class ConnectionPool {
         return startPromise.isDone() && !startPromise.isCompletedExceptionally();
     }
 
+    public ConnectionFactory getConnectionFactory() {
+        return connectionFactory;
+    }
+
     public HttpConnection getExistsConn(HttpHost httpHost) {
         assert Scheduler.isInIOThread(group) : "not in io thread??";
         final ThreadConnHolder holder = TH.get();
@@ -95,23 +99,31 @@ public class ConnectionPool {
             return;
         }
 
-        SimpleFetcher cycleConnFetcher = new SimpleFetcher(holder, connectionFactory, fetcher);
-        if (!cycleConnFetcher.deferTryFetch(holder)) {
-            cycleConnFetcher.doConnect();
+        PoolConfig config = this.config;
+        SimpleFetcher cycleConnFetcher = new SimpleFetcher(holder, connectionFactory, fetcher, config);
+        if (config.useCrossConnection && cycleConnFetcher.deferTryFetch(holder)) {
+            return;
         }
+        cycleConnFetcher.doConnect();
     }
 
-    private static class SimpleFetcher implements Runnable {
+    private static class SimpleFetcher implements Runnable, ConnectionFactory.ConnCallback {
         private final ThreadConnHolder originalHolder;
-        private final HttpConnectionFactory connFactory;
+        private final ConnectionFactory ConnectionFactory;
         private final ConnFetcher connFetcher;
+        private final PoolConfig poolConfig;
 
         private ThreadConnHolder holder;
+        private HttpConnectionHandler handler;
 
-        private SimpleFetcher(ThreadConnHolder originalHolder, HttpConnectionFactory connFactory, ConnFetcher connFetcher) {
+        private SimpleFetcher(ThreadConnHolder originalHolder,
+                              ConnectionFactory ConnectionFactory,
+                              ConnFetcher connFetcher,
+                              PoolConfig poolConfig) {
             this.originalHolder = originalHolder;
-            this.connFactory = connFactory;
+            this.ConnectionFactory = ConnectionFactory;
             this.connFetcher = connFetcher;
+            this.poolConfig = poolConfig;
         }
 
         public boolean deferTryFetch(ThreadConnHolder holder) {
@@ -155,20 +167,34 @@ public class ConnectionPool {
             this.holder = originalHolder;
             // 原始线程直接连接
             EventLoop executor = originalHolder.executor;
-            connFactory.connect(connFetcher.httpHost(), connFetcher.connectTimeout(), executor,
-                    executor.<HttpConnection>newPromise().addListener(this::onConnected));
+            ConnectionFactory.connect(connFetcher.httpHost().getAddress(),
+                    connFetcher.connectTimeout(),
+                    executor,
+                    this);
         }
 
-        private void onConnected(Future<? super HttpConnection> future) {
-            if (future.isSuccess()) {
-                HttpConnection result = (HttpConnection) future.getNow();
-                assert result.getCh().eventLoop() == originalHolder.executor && originalHolder.executor.inEventLoop();
-                // new connection
-                originalHolder.markConnCreate(result);
-                connFetcher.onConnSuccess(result);
-            } else {
-                connFetcher.onConnError(future.cause());
-            }
+        @Override
+        public void onChannelCreated(Channel channel, EventLoop loop) {
+            channel.pipeline().addLast(handler = new HttpConnectionHandler(channel,
+                    connFetcher.httpHost(),
+                    loop,
+                    poolConfig));
+        }
+
+        @Override
+        public void onConnectSuccess(Channel channel) {
+            HttpConnectionHandler handler = this.handler;
+            assert handler.getCh() == channel
+                    && channel.eventLoop() == originalHolder.executor
+                    && originalHolder.executor.inEventLoop();
+            // new connection
+            originalHolder.markConnCreate(handler);
+            connFetcher.onConnSuccess(handler);
+        }
+
+        @Override
+        public void onConnectError(Throwable e) {
+            connFetcher.onConnError(e);
         }
     }
 

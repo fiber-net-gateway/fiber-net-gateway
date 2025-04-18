@@ -35,12 +35,13 @@ public class HttpHost implements Cloneable, Serializable {
         this.port = port;
         if (port <= 0) {
             realPort = scheme.equals(SECURE_SCHEME_NAME) ? 443 : 80;
-            hostText = hostname;
         } else {
-            hostText = hostname + ":" + port;
             realPort = port;
         }
-        this.address = InetSocketAddress.createUnresolved(hostname, realPort);
+        this.hostText = realPort == defaultPort(scheme) ? hostname : hostname + ":" + realPort;
+        InetAddress inetAddress;
+        this.address = (inetAddress = IpUtils.tryToInetAddress(hostname)) != null ? new InetSocketAddress(inetAddress, realPort)
+                : InetSocketAddress.createUnresolved(hostname, realPort);
         this.hash = getHash();
     }
 
@@ -51,6 +52,10 @@ public class HttpHost implements Cloneable, Serializable {
             scheme = SECURE_SCHEME_NAME.equalsIgnoreCase(scheme) ? SECURE_SCHEME_NAME : DEFAULT_SCHEME_NAME;
         }
         return scheme;
+    }
+
+    private static int defaultPort(String scheme) {
+        return SECURE_SCHEME_NAME.equals(scheme) ? 443 : 80;
     }
 
     private int getHash() {
@@ -95,13 +100,13 @@ public class HttpHost implements Cloneable, Serializable {
         this(Objects.requireNonNull(address, "Inet address"), address.getHostName(), scheme);
     }
 
-    public HttpHost(final InetSocketAddress address, final String hostname, final String scheme) {
+    public HttpHost(final InetSocketAddress address, final String hostname, String scheme) {
         this.address = Objects.requireNonNull(address);
         this.hostname = hostname.toLowerCase(Locale.ROOT);
         this.port = address.getPort();
         this.realPort = port;
-        this.schemeName = internalSchema(scheme, port);
-        this.hostText = hostname + ":" + port;
+        this.schemeName = scheme = internalSchema(scheme, port);
+        this.hostText = realPort == defaultPort(scheme) ? hostname : hostname + ":" + realPort;
         this.hash = getHash();
     }
 
@@ -113,6 +118,10 @@ public class HttpHost implements Cloneable, Serializable {
      */
     public String getHostName() {
         return this.hostname;
+    }
+
+    public int getRealPort() {
+        return realPort;
     }
 
     /**
@@ -161,6 +170,11 @@ public class HttpHost implements Cloneable, Serializable {
         return buffer.toString();
     }
 
+    /**
+     * for Host header
+     *
+     * @return host
+     */
     public String getHostText() {
         return hostText;
     }
@@ -214,6 +228,9 @@ public class HttpHost implements Cloneable, Serializable {
     public static HttpHost create(String host, int port) {
         InetAddress address = IpUtils.tryToInetAddress(host);
         if (address != null) {
+            if (port <= 0) {
+                port = 80;
+            }
             return new HttpHost(new InetSocketAddress(address, port), host, null);
         } else {
             return new HttpHost(host, port, null);

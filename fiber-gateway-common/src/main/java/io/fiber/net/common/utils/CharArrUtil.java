@@ -14,7 +14,7 @@ public class CharArrUtil {
         static {
             long af = -1, bf = -1;
             try {
-                af = PlatformDependent.objectFieldOffset(String.class.getDeclaredField("coder"));
+                af = UnsafeUtil.fieldOffset(String.class.getDeclaredField("coder"));
                 bf = PlatformDependent.objectFieldOffset(String.class.getDeclaredField("value"));
             } catch (NoSuchFieldException ignore) {
             }
@@ -48,6 +48,10 @@ public class CharArrUtil {
         if (UNSAFE_BYTES) {
             return Unsafe.unsafeAsciiCharArr(str);
         }
-        return str.getBytes(StandardCharsets.UTF_8);
+        return str.getBytes(StandardCharsets.ISO_8859_1);
+    }
+
+    public static boolean isUnsafeBytes() {
+        return UNSAFE_BYTES;
     }
 }

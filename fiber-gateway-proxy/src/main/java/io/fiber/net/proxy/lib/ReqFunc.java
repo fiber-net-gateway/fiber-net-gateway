@@ -6,9 +6,9 @@ import io.fiber.net.common.utils.CollectionUtils;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.common.utils.StringUtils;
+import io.fiber.net.proxy.RoutePathMatcher;
 import io.fiber.net.proxy.util.MultiMap;
 import io.fiber.net.proxy.util.UrlEncoded;
-import io.fiber.net.proxy.RoutePathMatcher;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
@@ -109,7 +109,11 @@ public class ReqFunc {
                 if (StringUtils.isEmpty(texted)) {
                     return NullNode.getInstance();
                 }
-                return ctx.getHeaders().get(texted);
+                String header = HttpDynamicFunc.httpExchange(context).getRequestHeader(texted);
+                if (header == null) {
+                    return MissingNode.getInstance();
+                }
+                return TextNode.valueOf(header);
             }
         }
     }
@@ -178,6 +182,7 @@ public class ReqFunc {
                 if (throwable != null) {
                     context.throwErr(new ScriptExecException(throwable.getMessage(), throwable, 400,
                             ScriptExecException.ERROR_NAME));
+                    return;
                 }
                 if (buf == null) {
                     context.returnVal(BinaryNode.valueOf(Constant.EMPTY_BYTE_ARR));
@@ -209,6 +214,13 @@ public class ReqFunc {
         }
     }
 
+    private static class GetUri implements SyncHttpFunc {
+        @Override
+        public JsonNode call(ExecutionContext context) {
+            return TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getUri());
+        }
+    }
+
     private static class GetPath implements SyncHttpFunc {
         @Override
         public JsonNode call(ExecutionContext context) {
@@ -219,7 +231,7 @@ public class ReqFunc {
     private static class GetQueryText implements SyncHttpFunc {
         @Override
         public JsonNode call(ExecutionContext context) {
-            return TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getPath());
+            return TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getQuery());
         }
     }
 
@@ -267,6 +279,7 @@ public class ReqFunc {
 
     static {
         FC_MAP.put("req.getPath", new GetPath());
+        FC_MAP.put("req.getUri", new GetUri());
         FC_MAP.put("req.getPathVar", new GetPathVar());
         FC_MAP.put("req.getQueryStr", new GetQueryText());
         FC_MAP.put("req.getMethod", new GetMethodText());

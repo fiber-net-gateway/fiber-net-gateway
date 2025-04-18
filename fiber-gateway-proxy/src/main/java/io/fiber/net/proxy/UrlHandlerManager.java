@@ -19,7 +19,7 @@ public class UrlHandlerManager extends RefResourcePool<UrlHandlerManager.ScriptR
         }
         try {
             ScriptHandler handler = LibProxyMainModule.createProject(injector, key, scriptCodeSource.getScript(key));
-            return new ScriptRef(this, handler);
+            return new ScriptRef(this, handler, key);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -28,8 +28,8 @@ public class UrlHandlerManager extends RefResourcePool<UrlHandlerManager.ScriptR
     public static class ScriptRef extends RefResourcePool.Ref {
         final ScriptHandler handler;
 
-        protected ScriptRef(RefResourcePool<? extends Ref> pool, ScriptHandler handler) {
-            super(pool);
+        protected ScriptRef(RefResourcePool<? extends Ref> pool, ScriptHandler handler, String key) {
+            super(pool, key);
             this.handler = handler;
         }
 

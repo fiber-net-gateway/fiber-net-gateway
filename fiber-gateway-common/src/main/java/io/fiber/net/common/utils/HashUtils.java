@@ -1,10 +1,26 @@
 package io.fiber.net.common.utils;
 
+import io.fiber.net.common.codec.Crc32c;
+
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 public class HashUtils {
     private static final char[] HEX_ARR = "0123456789abcdef".toCharArray();
+
+    public static StringBuilder crc32Hex(byte[] data) {
+        return appendCrc32Hex(new StringBuilder(), data);
+    }
+
+    public static StringBuilder appendCrc32Hex(StringBuilder sb, byte[] data) {
+        Crc32c crc32c = new Crc32c();
+        crc32c.update(data, 0, data.length);
+        long value = crc32c.getValue();
+        for (int i = 0; i < 8; i++) {
+            sb.append(HEX_ARR[(int) ((value >>> (i * 4)) & 0xFL)]);
+        }
+        return sb;
+    }
 
     public static byte[] stringToMD5(String plainText) {
         try {

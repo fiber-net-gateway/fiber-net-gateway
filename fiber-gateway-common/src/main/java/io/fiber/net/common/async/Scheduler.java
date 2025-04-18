@@ -1,5 +1,6 @@
 package io.fiber.net.common.async;
 
+import io.netty.channel.EventLoop;
 import io.netty.channel.EventLoopGroup;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.FastThreadLocal;
@@ -55,6 +56,8 @@ public abstract class Scheduler {
 
     public abstract boolean inLoop();
 
+    public abstract EventLoop eventLoop();
+
     private static class IOScheduler extends Scheduler {
         private final EventExecutor eventExecutor;
 
@@ -81,6 +84,15 @@ public abstract class Scheduler {
             return eventExecutor.inEventLoop();
         }
 
+        @Override
+        public EventLoop eventLoop() {
+            EventExecutor e = eventExecutor;
+            if (e instanceof EventLoop) {
+                return (EventLoop) e;
+            }
+            return null;
+        }
+
     }
 
     private static class DirectScheduler extends Scheduler {
@@ -104,6 +116,11 @@ public abstract class Scheduler {
         @Override
         public boolean inLoop() {
             return true;
+        }
+
+        @Override
+        public EventLoop eventLoop() {
+            return null;
         }
     }
 }

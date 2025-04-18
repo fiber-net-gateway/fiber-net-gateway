@@ -1,6 +1,7 @@
-package io.fiber.net.http.impl;
+package io.fiber.net.http.util;
 
-import io.fiber.net.http.HttpHost;
+import io.fiber.net.http.impl.HttpConnectException;
+import io.fiber.net.http.impl.HttpDnsException;
 import io.netty.channel.*;
 import io.netty.channel.epoll.EpollDatagramChannel;
 import io.netty.channel.epoll.EpollSocketChannel;
@@ -19,8 +20,7 @@ import io.netty.util.concurrent.Promise;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
-public class HttpConnectionFactory {
-
+public class ConnectionFactory {
     private static class EpollSock {
         static Class<? extends DatagramChannel> datagramClass() {
             return EpollDatagramChannel.class;
@@ -31,14 +31,27 @@ public class HttpConnectionFactory {
         }
     }
 
-    private final ChannelFactory<Channel> cf;
+    public interface ConnCallback {
+        void onChannelCreated(Channel channel, EventLoop loop) throws Throwable;
+
+        void onConnectSuccess(Channel channel);
+
+        void onConnectError(Throwable e);
+    }
+
+    private final ChannelConfig channelConfig;
+    private final io.netty.channel.ChannelFactory<Channel> cf;
     private final EventLoopGroup group;
     private final AddressResolverGroup<InetSocketAddress> resolver;
-    private final PoolConfig poolConfig;
 
-    public HttpConnectionFactory(EventLoopGroup group, PoolConfig poolConfig) {
+
+    public EventLoopGroup getGroup() {
+        return group;
+    }
+
+    public ConnectionFactory(EventLoopGroup group, ChannelConfig channelConfig) {
         this.group = group;
-        this.poolConfig = poolConfig;
+        this.channelConfig = channelConfig;
 
         DnsNameResolverBuilder dnsNameResolverBuilder = new DnsNameResolverBuilder();
 
@@ -49,68 +62,74 @@ public class HttpConnectionFactory {
             dnsNameResolverBuilder.channelType(NioDatagramChannel.class);
             cf = new ReflectiveChannelFactory<>(NioSocketChannel.class);
         }
-        if (poolConfig.enableDnsCache) {
+        if (channelConfig.enableDnsCache) {
             dnsNameResolverBuilder.resolveCache(new DefaultDnsCache());
         }
 
-        if (poolConfig.enableDnsCnameCache) {
+        if (channelConfig.enableDnsCnameCache) {
             dnsNameResolverBuilder.cnameCache(new DefaultDnsCnameCache());
         }
-        dnsNameResolverBuilder.queryTimeoutMillis(5000);
+        dnsNameResolverBuilder.queryTimeoutMillis(channelConfig.dnsQueryTimeout);
         this.resolver = new DnsAddressResolverGroup(dnsNameResolverBuilder);
     }
 
-    public void connect(HttpHost httpHost, int timeout, EventLoop eventLoop, Promise<HttpConnection> result) {
+    public void connect(SocketAddress address,
+                        int timeout,
+                        EventLoop eventLoop,
+                        ConnCallback callback) {
         assert eventLoop.parent() == group;
 
         Channel channel = cf.newChannel();
-        ChannelConfig config = channel.config();
-        config.setOption(ChannelOption.SO_KEEPALIVE, poolConfig.tcpKeepalive);
-        config.setOption(ChannelOption.TCP_NODELAY, poolConfig.tcpNoDelay);
-        config.setOption(ChannelOption.SO_REUSEADDR, poolConfig.reuseAddr);
+        io.netty.channel.ChannelConfig config = channel.config();
+        config.setOption(ChannelOption.SO_KEEPALIVE, channelConfig.tcpKeepalive);
+        config.setOption(ChannelOption.TCP_NODELAY, channelConfig.tcpNoDelay);
+        config.setOption(ChannelOption.SO_REUSEADDR, channelConfig.reuseAddr);
         if (timeout > 0) {
             config.setConnectTimeoutMillis(timeout);
         }
 
-        HttpConnectionHandler handler = new HttpConnectionHandler(channel, httpHost, eventLoop, poolConfig);
-        channel.pipeline().addLast(handler);
+        try {
+            callback.onChannelCreated(channel, eventLoop);
+        } catch (Throwable err) {
+            callback.onConnectError(err);
+            return;
+        }
+
         ChannelFuture f = eventLoop.register(channel);
         if (!f.isSuccess()) {
             // not hit
-            result.setFailure(f.cause());
+            callback.onConnectError(f.cause());
             return;
         }
 
         AddressResolver<InetSocketAddress> resolverResolver = resolver.getResolver(eventLoop);
-        SocketAddress address = httpHost.getAddress();
 
         if (resolverResolver.isSupported(address) && !resolverResolver.isResolved(address)) {
             Promise<InetSocketAddress> socketAddressPromise = eventLoop.<InetSocketAddress>newPromise()
-                    .addListener(future -> resolvedAndConnect(result, handler, future));
+                    .addListener(future -> resolvedAndConnect(callback, channel, future));
             resolverResolver.resolve(address, socketAddressPromise);
         } else {
-            connect0(result, handler, address);
+            connect0(callback, channel, address);
         }
     }
 
-    private static void resolvedAndConnect(Promise<HttpConnection> result,
-                                           HttpConnectionHandler handler,
+    private static void resolvedAndConnect(ConnCallback callback,
+                                           Channel ch,
                                            Future<? super InetSocketAddress> resolved) {
         if (resolved.isSuccess()) {
-            connect0(result, handler, (SocketAddress) resolved.getNow());
+            connect0(callback, ch, (SocketAddress) resolved.getNow());
         } else {
-            result.setFailure(new HttpDnsException("dns resolve error", resolved.cause(), 503));
+            callback.onConnectError(new HttpDnsException("dns resolve error", resolved.cause(), 503));
         }
     }
 
-    private static void connect0(Promise<HttpConnection> result, HttpConnectionHandler handler, SocketAddress address) {
-        handler.getCh().connect(address, handler.getCh().newPromise().addListener(future -> {
+    private static void connect0(ConnCallback callback, Channel ch, SocketAddress address) {
+        ch.connect(address, ch.newPromise().addListener(future -> {
             if (future.isSuccess()) {
-                result.setSuccess(handler);
+                callback.onConnectSuccess(ch);
             } else {
-                result.setFailure(new HttpConnectException("cannot connect to " + address, future.cause(), 502));
+                callback.onConnectError(new HttpConnectException("cannot connect to " + address, future.cause(), 502));
             }
         }));
     }
-
 }

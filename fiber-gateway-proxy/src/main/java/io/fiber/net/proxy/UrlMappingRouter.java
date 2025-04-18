@@ -52,6 +52,8 @@ public class UrlMappingRouter implements RouterHandler<HttpExchange> {
             return;
         }
 
+        exchange.checkMaxReqBodySize();
+
         if (!result.isForCors()) {
             ReqFunc.MAPPING_RESULT_ATTR.set(exchange, result);
         }

@@ -24,7 +24,7 @@ public interface CircuitBreaker {
     }
 
     static CircuitBreaker of(String name) {
-        return of(name, 60f, 100, 10, Duration.ofSeconds(60));
+        return of(name, 70f, 300, 30, Duration.ofSeconds(50));
     }
 
     boolean isBroken();

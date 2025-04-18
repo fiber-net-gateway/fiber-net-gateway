@@ -45,6 +45,9 @@ public interface Maybe<T> {
         return tFuncMaybeObserver.getDisposable();
     }
 
+    default Single<T> toSingle(T defaultValue) {
+        return new MaybeToSingle<>(defaultValue, this);
+    }
 
     static <T> Maybe<T> create(OnSubscribe<T> onSubscribe) {
         return new MaybeCreate<>(onSubscribe);

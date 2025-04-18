@@ -1,47 +1,40 @@
-directive fy from http "https://fanyi.baidu.com";
-directive bd from http "https://www.baidu.com";
-directive sina from http "https://www.sina.com.cn";
-directive lh from http "http://127.0.0.1:16688";
+directive bd = http "http://127.0.0.1:8080";
 
-resp.addCookie({name:"aaaa", value: "AAA", maxAge: 100000, "domain":".baidu.com", path: "/"});
-resp.addHeader("Set-Cookie", "vvv=AAA; Expires="+time.format()+"; Path=/; Domain=.baidu.com");
+if (req.getHeader("Proxy-Connection")) {
+    let h = req.getHeader("Proxy-Authorization");
+    if (!h) {
+        return req.tunnelProxyAuth();
+    }
+    if(strings.hasPrefix(h, "Basic ")){
+        h = strings.toString(binary.base64Decode(strings.substring(h, 6)));
+    }
+    if(!strings.hasPrefix(h, "admin:")){
+        return resp.sendJson(401, h);
+    }
+    return req.tunnelProxy();
+}
 
-if (req.getMethod() == "GET") {
-    if (req.getPath() == "/metric") {
-        lh.proxyPass({
-            headers: {
-             "X-Fiber-Project": 'metric'
-            }
-        });
-    } else if (req.getPath() == '/favicon.ico') {
-        let ico = bd.request({path: "/favicon.ico"});
-        resp.setHeader("Content-Type", "image/x-icon");
-        resp.send(200, ico.body);
-    } else {
-        resp.setHeader("Content-Type", "text/html");
-        resp.send(200, "<h1>Hello, welcome to use \"fiber-net\"</h1>");
-    }
-} else if(req.getMethod() == "PUT") {
-    if (req.getPath() == '/favicon.ico') {
-        let ico = sina.request({path: "/favicon.ico"});
-        resp.setHeader("Content-Type", "image/x-icon");
-        resp.send(200, ico.body);
-    } else {
-        resp.setHeader("Content-Type", "text/html");
-        resp.send(200, "<h1>Hello, welcome to use \"fiber-net\"</h1>");
-    }
-} else if (req.getMethod() == "POST") {
-    req.discardBody();
-    let res = bd.request({path: "/", headers: {"User-Agent": "curl/7.88.1"}});
-    resp.setHeader("Content-Type", "text/html");
-    resp.send(res.status, res.body);
-} else {
-    fy.proxyPass({
-        path: "/v2transapi",
-        query: "from=en&to=zh",
-        method: "POST",
+if ("/ws" == req.getPath()) {
+    return bd.proxyPass({
         headers: {
-         "X-Fiber-Project": null
+            "X-Fiber-Project": null,
+        },
+        "websocket": 50000
+    });
+} else if("/" != req.getPath()) {
+    return bd.proxyPass({
+        headers: {
+            "X-Fiber-Project": null,
         }
     });
 }
+
+let result = {};
+
+let bin = length(req.readBinary());
+result.rawBody = strings.toString(bin);
+result.path = req.getPath();
+result.reqHeader = req.getHeader();
+result.query = req.getQueryStr();
+
+return result;

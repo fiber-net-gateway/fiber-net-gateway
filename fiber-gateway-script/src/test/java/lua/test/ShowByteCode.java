@@ -1,7 +1,5 @@
 package lua.test;
 
-import io.fiber.net.common.json.JsonNode;
-import io.fiber.net.script.run.UnsafeUtil;
 
 public class ShowByteCode {
     public static void t() {

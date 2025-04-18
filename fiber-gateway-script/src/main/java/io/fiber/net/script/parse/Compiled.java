@@ -1,6 +1,7 @@
 package io.fiber.net.script.parse;
 
 import io.fiber.net.common.utils.Assert;
+import io.fiber.net.script.run.Code;
 
 import java.util.Map;
 import java.util.TreeMap;
@@ -104,5 +105,17 @@ public class Compiled {
 
     public int[] getExpIns() {
         return expIns;
+    }
+
+    public boolean containsAsyncIS() {
+        for (int code : codes) {
+            switch (code & 0xFF) {
+                case Code.CALL_ASYNC_CONST:
+                case Code.CALL_ASYNC_FUNC:
+                case Code.CALL_ASYNC_FUNC_SPREAD:
+                    return true;
+            }
+        }
+        return false;
     }
 }

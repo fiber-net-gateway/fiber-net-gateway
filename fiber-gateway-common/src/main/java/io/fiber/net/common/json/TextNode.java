@@ -19,7 +19,7 @@ public class TextNode
         extends ValueNode {
     private static final long serialVersionUID = 2L;
 
-    final static TextNode EMPTY_STRING_NODE = new TextNode("");
+    public final static TextNode EMPTY_STRING_NODE = new TextNode("");
 
     protected final String _value;
 

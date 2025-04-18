@@ -1,5 +1,5 @@
 // 变量定义，函数调用。req 不是变量，readJson 不是方法。req.readJson 是一个函数。
-let jsonBody = req.readJson(); 
+let jsonBody = req.readJson();
 // 对象
 let result = {jsonBody};
 // 表达式，数组
@@ -18,7 +18,7 @@ for (let idx, item of jsonBody) {
 }
 
 // 指令，定义一个函数包
-directive bd from http "https://www.baidu.com";
+directive bd = http "https://www.baidu.com";
 
 // try catch
 try {

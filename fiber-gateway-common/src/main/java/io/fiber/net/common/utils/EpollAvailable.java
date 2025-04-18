@@ -1,6 +1,7 @@
 package io.fiber.net.common.utils;
 
 
+import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -10,6 +11,7 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.channel.unix.UnixChannelOption;
 
 public class EpollAvailable {
     private static class EpollFactory0 {
@@ -34,6 +36,10 @@ public class EpollAvailable {
 
         static boolean isEpollLoop(EventLoopGroup group) {
             return group instanceof EpollEventLoopGroup;
+        }
+
+        static void setReusePort(ServerBootstrap option) {
+            option.option(UnixChannelOption.SO_REUSEPORT, true);
         }
     }
 
@@ -70,6 +76,12 @@ public class EpollAvailable {
         NioEventLoopGroup executors = new NioEventLoopGroup(c);
         executors.setIoRatio(100);
         return executors;
+    }
+
+    public static void setEpollReusePort(boolean reusePort, ServerBootstrap option) {
+        if (reusePort && EPOLL_AV) {
+            EpollFactory0.setReusePort(option);
+        }
     }
 
     public static Class<? extends ServerSocketChannel> serverSocketClazz() {

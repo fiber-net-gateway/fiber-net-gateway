@@ -25,6 +25,7 @@ import java.io.CharArrayWriter;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.BitSet;
+import java.util.function.BiConsumer;
 
 
 /**
@@ -90,74 +91,72 @@ public class UrlEncoded extends MultiMap<String> implements Cloneable {
     }
 
     public static void decodeUtf8To(String query, MultiMap<String> map) {
-        decodeUtf8To(query, 0, query.length(), map);
+        decodeUtf8To(query, 0, query.length(), map::add);
     }
 
     /**
      * Decoded parameters to Map.
      *
-     * @param query  the string containing the encoded parameters
-     * @param offset the offset within raw to decode from
-     * @param length the length of the section to decode
-     * @param map    the {@link MultiMap} to populate
+     * @param query    the string containing the encoded parameters
+     * @param offset   the offset within raw to decode from
+     * @param length   the length of the section to decode
+     * @param acceptor the {@link BiConsumer} to populate
      */
-    public static void decodeUtf8To(String query, int offset, int length, MultiMap<String> map) {
+    public static void decodeUtf8To(String query, int offset, int length, BiConsumer<String, String> acceptor) {
         Utf8StringBuilder buffer = new Utf8StringBuilder();
-        synchronized (map) {
-            String key = null;
-            String value;
+        String key = null;
+        String value;
 
-            int end = offset + length;
-            for (int i = offset; i < end; i++) {
-                char c = query.charAt(i);
-                switch (c) {
-                    case '&':
-                        value = buffer.toReplacedString();
-                        buffer.reset();
-                        if (key != null) {
-                            map.add(key, value);
-                        } else if (value != null && !value.isEmpty()) {
-                            map.add(value, "");
-                        }
-                        key = null;
-                        break;
+        int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            char c = query.charAt(i);
+            switch (c) {
+                case '&':
+                    value = buffer.toReplacedString();
+                    buffer.reset();
+                    if (key != null) {
+                        acceptor.accept(key, value);
+                    } else if (value != null && !value.isEmpty()) {
+                        acceptor.accept(value, "");
+                    }
+                    key = null;
+                    break;
 
-                    case '=':
-                        if (key != null) {
-                            buffer.append(c);
-                            break;
-                        }
-                        key = buffer.toReplacedString();
-                        buffer.reset();
-                        break;
-
-                    case '+':
-                        buffer.append((byte) ' ');
-                        break;
-
-                    case '%':
-                        if (i + 2 < end) {
-                            char hi = query.charAt(++i);
-                            char lo = query.charAt(++i);
-                            buffer.append(decodeHexByte(hi, lo));
-                        } else {
-                            throw new Utf8Appendable.NotUtf8Exception("Incomplete % encoding");
-                        }
-                        break;
-
-                    default:
+                case '=':
+                    if (key != null) {
                         buffer.append(c);
                         break;
-                }
-            }
+                    }
+                    key = buffer.toReplacedString();
+                    buffer.reset();
+                    break;
 
-            if (key != null) {
-                value = buffer.toReplacedString();
-                buffer.reset();
-                map.add(key, value);
-            } else if (buffer.length() > 0) {
-                map.add(buffer.toReplacedString(), "");
+                case '+':
+                    buffer.append((byte) ' ');
+                    break;
+
+                case '%':
+                    if (i + 2 < end) {
+                        char hi = query.charAt(++i);
+                        char lo = query.charAt(++i);
+                        buffer.append(decodeHexByte(hi, lo));
+                    } else {
+                        throw new Utf8Appendable.NotUtf8Exception("Incomplete % encoding");
+                    }
+                    break;
+
+                default:
+                    buffer.append(c);
+                    break;
             }
+        }
+
+        if (key != null) {
+            value = buffer.toReplacedString();
+            buffer.reset();
+            acceptor.accept(key, value);
+        } else if (buffer.length() > 0) {
+            acceptor.accept(buffer.toReplacedString(), "");
         }
     }
 
@@ -333,7 +332,7 @@ public class UrlEncoded extends MultiMap<String> implements Cloneable {
                     c = '+';
                 }
                 //System.out.println("Storing: " + c);
-                out.writeChar((char) c);
+                out.writeByte(c);
                 i++;
             } else {
                 do {
@@ -354,19 +353,19 @@ public class UrlEncoded extends MultiMap<String> implements Cloneable {
                 String str = charArrayWriter.toString();
                 byte[] ba = str.getBytes(charset);
                 for (byte b : ba) {
-                    out.writeChar('%');
+                    out.writeByte('%');
                     char ch = Character.forDigit((b >> 4) & 0xF, 16);
                     // converting to use uppercase letter as part of
                     // the hex value if ch is a letter.
                     if (Character.isLetter(ch)) {
                         ch -= caseDiff;
                     }
-                    out.writeChar(ch);
+                    out.writeByte(ch);
                     ch = Character.forDigit(b & 0xF, 16);
                     if (Character.isLetter(ch)) {
                         ch -= caseDiff;
                     }
-                    out.writeChar(ch);
+                    out.writeByte(ch);
                 }
                 charArrayWriter.reset();
             }

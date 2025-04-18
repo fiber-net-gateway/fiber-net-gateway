@@ -31,7 +31,7 @@ public abstract class ClientHttpExchange {
         return headerReceived;
     }
 
-    public boolean isRequestEnd() {
+    public final boolean isRequestEnd() {
         return requestSec || requestErr;
     }
 
@@ -45,33 +45,46 @@ public abstract class ClientHttpExchange {
 
     protected abstract long maxBodyLength();
 
+    protected abstract boolean isUpgradeAllowed();
+
     protected abstract void onBodyError(Throwable throwable);
 
     protected abstract void onBodyCompleted();
 
-    protected abstract void onResp(int code, HttpHeaders headers);
+    protected abstract void onResp(int code, HttpHeaders headers, boolean cu);
 
     protected abstract void onSocketErr(Throwable err);
 
-    public final void notifyError(Throwable exception) {
-        if (requestErr) {
+    public final void notifyError(Throwable exception, boolean closeBody) {
+        if (isRequestEnd()) {
             return;
         }
-        requestErr = true;
-
-        if (!(exception instanceof FiberException)) {
-            exception = new HttpClientException(exception.getMessage(), exception, 502, "HTTP_CONNECTION_ERROR");
+        HttpClientException hce;
+        if (exception instanceof HttpClientException) {
+            hce = (HttpClientException) exception;
+        } else if (exception instanceof FiberException) {
+            FiberException fe = (FiberException) exception;
+            hce = new HttpClientException(fe.getMessage(), fe, fe.getCode(), fe.getErrorName());
+        } else {
+            hce = new HttpClientException(exception.getMessage(), exception, 502, "HTTP_CONNECTION_ERROR");
         }
 
-        if (respBody != null) {
-            respBody.onError(exception);
-            onBodyError(exception);
-        } else {
-            onSocketErr(exception);
+        BodyBufSubject body = respBody;
+        if (body == null) {
+            requestErr = true;
+            onSocketErr(hce);
+        } else if (closeBody && !body.isCompleted()) {
+            requestErr = true;
+            body.onError(hce);
+            onBodyError(hce);
         }
     }
 
     public void addBuf(ByteBuf buf, boolean last) {
+        if (isRequestEnd()) {
+            buf.release();
+            return;
+        }
         respBody.onNext(buf);
         if (last) {
             requestSec = true;
@@ -79,4 +92,5 @@ public abstract class ClientHttpExchange {
             onBodyCompleted();
         }
     }
+
 }

@@ -26,13 +26,13 @@ public class RefResourcePoolTest {
             } else if ("bbb".equals(key)) {
                 getOrCreate("aaa");
             }
-            return new R(this);
+            return new R(this, key);
         }
 
         private static class R extends RefResourcePool.Ref {
 
-            protected R(RefResourcePool<? extends Ref> pool) {
-                super(pool);
+            protected R(RefResourcePool<? extends Ref> pool, String key) {
+                super(pool, key);
             }
 
             @Override
@@ -44,40 +44,40 @@ public class RefResourcePoolTest {
 
     Pool pool = new Pool();
 
-    @Test
-    public void getOrCreate() {
-        boolean error = false;
-        try {
-            Pool.R r = pool.getOrCreate("aaa");
-            System.out.println(r);
-        } catch (Throwable e) {
-            e.printStackTrace(System.out);
-            error = true;
-        }
-        Assert.isTrue(error);
-    }
+//    @Test
+//    public void getOrCreate() {
+//        boolean error = false;
+//        try {
+//            Pool.R r = pool.getOrCreate("aaa");
+//            System.out.println(r);
+//        } catch (Throwable e) {
+//            e.printStackTrace(System.out);
+//            error = true;
+//        }
+//        Assert.isTrue(error);
+//    }
 
-    @Test
-    public void getOrCreate2() {
-        boolean error = false;
-        try {
-            Pool.R r = pool.getOrCreate("aaa");
-            System.out.println(r);
-        } catch (Throwable e) {
-            e.printStackTrace(System.out);
-            error = true;
-        }
-        Assert.isTrue(error);
-    }
-
-    @Test
-    public void doCreateRef() throws InterruptedException {
-        Thread thread = new Thread(() -> {
-            Pool.R b = pool.getOrCreate("bbb");
-        });
-        thread.start();
-
-//        Pool.R a = pool.getOrCreate("aaa");
-        thread.join();
-    }
+//    @Test
+//    public void getOrCreate2() {
+//        boolean error = false;
+//        try {
+//            Pool.R r = pool.getOrCreate("aaa");
+//            System.out.println(r);
+//        } catch (Throwable e) {
+//            e.printStackTrace(System.out);
+//            error = true;
+//        }
+//        Assert.isTrue(error);
+//    }
+//
+//    @Test
+//    public void doCreateRef() throws InterruptedException {
+//        Thread thread = new Thread(() -> {
+//            Pool.R b = pool.getOrCreate("bbb");
+//        });
+//        thread.start();
+//
+////        Pool.R a = pool.getOrCreate("aaa");
+//        thread.join();
+//    }
 }

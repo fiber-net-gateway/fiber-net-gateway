@@ -8,11 +8,12 @@ import io.fiber.net.common.utils.JsonUtil;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 
+import java.io.IOException;
 import java.io.OutputStream;
 
 public class SerializeJsonObservable implements Observable<ByteBuf> {
     public static final int DEF_INITIAL_CHUNK_SIZE = 256;
-    public static final int DEF_MAX_CHUNK_SIZE = 32 * 1024;
+    public static final int DEF_MAX_CHUNK_SIZE = 64 * 1024;
 
     private final Object object;
     private final ByteBufAllocator allocator;
@@ -41,6 +42,21 @@ public class SerializeJsonObservable implements Observable<ByteBuf> {
         ob.serialize();
     }
 
+    static class AbortException extends IOException {
+
+        public AbortException(String message) {
+            super(message);
+        }
+
+
+        @Override
+        public Throwable fillInStackTrace() {
+            return this;
+        }
+    }
+
+    static final AbortException ABORT_EXCEPTION = new AbortException("aborted write message");
+
     private class Ob extends OutputStream implements Disposable {
         private final Observer<? super ByteBuf> observer;
         private boolean d;
@@ -60,17 +76,21 @@ public class SerializeJsonObservable implements Observable<ByteBuf> {
             try {
                 mapper.writeValue(mapper.createGenerator(this, JsonEncoding.UTF8), object);
                 observer.onComplete();
+            } catch (AbortException ignore) {
             } catch (Exception e) {
-                observer.onError(e);
+                if (!d) {
+                    observer.onError(e);
+                }
             } finally {
                 close();
             }
         }
 
         private ByteBuf byteBuf() {
-            ByteBuf buf = this.buf;
-            if (buf != null) {
+            ByteBuf buf;
+            if ((buf = this.buf) != null) {
                 if (buf.writerIndex() == buf.capacity()) {
+                    this.buf = null;
                     observer.onNext(buf);
                     int block = byteBlock;
                     if (block < maxChunkSize) {
@@ -87,17 +107,26 @@ public class SerializeJsonObservable implements Observable<ByteBuf> {
         }
 
         @Override
-        public void write(int b) {
+        public void write(int b) throws AbortException {
+            if (d) {
+                throw ABORT_EXCEPTION;
+            }
             byteBuf().writeByte(b);
         }
 
         @Override
-        public void write(byte[] b) {
+        public void write(byte[] b) throws AbortException {
+            if (d) {
+                throw ABORT_EXCEPTION;
+            }
             write(b, 0, b.length);
         }
 
         @Override
-        public void write(byte[] b, int off, int len) {
+        public void write(byte[] b, int off, int len) throws AbortException {
+            if (d) {
+                throw ABORT_EXCEPTION;
+            }
             int start = off;
             int end = off + len;
             do {
@@ -111,9 +140,10 @@ public class SerializeJsonObservable implements Observable<ByteBuf> {
 
         @Override
         public void flush() {
-            if (buf != null) {
+            ByteBuf buf;
+            if ((buf = this.buf) != null) {
+                this.buf = null;
                 observer.onNext(buf);
-                buf = null;
             }
         }
 

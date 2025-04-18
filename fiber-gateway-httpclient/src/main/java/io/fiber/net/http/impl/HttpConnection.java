@@ -6,6 +6,7 @@ import io.fiber.net.http.HttpClientException;
 import io.fiber.net.http.HttpHost;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import io.netty.channel.FileRegion;
 import io.netty.util.AttributeKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +17,7 @@ public abstract class HttpConnection {
     protected static final int STATE_DETACH = 0;
     protected static final int STATE_POOLED = 1;
     protected static final int STATE_CLOSED = 2;
+    protected static final int STATE_ISOLATE = 3;
 
     static final AttributeKey<HttpConnection> CONN_ATTR = AttributeKey.valueOf("fiberNetConn");
 
@@ -34,7 +36,7 @@ public abstract class HttpConnection {
 
     private long lastUpdateTime = System.currentTimeMillis();
 
-    private int connState;
+    protected int connState;
     protected ClientHttpExchange exchange;
 
     public Channel getCh() {
@@ -56,6 +58,24 @@ public abstract class HttpConnection {
         connState = STATE_DETACH;
     }
 
+    final void isolate() {
+        if (connState == STATE_ISOLATE) {
+            return;
+        }
+        ThreadConnHolder.ConnList list = this.connList;
+        if (list != null) {
+            if (connState == STATE_POOLED) {
+                list.removeConn(this);
+            }
+            list.decrementTotal();
+            connState = STATE_ISOLATE;
+            connList = null;
+            if (log.isDebugEnabled()) {
+                log.debug("connection {} is isolated", this);
+            }
+        }
+    }
+
     protected final void endRequest() {
         if (connState != STATE_DETACH) {
             close();
@@ -72,13 +92,22 @@ public abstract class HttpConnection {
     public void close() {
         ThreadConnHolder.ConnList list = connList;
         if (list == null) {
+            if (connState == STATE_ISOLATE) {
+                connState = STATE_CLOSED;
+                if (ch.isOpen()) {
+                    ch.close();
+                }
+                if (log.isDebugEnabled()) {
+                    log.debug("connection {} is closed", this);
+                }
+            }
             // closed
             return;
         }
-        connList = null;
         if (connState == STATE_POOLED) {
             list.removeConn(this);
         }
+        connList = null;
         list.decrementTotal();
         connState = STATE_CLOSED;
         if (ch.isOpen()) {
@@ -90,17 +119,24 @@ public abstract class HttpConnection {
     }
 
     public boolean isClosed() {
-        return connList == null;
+        return connList == null && connState != STATE_ISOLATE;
     }
 
     public long getLastUpdateTime() {
         return lastUpdateTime;
     }
 
-    public void dismiss() {
+    public final void dismiss() {
         assert ch.eventLoop().inEventLoop();
-        endRequest();
         exchange = null;
+        endRequest();
+    }
+
+    public void requestDismiss(ClientHttpExchange exchange) {
+        if (exchange != this.exchange) {
+            return;
+        }
+        dismiss();
     }
 
     protected void onSend(ClientHttpExchange exchange) throws HttpClientException {
@@ -115,12 +151,15 @@ public abstract class HttpConnection {
 
     protected abstract boolean isValid();
 
+    public abstract int getRequests();
 
     public abstract void sendNonBody(ClientHttpExchange exchange) throws HttpClientException;
 
     public abstract void send(ClientHttpExchange exchange, ByteBuf buf) throws HttpClientException;
 
-    public abstract void send(ClientHttpExchange exchange, Observable<ByteBuf> buf, boolean flush) throws HttpClientException;
+    public abstract void send(ClientHttpExchange exchange, FileRegion fileRegion) throws HttpClientException;
+
+    public abstract void send(ClientHttpExchange exchange, Observable<ByteBuf> buf, long predicatedLength, boolean flush) throws HttpClientException;
 
     public abstract Scheduler ioScheduler();
 

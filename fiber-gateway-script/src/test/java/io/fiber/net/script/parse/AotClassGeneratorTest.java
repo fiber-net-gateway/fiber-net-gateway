@@ -1,5 +1,7 @@
 package io.fiber.net.script.parse;
 
+import io.fiber.net.common.async.Maybe;
+import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.NullNode;
 import io.fiber.net.script.ComparedMayBeObserver;
 import io.fiber.net.script.Script;
@@ -69,6 +71,32 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
         testScript("/vv.js");
     }
 
+    @Test
+    public void off() throws Throwable {
+        String resourceStr = getResourceStr("/ift.js");
+        Script script = Script.compileWithoutOptimization(resourceStr, new MyLib(), true);
+        Maybe<JsonNode> maybe = script.exec(NullNode.getInstance(), null);
+        maybe.subscribe((jsonNode, throwable) -> {
+            System.out.println(jsonNode);
+        });
+
+    }
+
+    @Test
+    public void off2() throws Throwable {
+        testScript("/ift.js");
+    }
+
+    @Test
+    public void bb1() throws Throwable {
+        testScript("/a.js");
+    }
+
+    @Test
+    public void b21() throws Throwable {
+        testScript("/vv.js");
+    }
+
     private void testScript(String file) throws Throwable {
         String resourceStr = getResourceStr(file);
         Script script = Script.compileWithoutOptimization(resourceStr, new MyLib(), true);
@@ -89,10 +117,10 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
 
     private static void generateAndInvoke(Script script, String name) throws Throwable {
         ComparedMayBeObserver observer = new ComparedMayBeObserver(name);
-        InterpretorScript interpretorScript = (InterpretorScript) script;
-        generateFile(name, interpretorScript.getCompiled());
-        interpretorScript.createAotCompiledScript().exec(NullNode.getInstance(), null).subscribe(observer.getOb());
-        interpretorScript.exec(NullNode.getInstance(), null).subscribe(observer.getOb());
+        InterpreterScript interpreterScript = (InterpreterScript) script;
+        generateFile(name, interpreterScript.getCompiled());
+        interpreterScript.createAotCompiledScript().exec(NullNode.getInstance(), null).subscribe(observer.getOb());
+        interpreterScript.exec(NullNode.getInstance(), null).subscribe(observer.getOb());
     }
 
 }

@@ -1,5 +1,6 @@
 package io.fiber.net.example;
 
+import io.fiber.net.common.FiberException;
 import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.async.Disposable;
 import io.fiber.net.common.async.Observable;
@@ -33,13 +34,25 @@ public class StatisticInterceptor implements Interceptor<HttpExchange>, HttpExch
     }
 
     @Override
-    public void onBodySent(HttpExchange exchange, int state) {
+    public void onBodySent(HttpExchange exchange, Throwable err) {
         Recorder recorder = TIMER.get(exchange);
         if (recorder != null) {
-            recorder.record(registry, state);
+            int s = exchange.getWroteStatus();
+            if (err != null) {
+                if (err instanceof FiberException) {
+                    s = ((FiberException) err).getCode();
+                } else {
+                    s = 500;
+                }
+            }
+            recorder.record(registry, s);
         }
     }
 
+    @Override
+    public void onHeaderSend(HttpExchange exchange, int status) {
+
+    }
 
     private static class Recorder implements Observable.Observer<ByteBuf> {
         private final long startTime = System.nanoTime();

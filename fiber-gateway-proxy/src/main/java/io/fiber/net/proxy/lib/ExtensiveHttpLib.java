@@ -2,6 +2,8 @@ package io.fiber.net.proxy.lib;
 
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.http.HttpClient;
+import io.fiber.net.http.util.ConnectionFactory;
 import io.fiber.net.proxy.HttpLibConfigure;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ast.Literal;
@@ -26,6 +28,9 @@ public class ExtensiveHttpLib extends StdLibrary {
         for (Map.Entry<String, SyncHttpFunc> entry : RespFunc.FC_MAP.entrySet()) {
             putFunc(entry.getKey(), entry.getValue());
         }
+        putAsyncFunc("req.tunnelProxy", new TunnelProxy(injector.getInstance(ConnectionFactory.class),
+                injector.getInstance(HttpClient.class)));
+        putFunc("req.tunnelProxyAuth", new TunnelProxyAuth());
     }
 
     @Override

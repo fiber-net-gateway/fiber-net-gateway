@@ -38,6 +38,13 @@ public class TestMain {
         exchange.sendForResp()
                 .subscribe((clientResponse, throwable) -> {
                     assert current.inLoop();
+
+                    if (throwable != null) {
+                        throwable.printStackTrace();
+                        latch.countDown();
+                        return;
+                    }
+
                     int status = clientResponse.status();
                     System.out.println("status: " + status);
                     for (String name : clientResponse.getHeaderNames()) {
@@ -57,8 +64,8 @@ public class TestMain {
                                 assert current.inLoop();
                                 System.out.println();
                                 System.out.println(s);
-                                if (throwable != null) {
-                                    throwable.printStackTrace();
+                                if (throwable1 != null) {
+                                    throwable1.printStackTrace();
                                 }
                                 latch.countDown();
                             });

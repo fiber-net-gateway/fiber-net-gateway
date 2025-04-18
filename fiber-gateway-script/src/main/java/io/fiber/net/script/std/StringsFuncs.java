@@ -354,16 +354,18 @@ public class StringsFuncs {
         }
     }
 
+    private static final TextNode NULL_TEXT = TextNode.valueOf("null");
+
     static class ToStringFunc implements Library.Function {
 
         @Override
         public JsonNode call(ExecutionContext context) {
             if (context.noArgs()) {
-                return null;
+                return TextNode.EMPTY_STRING_NODE;
             }
             JsonNode arg = context.getArgVal(0);
             if (JsonUtil.isNull(arg)) {
-                return TextNode.valueOf("null");
+                return NULL_TEXT;
             } else {
                 return TextNode.valueOf(JsonUtil.toString(arg));
             }

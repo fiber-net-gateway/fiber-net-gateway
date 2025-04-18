@@ -6,6 +6,7 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.HttpServerKeepAliveHandler;
+import io.netty.util.AsciiString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +30,10 @@ public class Server implements HttpServer {
         bootstrap.channel(EpollAvailable.serverSocketClazz());
         bootstrap.group(EpollAvailable.bossGroup(), eventLoopGroup);
         ServerBootstrap option = bootstrap.option(ChannelOption.SO_BACKLOG, config.getBacklog());
-
+        EpollAvailable.setEpollReusePort(config.isTcpReusePort(), option);
+        if (config.isTcpReuseAddr()) {
+            option.option(ChannelOption.SO_REUSEADDR, true);
+        }
         if (config.isTcpKeepAlive()) {
             option.childOption(ChannelOption.SO_KEEPALIVE, true);
         }
@@ -37,14 +41,20 @@ public class Server implements HttpServer {
             option.childOption(ChannelOption.TCP_NODELAY, true);
         }
 
+
+        AsciiString echoServer = StringUtils.isNotEmpty(config.getEchoServer()) ? AsciiString.cached(config.getEchoServer())
+                : ReqHandler.X_POWERED_BY_VALUE;
+
         bootstrap.childHandler(new ChannelInitializer<Channel>() {
 
             @Override
             protected void initChannel(Channel ch) {
-                ch.pipeline().addLast(new HttpServerCodec(config.getMaxInitialLineLength(),
+                HttpServerCodec serverCodec;
+                HttpServerKeepAliveHandler handler;
+                ch.pipeline().addLast(serverCodec = new HttpServerCodec(config.getMaxInitialLineLength(),
                                 config.getMaxHeaderSize(), config.getMaxChunkSize()))
-                        .addLast(new HttpServerKeepAliveHandler())
-                        .addLast(new ReqHandler(config.getMaxBodySize(), engine));
+                        .addLast(handler = new HttpServerKeepAliveHandler())
+                        .addLast(new ReqHandler(config.getMaxBodySize(), engine, echoServer, serverCodec, handler));
             }
         });
         String bindIp = config.getBindIp();
@@ -73,14 +83,13 @@ public class Server implements HttpServer {
 
     @Override
     public void destroy() {
-        SocketAddress arg = null;
         if (listenCh != null) {
-            arg = listenCh.localAddress();
+            SocketAddress arg = listenCh.localAddress();
             listenCh.close().awaitUninterruptibly();
             listenCh = null;
+            bootstrap.config().group().shutdownGracefully().awaitUninterruptibly();
+            log.info("netty server({}) stopped", arg);
         }
-        bootstrap.config().group().shutdownGracefully().awaitUninterruptibly();
-        log.info("netty server({}) stopped", arg);
     }
 
 }

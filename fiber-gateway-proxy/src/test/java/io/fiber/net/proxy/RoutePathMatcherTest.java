@@ -1,14 +1,18 @@
 package io.fiber.net.proxy;
 
+import io.fiber.net.common.FiberException;
 import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.async.Maybe;
 import io.fiber.net.common.async.Observable;
 import io.fiber.net.common.async.Scheduler;
+import io.fiber.net.common.codec.ClosedConnection;
+import io.fiber.net.common.codec.UpgradedConnection;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.TextNode;
 import io.fiber.net.script.Script;
 import io.fiber.net.server.HttpExchange;
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.FileRegion;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -128,6 +132,16 @@ public class RoutePathMatcherTest {
         }
 
         @Override
+        public boolean containsAsyncIR() {
+            return false;
+        }
+
+        @Override
+        public JsonNode execForSync(JsonNode root, Object attach) {
+            return null;
+        }
+
+        @Override
         public boolean equals(Object object) {
             if (this == object) return true;
             if (object == null || getClass() != object.getClass()) return false;
@@ -174,6 +188,16 @@ public class RoutePathMatcherTest {
         }
 
         @Override
+        public void setMaxReqBodySizeAndCheck(long maxReqBodyLength) throws FiberException {
+
+        }
+
+        @Override
+        public void checkMaxReqBodySize() throws FiberException {
+
+        }
+
+        @Override
         public SocketAddress getRemoteAddress() {
             return null;
         }
@@ -204,6 +228,16 @@ public class RoutePathMatcherTest {
         }
 
         @Override
+        public String getRequestHeader(CharSequence name) {
+            return "";
+        }
+
+        @Override
+        public List<String> getRequestHeaderList(CharSequence name) {
+            return null;
+        }
+
+        @Override
         public Collection<String> getRequestHeaderNames() {
             return null;
         }
@@ -214,7 +248,22 @@ public class RoutePathMatcherTest {
         }
 
         @Override
+        public void setResponseHeaderUnsafe(CharSequence name, CharSequence value) {
+
+        }
+
+        @Override
+        public void setResponseHeader(String name, List<String> values) {
+
+        }
+
+        @Override
         public void addResponseHeader(String name, String value) {
+
+        }
+
+        @Override
+        public void addResponseHeaderUnsafe(CharSequence name, CharSequence value) {
 
         }
 
@@ -259,8 +308,17 @@ public class RoutePathMatcherTest {
         }
 
         @Override
-        public void writeRawBytes(int status, Observable<ByteBuf> bufOb, boolean flush) {
+        public void writeFileRegion(int status, FileRegion fileRegion) {
+        }
 
+        @Override
+        public void writeRawBytes(int status, Observable<ByteBuf> bufOb, long length, boolean flush) {
+
+        }
+
+        @Override
+        public UpgradedConnection upgrade(int status, CharSequence protocol, long timeout) {
+            return ClosedConnection.INSTANCE;
         }
 
         @Override
@@ -271,6 +329,21 @@ public class RoutePathMatcherTest {
         @Override
         public void discardReqBody() {
 
+        }
+
+        @Override
+        public int getWroteStatus() {
+            return 0;
+        }
+
+        @Override
+        public int getRecvReqBodyLen() {
+            return 0;
+        }
+
+        @Override
+        public long getSentRespBodyLen() {
+            return 0;
         }
 
         @Override
@@ -286,6 +359,11 @@ public class RoutePathMatcherTest {
         @Override
         public Maybe<ByteBuf> readFullBody(Scheduler scheduler) {
             return null;
+        }
+
+        @Override
+        public boolean isClientClosed() {
+            return false;
         }
     }
 

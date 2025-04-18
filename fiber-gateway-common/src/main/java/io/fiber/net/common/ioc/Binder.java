@@ -19,7 +19,18 @@ public interface Binder {
 
     <T> void forceBindLink(Class<? super T> clz, Class<T> real);
 
-    <T, V extends T> void bindMultiBean(Class<T> clz, Class<V> real);
+    default <T, V extends T> void bindMultiBean(Class<T> clz, Class<V> real) {
+        bindMultiBean(clz, real, 0);
+    }
+
+    default <T, V extends T> void bindMultiBean(Class<T> clz, T real) {
+        bindMultiBean(clz, real, 0);
+    }
+
+    <T, V extends T> void bindMultiBean(Class<T> clz, Class<V> real, int order);
+
+    <T, V extends T> void bindMultiBean(Class<T> clz, V real, int order);
+
 
     <T> boolean removeBind(Class<T> clz);
 

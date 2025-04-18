@@ -1,0 +1,16 @@
+POST http://localhost:16688/xxx
+X-Fiber-Project: bench-proxy
+
+###
+POST http://localhost:16688/xxx
+X-Fiber-Project: fiber-net
+
+###
+# curl "localhost:16688" -H'X-Fiber-Project: bench-proxy'
+GET localhost:16688
+X-Fiber-Project: bench-proxy
+Hi-Trace-Cluster: p2
+tracestate: cluster=p2
+
+###
+

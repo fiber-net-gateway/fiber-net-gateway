@@ -65,18 +65,35 @@ public class AotCompiledScript implements Script {
             }
             throw new ParseException("could not generate clz", e);
         }
-        return new AotCompiledScript(handle);
+        return new AotCompiledScript(handle, compiled.containsAsyncIS());
     }
 
     private final MethodHandle handle;
+    private final boolean containsAsync;
 
-    public AotCompiledScript(MethodHandle handle) {
+    public AotCompiledScript(MethodHandle handle, boolean containAsync) {
         this.handle = handle;
+        this.containsAsync = containAsync;
     }
 
     @Override
     public Maybe<JsonNode> exec(JsonNode root, Object attach) {
         return Maybe.create(emitter -> createAotVm(root, attach, emitter).exec());
+    }
+
+    @Override
+    public boolean containsAsyncIR() {
+        return containsAsync;
+    }
+
+    @Override
+    public JsonNode execForSync(JsonNode root, Object attach) throws Throwable {
+        if (containsAsyncIR()) {
+            throw new IllegalStateException("cannot sync exec for async script");
+        }
+        AbstractVm vm = createAotVm(root, attach, OptimiserNodeVisitor.noopEmitter());
+        vm.exec();
+        return vm.getResultNow();
     }
 
     private AbstractVm createAotVm(JsonNode root, Object attach, Maybe.Emitter<JsonNode> resultEmitter) throws Exception {

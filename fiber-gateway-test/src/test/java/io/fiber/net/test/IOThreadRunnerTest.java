@@ -4,8 +4,6 @@ import io.fiber.net.common.async.Scheduler;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
-
 public class IOThreadRunnerTest extends TestInIOThreadParent {
 
     @Test

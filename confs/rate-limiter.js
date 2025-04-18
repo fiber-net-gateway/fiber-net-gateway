@@ -1,5 +1,5 @@
 
-directive rl from rate_limiter "2/3s";
+directive rl = rate_limiter "2/3s";
 req.discardBody();
 
 if (req.getMethod() == "GET") {

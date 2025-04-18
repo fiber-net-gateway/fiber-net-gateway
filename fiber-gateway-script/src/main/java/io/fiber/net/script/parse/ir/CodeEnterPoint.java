@@ -25,6 +25,7 @@ public class CodeEnterPoint {
     private final VarTable varTable;
     private boolean writeFrame;
     private boolean catchPoint;
+    private CodeEnterPoint tryStart;
 
 
     private List<CodeEnterPoint> nextPoints;
@@ -41,7 +42,8 @@ public class CodeEnterPoint {
         this.writeFrame = writeFrame;
     }
 
-    void setCatchPoint() {
+    void setCatchPoint(CodeEnterPoint tryStart) {
+        this.tryStart = tryStart;
         this.catchPoint = true;
     }
 
@@ -207,6 +209,13 @@ public class CodeEnterPoint {
         boolean result = false;
         int idx = def.getIdx();
         for (CodeEnterPoint prevPoint : prevPoints) {
+
+            if (catchPoint && prevPoint.getCodeIdx() >= tryStart.getCodeIdx()
+                    && prevPoint.getCodeIdx() < getCodeIdx()
+                    && prevPoint.varStage > 0) {
+                result = true;
+                break;
+            }
 
             if (catchPoint && prevPoint.varStage > 0) {
                 result = true;
@@ -544,6 +553,7 @@ public class CodeEnterPoint {
 
         if (in instanceof Unary && ((Unary) in).getType() == Unary.Type.NEG) {
             ((Unary) in).setOptimiseIf();
+            return true;
         }
 
         if (in instanceof IterateNext) {

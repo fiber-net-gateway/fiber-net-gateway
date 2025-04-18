@@ -40,7 +40,7 @@ public class WildHostNode {
     }
 
     public void addDomainPattern(String domainPattern) {
-        addDomainPattern(CharArrUtil.toReadOnlyAsciiCharArr(domainPattern));
+        addDomainPattern(domainPattern.getBytes());
     }
 
     private void addDomainPattern(byte[] cs) {

@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Engine<E> implements Destroyable {
-    private static final Logger log = LoggerFactory.getLogger(Engine.class);
+    protected static final Logger log = LoggerFactory.getLogger(Engine.class);
 
 
     private static class InterceptorNode<EX> implements Interceptor.Invocation<EX> {

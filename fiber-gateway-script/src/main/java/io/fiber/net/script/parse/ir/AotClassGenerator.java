@@ -55,7 +55,7 @@ public class AotClassGenerator {
                     // exception point
                     CodeEnterPoint point = getPoint(codeIdx);
                     point.setWriteFrame(true);
-                    point.setCatchPoint();
+                    point.setCatchPoint(getPoint(expIns[i - (expIns.length >>> 1)]));
                 }
             }
             int[] exceptionTable = compiled.getExceptionTable();

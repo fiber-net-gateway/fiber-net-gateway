@@ -2,6 +2,7 @@ package io.fiber.net.proxy.lib;
 
 import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.async.internal.SerializeJsonObservable;
+import io.fiber.net.common.codec.UpgradedConnection;
 import io.fiber.net.common.json.*;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.JsonUtil;
@@ -14,11 +15,13 @@ import io.fiber.net.proxy.util.UrlEncoded;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
+import io.fiber.net.script.run.Compares;
 import io.fiber.net.server.HttpExchange;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpUtil;
 
 import java.nio.charset.StandardCharsets;
@@ -62,29 +65,29 @@ public class HttpFunc implements Library.DirectiveDef {
             boolean includeHeaders = param.path("includeHeaders").asBoolean();
             exchange.sendForResp().subscribe((response, e) -> {
                 if (e != null) {
-                    context.throwErr(new ScriptExecException("error send http:" + e.getMessage(), e));
-                } else {
-                    ObjectNode nodes = JsonUtil.createObjectNode();
-                    nodes.put("status", response.status());
-                    if (includeHeaders) {
-                        nodes.set("headers", readHeaders(response));
-                    }
-
-                    response.readFullRespBody().subscribe((buf, e2) -> {
-                        if (e2 != null) {
-                            context.throwErr(ScriptExecException.fromThrowable(e2));
-                            return;
-                        }
-                        if (buf != null) {
-                            byte[] bytes = ByteBufUtil.getBytes(buf);
-                            buf.release();
-                            nodes.put("body", bytes);
-                        } else {
-                            nodes.set("body", BinaryNode.getEmpty());
-                        }
-                        context.returnVal(nodes);
-                    });
+                    context.throwErr(ScriptExecException.fromThrowable(e));
+                    return;
                 }
+                ObjectNode nodes = JsonUtil.createObjectNode();
+                nodes.put("status", response.status());
+                if (includeHeaders) {
+                    nodes.set("headers", readHeaders(response));
+                }
+
+                response.readFullRespBody().subscribe((buf, e2) -> {
+                    if (e2 != null) {
+                        context.throwErr(ScriptExecException.fromThrowable(e2));
+                        return;
+                    }
+                    if (buf != null) {
+                        byte[] bytes = ByteBufUtil.getBytes(buf);
+                        buf.release();
+                        nodes.put("body", bytes);
+                    } else {
+                        nodes.set("body", BinaryNode.getEmpty());
+                    }
+                    context.returnVal(nodes);
+                });
             });
         }
     }
@@ -278,21 +281,73 @@ public class HttpFunc implements Library.DirectiveDef {
             addHeader(exchange, param);
             exchange.setReqBodyFunc(ec -> httpExchange.readBodyUnsafe(), false);
 
+            String connection = httpExchange.getRequestHeader("Connection");
+            String upgrade = httpExchange.getRequestHeader("Upgrade");
+
+            int upgradeTimeout;
+            JsonNode jsonNode = param.get("websocket");
+            if (Compares.logic(jsonNode) &&
+                    "upgrade".equalsIgnoreCase(connection)
+                    && "websocket".equalsIgnoreCase(upgrade)) {
+                exchange.setUpgradeAllowed(true);
+                int nodeInt = jsonNode.asInt(-1);
+                if (nodeInt > 0) {
+                    exchange.setUpgradeConnTimeout(nodeInt);
+                    upgradeTimeout = nodeInt;
+                } else {
+                    upgradeTimeout = 60000;
+                }
+                exchange.setHeaderUnsafe("Connection", connection);
+                exchange.setHeaderUnsafe("Upgrade", upgrade);
+            } else {
+                upgradeTimeout = 60000;
+            }
+
             JsonNode node = param.get("responseHeaders");
+            boolean flush = param.path("flush").asBoolean(false);
             exchange.sendForResp().subscribe((response, e) -> {
                 if (e != null) {
                     context.throwErr(new ScriptExecException(e.getMessage(), e));
                 } else {
-                    int status = response.status();
-                    for (String name : response.getHeaderNames()) {
-                        httpExchange.addResponseHeader(name, response.getHeaderList(name));
-                    }
-                    addResponseHeaders(node, httpExchange);
-                    httpExchange.writeRawBytes(status, response.readRespBodyUnsafe());
+                    int status = copyResponse(response, httpExchange, node, upgradeTimeout, flush);
                     context.returnVal(IntNode.valueOf(status));
                 }
             });
         }
+    }
+
+    static int copyResponse(ClientResponse response, HttpExchange httpExchange, JsonNode node, int upgradeTimeout, boolean flush) {
+        int status = response.status();
+        for (String name : response.getHeaderNames()) {
+            httpExchange.addResponseHeader(name, response.getHeaderList(name));
+        }
+        addResponseHeaders(node, httpExchange);
+        String cl = response.getHeader(HttpHeaderNames.CONTENT_LENGTH);
+        if (StringUtils.isNotEmpty(cl)) {
+            httpExchange.setResponseHeaderUnsafe(HttpHeaderNames.CONTENT_LENGTH, cl);
+        }
+        if (response.isUpgraded() && status == 101) {
+            response.discardRespBody();
+            UpgradedConnection upstream = response.upgradeConnection();
+            UpgradedConnection downstream = httpExchange.upgrade(status, response.getHeader("Upgrade"),
+                    upgradeTimeout);
+            downstream.writeAndClose(upstream.readDataUnsafe(), true);
+            upstream.writeAndClose(downstream.readDataUnsafe(), true);
+        } else {
+            httpExchange.writeRawBytes(status, response.readRespBodyUnsafe(), Long.MAX_VALUE, flush);
+            if (response.isUpgraded()) {
+                response.discardBodyOrUpgrade();
+            }
+            if (!httpExchange.isClientClosed()) {
+                httpExchange.addListener(new HttpExchange.Listener() {
+                    @Override
+                    public void onClientAbort(HttpExchange exchange) {
+                        response.abortRespBody(null);
+                    }
+                });
+            }
+        }
+        return status;
     }
 
     private static void setTimeout(JsonNode param, ClientExchange exchange) {

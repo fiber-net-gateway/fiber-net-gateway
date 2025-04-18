@@ -1,5 +1,6 @@
 package io.fiber.net.proxy;
 
+import io.fiber.net.common.FiberException;
 import io.fiber.net.common.RouterHandler;
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.json.NullNode;
@@ -27,7 +28,8 @@ public class ScriptHandler implements RouterHandler<HttpExchange> {
     }
 
     @Override
-    public void invoke(HttpExchange exchange) {
+    public void invoke(HttpExchange exchange) throws FiberException {
+        exchange.checkMaxReqBodySize();
         script.exec(NullNode.getInstance(), exchange).subscribe((node, throwable) -> {
             if (exchange.isResponseWrote()) {
                 return;

@@ -8,7 +8,7 @@ public class UnsafeUtilTest {
 
     @Test
     public void t1() {
-        System.out.println(UnsafeUtil.getJsonNodeOccupy());
+        System.out.println(ObjectNodeUnsafeUtil.getJsonNodeOccupy());
     }
 
 }

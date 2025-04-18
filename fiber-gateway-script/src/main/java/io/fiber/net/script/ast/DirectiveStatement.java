@@ -36,7 +36,7 @@ public class DirectiveStatement extends Statement {
     public void toStringAST(StringBuilder sb) {
         sb.append("directive ");
         sb.append(name.getName());
-        sb.append(" from ");
+        sb.append(" = ");
         sb.append(type.getName());
         sb.append(';');
     }

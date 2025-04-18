@@ -3,6 +3,7 @@ package io.fiber.net.http;
 import io.fiber.net.common.async.Maybe;
 import io.fiber.net.common.async.Observable;
 import io.fiber.net.common.async.Scheduler;
+import io.fiber.net.common.codec.UpgradedConnection;
 import io.netty.buffer.ByteBuf;
 
 import java.util.Collection;
@@ -13,7 +14,11 @@ public interface ClientResponse {
 
     String getHeader(String name);
 
+    String getHeader(CharSequence name);
+
     List<String> getHeaderList(String name);
+
+    List<String> getHeaderList(CharSequence name);
 
     Collection<String> getHeaderNames();
 
@@ -43,4 +48,12 @@ public interface ClientResponse {
     ClientExchange getExchange();
 
     int getReceivedBodySize();
+
+    boolean isUpgraded();
+
+    void abortRespBody(Throwable cause);
+
+    UpgradedConnection upgradeConnection();
+
+    void discardBodyOrUpgrade();
 }

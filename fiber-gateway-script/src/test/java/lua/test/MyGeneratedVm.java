@@ -6,7 +6,7 @@ import io.fiber.net.common.json.ValueNode;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.run.AbstractVm;
-import io.fiber.net.script.run.UnsafeUtil;
+import io.fiber.net.script.run.ObjectNodeUnsafeUtil;
 
 public class MyGeneratedVm extends AbstractVm {
     private static ValueNode _LITERAL_0;
@@ -22,8 +22,8 @@ public class MyGeneratedVm extends AbstractVm {
 
     static {
         try {
-            STACK_OFFSET = UnsafeUtil.getObjectOffset(MyGeneratedVm.class.getDeclaredField("_stack_0"));
-            JSON_NODE_OCCUPY = UnsafeUtil.getJsonNodeOccupy();
+            STACK_OFFSET = ObjectNodeUnsafeUtil.getObjectOffset(MyGeneratedVm.class.getDeclaredField("_stack_0"));
+            JSON_NODE_OCCUPY = ObjectNodeUnsafeUtil.getJsonNodeOccupy();
         } catch (Throwable var1) {
             throw new RuntimeException(var1);
         }
@@ -42,17 +42,17 @@ public class MyGeneratedVm extends AbstractVm {
     public JsonNode getArgVal(int var1) {
         if (!this.spread) {
             if (var1 >= 0 && var1 < this.funcArgc) {
-                return UnsafeUtil.getJsonNodeObject(this, STACK_OFFSET + JSON_NODE_OCCUPY * (long) (var1 + this.funcParamSP));
+                return ObjectNodeUnsafeUtil.getJsonNodeObject(this, STACK_OFFSET + JSON_NODE_OCCUPY * (long) (var1 + this.funcParamSP));
             } else {
                 throw new IllegalStateException("no arguments at :" + var1);
             }
         } else {
-            return UnsafeUtil.getJsonNodeObject(this, STACK_OFFSET + JSON_NODE_OCCUPY * (long) this.funcParamSP).get(var1);
+            return ObjectNodeUnsafeUtil.getJsonNodeObject(this, STACK_OFFSET + JSON_NODE_OCCUPY * (long) this.funcParamSP).get(var1);
         }
     }
 
     public int getArgCnt() {
-        return !this.spread ? this.funcArgc : UnsafeUtil.getJsonNodeObject(this, STACK_OFFSET + JSON_NODE_OCCUPY * (long) this.funcParamSP).size();
+        return !this.spread ? this.funcArgc : ObjectNodeUnsafeUtil.getJsonNodeObject(this, STACK_OFFSET + JSON_NODE_OCCUPY * (long) this.funcParamSP).size();
     }
 
     protected void run() throws ScriptExecException {

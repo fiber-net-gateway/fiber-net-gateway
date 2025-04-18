@@ -17,22 +17,28 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.ScheduledFuture;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 class HttpConnectionHandler extends HttpConnection implements ChannelInboundHandler, Runnable {
     private static final HttpClientException TIMEOUT = new HttpClientException("request timeout", 504, "REQUEST_TIMEOUT");
-    private static final HttpClientException NO_RESPONSE = new HttpClientException("no response", 502, "IO_ERROR");
+    private static final HttpClientException NO_RESPONSE = new HttpClientException("no response", 502, "HTTP_NO_RESPONSE");
+    private static final HttpClientException ABORT_BODY = new HttpClientException("no response", 502, "HTTP_RESPONSE_ABORT");
+    private static final HttpClientException ERROR_BODY_SIZE = new HttpClientException("predicated content length is not matched actual content length", 500, "HTTP_CLIENT_ERROR_BODY_SIZE");
     private final EventLoop eventLoop;
+    private HttpClientCodec clientCodec;
     private ChannelHandlerContext ctx;
     private ScheduledFuture<?> requestTimerFut;
     private final PoolConfig config;
     private Scheduler ioSch;
     private boolean chunkedBody;
     private long receivedBodyLength;
+    private boolean connErr;
     private int requesting;
     private boolean closeByProto;
     private int requests;
     private long maxBodyLength;
+    private boolean connUpgrade;
 
     public HttpConnectionHandler(Channel ch, HttpHost httpHost, EventLoop eventLoop, PoolConfig config) {
         super(ch, httpHost);
@@ -43,7 +49,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     @Override
     public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
         assert eventLoop == ctx.executor();
-        ctx.pipeline().addFirst(new HttpClientCodec(config.maxInlineLen, config.maxHeaderLen, config.maxChunkLen));
+        ctx.pipeline().addFirst(clientCodec = new HttpClientCodec(config.maxInlineLen, config.maxHeaderLen, config.maxChunkLen));
         if (getHttpHost().isSecure()) {
             SslContext context = SslContextBuilder.forClient()
                     .trustManager(config.trustManager)
@@ -67,8 +73,13 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
         if (!isClosed()) {
-            if (exchange != null) {
-                ioErrorAndClose(NO_RESPONSE);
+            ClientHttpExchange exchange;
+            if ((exchange = this.exchange) != null) {
+                if (connUpgrade) {
+                    exchange.addBuf(Unpooled.EMPTY_BUFFER, true);
+                    this.exchange = null;
+                }
+                ioErrorAndClose(exchange.headerReceived ? ABORT_BODY : NO_RESPONSE);
             } else {
                 close();
             }
@@ -87,67 +98,91 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
                         "READ_RESPONSE_ERROR"));
                 return;
             }
-        }
 
-        ClientHttpExchange exchange = this.exchange;
-        if (exchange == null) {
+            ClientHttpExchange exchange = this.exchange;
+            if (exchange == null) {
+                ReferenceCountUtil.release(msg);
+                // no request handle??
+                ioErrorAndClose(NO_RESPONSE);
+            } else if (exchange.isRequestEnd()) {
+                // maybe on response occur discard body.
+                ReferenceCountUtil.release(msg);
+                this.exchange = null;
+            } else {
+                boolean last = (msg instanceof LastHttpContent);
+                if (last) {
+                    clearRequesting(2);
+                }
+                onHttpMessage(msg, exchange, last);
+            }
+        } else if (connUpgrade) {
+            // for
+            ctx.fireChannelRead(msg);
+        } else {
             ReferenceCountUtil.release(msg);
-            // no request handle??
-            ioErrorAndClose(NO_RESPONSE);
-            return;
-        }
-
-        onHttpMessage(msg, exchange);
-        if (msg instanceof LastHttpContent) {
-            clearRequesting(2);
+            close();
         }
     }
 
     private void clearRequesting(int bit) {
         requesting &= ~bit;
         if (requesting == 0) {
-            dismiss();
+            if (connUpgrade) {
+                this.exchange = null;
+                isolate();
+                clientCodec.upgradeFrom(ctx);
+                ctx.pipeline().remove(this);
+            } else {
+                dismiss();
+            }
         }
     }
 
-    private void onHttpMessage(Object msg, ClientHttpExchange exchange) {
+    @Override
+    public int getRequests() {
+        return requests;
+    }
+
+    private void onHttpMessage(Object msg, ClientHttpExchange exchange, boolean last) {
         if (msg instanceof HttpResponse) {
             if (requestTimerFut != null) {
                 requestTimerFut.cancel(false);
                 requestTimerFut = null;
             }
-            chunkedBody = false;
-            receivedBodyLength = 0;
-            exchange.headerReceived = true;
             HttpResponse response = (HttpResponse) msg;
-            closeByProto |= !HttpUtil.isKeepAlive(response);
-            exchange.onResp(response.status().code(), response.headers());
+            closeByProto = closeByProto || !HttpUtil.isKeepAlive(response);
             long len = HttpUtil.getContentLength(response, -1L);
+            chunkedBody = len == -1L;
+            receivedBodyLength = 0;
+            HttpHeaders headers = response.headers();
+            boolean cu;
+            closeByProto |= connUpgrade = cu = exchange.isUpgradeAllowed()
+                    && headers.containsValue(HttpHeaderNames.CONNECTION, HttpHeaderValues.UPGRADE, true);
+
+            if (cu) {
+                clientCodec.prepareUpgradeFrom(ctx);
+            }
+            exchange.onResp(response.status().code(), headers, cu);
+
             if (maxBodyLength > 0L && len > maxBodyLength) {
                 ReferenceCountUtil.release(msg);
                 ioErrorAndClose(new HttpClientException("body size is too big：" + len, 500, "READ_RESP_BODY"));
                 return;
-            } else if (len == -1L) {
-                // chunked
-                chunkedBody = true;
             }
         }
 
-        // maybe on response occur discard body.
-        if (exchange.isRequestEnd()) {
-            ReferenceCountUtil.release(msg);
-            return;
-        }
-
-        if (msg instanceof HttpContent) {
+        if (last || msg instanceof HttpContent) {
             ByteBuf buf = ((HttpContent) msg).content();
             if (chunkedBody && maxBodyLength > 0 && chunkedExceedMax(buf.readableBytes(), maxBodyLength)) {
                 ReferenceCountUtil.release(msg);
                 ioErrorAndClose(new HttpClientException("chunked body size is too big：" + receivedBodyLength, 500, "READ_RESP_BODY"));
                 return;
             }
-            exchange.addBuf(buf, msg instanceof LastHttpContent);
+            exchange.addBuf(buf, last);
+            return;
         }
+
+        ReferenceCountUtil.release(msg);
     }
 
     private boolean chunkedExceedMax(long received, long maxBodyLen) {
@@ -177,34 +212,53 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
 
     @Override
     public void handlerRemoved(ChannelHandlerContext ctx) {
-
+        getCh().attr(CONN_ATTR).set(null);
+        ClientHttpExchange exchange;
+        if (!connUpgrade && (exchange = this.exchange) != null) {
+            ioErrorAndClose(exchange.headerReceived ? ABORT_BODY : NO_RESPONSE);
+        }
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        if (!isClosed() && exchange != null) {
-            ioErrorAndClose(new HttpClientException("io error on http connection", cause, 502, "IO_ERROR"));
+        boolean ioErr = cause instanceof IOException;
+        if (exchange != null) {
+            ioErrorAndClose(new HttpClientException("io error on http connection", cause, ioErr ? 502 : 500, "HTTP_IO_ERROR"));
+        }
+        if (!ioErr) {
+            log.error("error in http client IO socket", cause);
         }
     }
 
     @Override
     protected boolean isValid() {
-        return requesting == 0 && !closeByProto;
+        return !connErr && requesting == 0 && !closeByProto;
     }
 
-    HttpHeaders headerForSend(ClientHttpExchange exchange, int contentLength) {
+    HttpHeaders headerForSend(ClientHttpExchange exchange, long contentLength) {
         HttpHeaders headers = exchange.requestHeaders();
         if (!headers.contains(HttpHeaderNames.USER_AGENT)) {
             headers.set(HttpHeaderNames.USER_AGENT, config.userAgent);
         }
-
+        String connection = headers.get(HttpHeaderNames.CONNECTION);
         int maxRequest;
-        if ((maxRequest = config.maxRequestPerConn) > 0 && ++requests >= maxRequest) {
+        if (++requests >= (maxRequest = config.maxRequestPerConn) && maxRequest > 0
+                && connection == null) {
             headers.set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
             closeByProto = true;
+        } else if ("close".equalsIgnoreCase(connection)) {
+            closeByProto = true;
+        } else if ("upgrade".equalsIgnoreCase(connection)) {
+            // upgrade ignore data;
+            return headers;
         }
+
+        if (headers.contains(HttpHeaderNames.CONTENT_LENGTH) || headers.contains(HttpHeaderNames.TRANSFER_ENCODING)) {
+            return headers;
+        }
+
         if (contentLength >= 0) {
-            headers.set(HttpHeaderNames.CONTENT_LENGTH, contentLength);
+            headers.set(HttpHeaderNames.CONTENT_LENGTH, Long.toString(contentLength));
         } else {
             headers.set(HttpHeaderNames.TRANSFER_ENCODING, HttpHeaderValues.CHUNKED);
         }
@@ -213,17 +267,14 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
 
     @Override
     public void sendNonBody(ClientHttpExchange exchange) throws HttpClientException {
-        send(exchange, Unpooled.EMPTY_BUFFER);
-    }
-
-    @Override
-    public void send(ClientHttpExchange exchange, ByteBuf buf) throws HttpClientException {
         onSend(exchange);
-        requesting = 3;
-        HttpMethod method = exchange.requestMethod();
-        String uri = exchange.requestUri();
-        HttpHeaders headers = headerForSend(exchange, buf.readableBytes());
-        ChannelFuture f = ctx.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, uri, buf, headers, EmptyHttpHeaders.INSTANCE));
+        ChannelFuture f = ctx.writeAndFlush(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1,
+                exchange.requestMethod(),
+                exchange.requestUri(),
+                Unpooled.EMPTY_BUFFER,
+                headerForSend(exchange, 0),
+                EmptyHttpHeaders.INSTANCE));
+
         if (f.isDone()) {
             onRequestSent(f);
         } else {
@@ -232,9 +283,76 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     }
 
     @Override
-    public void send(ClientHttpExchange exchange, Observable<ByteBuf> buf, boolean flush) throws HttpClientException {
+    public void send(ClientHttpExchange exchange, ByteBuf buf) throws HttpClientException {
         onSend(exchange);
-        Ob ob = new Ob(exchange, flush);
+        int length = buf.readableBytes();
+        ChannelHandlerContext ctx = this.ctx;
+        ChannelFuture hf = ctx.write(new DefaultHttpRequest(HttpVersion.HTTP_1_1,
+                exchange.requestMethod(),
+                exchange.requestUri(),
+                headerForSend(exchange, length)));
+        ChannelFuture bf;
+        if (length == 0) {
+            buf.release();
+            bf = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+        } else {
+            bf = ctx.writeAndFlush(new DefaultLastHttpContent(buf, EmptyHttpHeaders.INSTANCE));
+        }
+        if (hf.isDone()) {
+            onRequestHeaderSent(hf);
+        } else {
+            hf.addListener(this::onRequestHeaderSent);
+        }
+
+        if (bf.isDone()) {
+            onRequestSent(bf);
+        } else {
+            bf.addListener(this::onRequestSent);
+        }
+    }
+
+    @Override
+    public void send(ClientHttpExchange exchange, FileRegion fileRegion) throws HttpClientException {
+        onSend(exchange);
+        ChannelHandlerContext ctx = this.ctx;
+        ChannelFuture hf = ctx.write(new DefaultHttpRequest(HttpVersion.HTTP_1_1,
+                exchange.requestMethod(),
+                exchange.requestUri(),
+                headerForSend(exchange, fileRegion.count() - fileRegion.transferred())));
+        ctx.write(fileRegion, ctx.voidPromise());
+        ChannelFuture bf = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+        if (hf.isDone()) {
+            onRequestHeaderSent(hf);
+        } else {
+            hf.addListener(this::onRequestHeaderSent);
+        }
+
+        if (bf.isDone()) {
+            onRequestSent(bf);
+        } else {
+            bf.addListener(this::onRequestSent);
+        }
+    }
+
+    @Override
+    public void send(ClientHttpExchange exchange, Observable<ByteBuf> buf, long predicatedLength, boolean flush) throws HttpClientException {
+        onSend(exchange);
+        ChannelHandlerContext ctx = this.ctx;
+        ChannelFuture future = ctx.writeAndFlush(
+                new DefaultHttpRequest(HttpVersion.HTTP_1_1,
+                        exchange.requestMethod(),
+                        exchange.requestUri(),
+                        headerForSend(exchange, predicatedLength)),
+                ctx.newPromise());
+        if (future.isDone()) {
+            if (!onRequestHeaderSent(future)) {
+                return;
+            }
+        } else {
+            future.addListener(HttpConnectionHandler.this::onRequestHeaderSent);
+        }
+
+        Ob ob = new Ob(exchange, predicatedLength, flush);
         buf.subscribe(ob);
     }
 
@@ -246,48 +364,42 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     private class Ob implements Observable.Observer<ByteBuf> {
         final ClientHttpExchange exchange;
         final boolean flush;
-        boolean headerSent;
+        final long predicatedLength;
+        private long receivedLength;
+        private Disposable d;
 
-        private Ob(ClientHttpExchange exchange, boolean flush) {
+        private Ob(ClientHttpExchange exchange, long predicatedLength, boolean flush) {
             this.exchange = exchange;
+            this.predicatedLength = predicatedLength;
             this.flush = flush;
         }
 
         @Override
         public void onSubscribe(Disposable d) {
-            if (flush) {
-                ChannelFuture future = ctx.writeAndFlush(createReqForSend(), ctx.newPromise());
-                if (future.isDone()) {
-                    onRequestHeaderSent(future);
-                } else {
-                    future.addListener(HttpConnectionHandler.this::onRequestHeaderSent);
-                }
-            }
-        }
-
-        private DefaultHttpRequest createReqForSend() {
-            headerSent = true;
-            requesting = 3;
-            HttpMethod method = exchange.requestMethod();
-            String uri = exchange.requestUri();
-            HttpHeaders headers = headerForSend(exchange, -1);
-            return new DefaultHttpRequest(HttpVersion.HTTP_1_1, method, uri, headers);
-        }
-
-        private void sendReq() {
-            if (headerSent) {
-                return;
-            }
-            ctx.write(createReqForSend(), ctx.newPromise().addListener(HttpConnectionHandler.this::onRequestHeaderSent));
+            this.d = d;
         }
 
 
         @Override
         public void onNext(ByteBuf buf) {
-            if (buf.readableBytes() == 0 || !ctx.channel().isActive()) {
+            if (!ctx.channel().isActive()) {
+                buf.release();
+                d.dispose();
+                return;
+            }
+            long l;
+            if ((l = buf.readableBytes()) == 0) {
                 buf.release();
                 return;
             }
+            long predicatedLength;
+            if ((predicatedLength = this.predicatedLength) >= 0 && ((receivedLength += l)) > predicatedLength) {
+                buf.release();
+                d.dispose();
+                onError(ERROR_BODY_SIZE);
+                return;
+            }
+
             if (eventLoop.inEventLoop()) {
                 sendBuf(buf);
             } else {
@@ -296,7 +408,6 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
         }
 
         private void sendBuf(ByteBuf buf) {
-            sendReq();
             if (flush) {
                 ctx.writeAndFlush(buf, ctx.voidPromise());
             } else {
@@ -323,7 +434,6 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
         }
 
         private void onComplete0() {
-            sendReq();
             ChannelFuture f = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
             if (f.isDone()) {
                 onRequestSent(f);
@@ -339,6 +449,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
         if (requesting != 0) {
             throw new IllegalStateException("requesting");
         }
+        requesting = 3;
         maxBodyLength = exchange.maxBodyLength();
     }
 
@@ -355,19 +466,21 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
         }
     }
 
-    private void onRequestHeaderSent(Future<? super Void> future) {
+    private boolean onRequestHeaderSent(Future<? super Void> future) {
         if (future.isSuccess()) {
             if (exchange != null) {
                 exchange.headerSent = true;
             }
+            return true;
         } else {
             Throwable cause = future.cause();
-            ioErrorAndClose(new HttpClientException("send request error:" + cause.getMessage(), cause, 502, "SEND_REQUEST_ERROR"));
+            ioErrorAndClose(new HttpClientException("send request header error:" + cause.getMessage(), cause, 502, "SEND_REQUEST_ERROR"));
+            return false;
         }
     }
 
     private void requestTimer(long timeout) {
-        if (timeout >= 0 && !exchange.headerReceived) {
+        if (timeout >= 0 && !exchange.headerReceived && !exchange.requestErr) {
             requestTimerFut = eventLoop.schedule(this, timeout, TimeUnit.MILLISECONDS);
         }
     }
@@ -378,6 +491,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     }
 
     private void ioErrorAndClose(Throwable exception) {
+        connErr = true;
         ScheduledFuture<?> requestTimerFut = this.requestTimerFut;
         this.requestTimerFut = null;
         if (requestTimerFut != null && requestTimerFut.isCancellable()) {
@@ -387,9 +501,7 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
         ClientHttpExchange exchange = this.exchange;
         if (exchange != null) {
             this.exchange = null;
-            if (!exchange.isRequestEnd()) {
-                exchange.notifyError(exception);
-            }
+            exchange.notifyError(exception, true);
         }
         close();
     }

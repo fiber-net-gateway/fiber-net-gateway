@@ -116,7 +116,7 @@ public enum SpelMessage {
     NOT_SUPPORT_EXPAND_ARG_TYPE(Kind.ERROR, 1075, "the expanding argument type ''{0}'' is not supported"),
     CONSTANT_NOT_FIND(Kind.ERROR, 1076, "not find constant value ''{1}'' in constant namespace ''{0}'' is not supported"),
     KEYWORD_NOT_MATCH(Kind.ERROR, 1077, "expected keyword ''{0}'', found ''{1}''"),
-    KEYWORD_DIRECTIVE_NOT_EXPECTED(Kind.ERROR, 1078, "expected keyword  or directive not expected ''{0}''"),
+    KEYWORD_DIRECTIVE_NOT_EXPECTED(Kind.ERROR, 1078, "expected ''='' but got ''{0}''"),
     STRING_LITERAL_EXPECTED(Kind.ERROR, 1079, "string literal is expected but found ''{0}''"),
     DIRECTIVE_NOT_FOUND(Kind.ERROR, 1080, "directive ''{0}''=>''{1}'' is not found"),
     DIRECTIVE_EXISTS(Kind.ERROR, 1081, "directive ''{0}''=>''{1}'' exists"),

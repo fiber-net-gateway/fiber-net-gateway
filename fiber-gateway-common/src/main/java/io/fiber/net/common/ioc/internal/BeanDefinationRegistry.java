@@ -6,15 +6,12 @@ import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.ioc.Module;
 import io.fiber.net.common.utils.Predictions;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 
 public class BeanDefinationRegistry implements Binder {
     private final Map<Class<?>, Bean> beanMap = new HashMap<>();
-    private Map<Class<?>, BeanList> multiBeans = new HashMap<>();
+    private Map<Class<?>, BeanList<?>> multiBeans = new HashMap<>();
     private Map<Class<?>, Class<?>> links = new HashMap<>();
     private BeanDefinationRegistry parent;
 
@@ -37,8 +34,9 @@ public class BeanDefinationRegistry implements Binder {
         return beanMap.get(clz);
     }
 
-    BeanList getBeans(Class<?> clz) {
-        return multiBeans.get(clz);
+    @SuppressWarnings("unchecked")
+    <V> BeanList<V> getBeans(Class<V> clz) {
+        return (BeanList<V>) multiBeans.get(clz);
     }
 
     public Class<?> getLink(Class<?> clz) {
@@ -92,14 +90,17 @@ public class BeanDefinationRegistry implements Binder {
     }
 
     @Override
-    public <T, V extends T> void bindMultiBean(Class<T> clz, Class<V> real) {
-        BeanList beanList = multiBeans.get(clz);
-        if (beanList != null) {
-            beanList.add(real);
-        } else {
-            beanList = new BeanList(real);
-            multiBeans.put(clz, beanList);
-        }
+    @SuppressWarnings("unchecked")
+    public <T, V extends T> void bindMultiBean(Class<T> clz, Class<V> real, int order) {
+        BeanList<V> beanList = (BeanList<V>) multiBeans.computeIfAbsent(clz, k -> new BeanList<>());
+        beanList.addClz(real, order);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T, V extends T> void bindMultiBean(Class<T> clz, V real, int order) {
+        BeanList<V> beanList = (BeanList<V>) multiBeans.computeIfAbsent(clz, k -> new BeanList<>());
+        beanList.addObj(real, order);
     }
 
     @Override
@@ -145,10 +146,11 @@ public class BeanDefinationRegistry implements Binder {
         if (multiBeans.isEmpty()) {
             multiBeans = Collections.emptyMap();
         } else {
-            for (Map.Entry<Class<?>, BeanList> next : multiBeans.entrySet()) {
-                for (Class<?> id : next.getValue()) {
-                    if (!containsBean(id, true)) {
-                        throw new IllegalStateException("bean not found:" + id);
+            for (Map.Entry<Class<?>, BeanList<?>> next : multiBeans.entrySet()) {
+                next.getValue().sort();
+                for (BeanList.BeanElement element : next.getValue().getBeanElements()) {
+                    if (element.isClzBean() && !containsBean(element.getClz(), true)) {
+                        throw new IllegalStateException("bean not found:" + element.getClz());
                     }
                 }
             }
@@ -157,7 +159,10 @@ public class BeanDefinationRegistry implements Binder {
 
     public static BeanDefinationRegistry ofModules(BeanDefinationRegistry parent, Iterable<Module> modules) {
         BeanDefinationRegistry registry = new BeanDefinationRegistry();
-        for (Module module : modules) {
+        ArrayList<Module> ms = new ArrayList<>();
+        modules.forEach(ms::add);
+        ms.sort(Comparator.comparingInt(Module::order));
+        for (Module module : ms) {
             module.install(registry);
         }
         registry.init(parent);

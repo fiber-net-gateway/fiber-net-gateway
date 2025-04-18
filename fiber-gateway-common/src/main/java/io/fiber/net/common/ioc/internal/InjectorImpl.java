@@ -79,15 +79,19 @@ public class InjectorImpl extends Injector {
     public <T> T[] getInstances(Class<T> clz) {
         final Map<Bean, Creator> instance = this.instance;
         Predictions.assertTrue(instance != DESTROYED, "destroyed");
-        BeanList beans = registry.getBeans(clz);
+        BeanList<T> beans = registry.getBeans(clz);
         if (beans == null) {
             return parent.getInstances(clz);
         }
         int size = beans.size();
         int i = 0;
         T[] result = (T[]) Array.newInstance(clz, size);
-        for (Class<?> id : beans) {
-            result[i++] = (T) getInstance(id);
+        for (BeanList.BeanElement id : beans.getBeanElements()) {
+            if (id.isClzBean()) {
+                result[i++] = (T) getInstance(id.getClz());
+            } else {
+                result[i++] = (T) id.getObj();
+            }
         }
         return result;
     }

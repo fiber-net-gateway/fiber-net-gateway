@@ -4,11 +4,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 /**
  * cycle dependency may be cause deadlock
+ *
  * @param <V>
  */
 public abstract class RefResourcePool<V extends RefResourcePool.Ref> {
@@ -24,7 +26,6 @@ public abstract class RefResourcePool<V extends RefResourcePool.Ref> {
         while (true) {
             V ref = map.computeIfAbsent(key, k -> {
                 V v = doCreateRef(k);
-                v.setKey(k);
                 log.info("ref ({}) of {} is created", k, poolName);
                 return v;
             });
@@ -38,6 +39,14 @@ public abstract class RefResourcePool<V extends RefResourcePool.Ref> {
         }
     }
 
+    public final V getWithoutRef(String key) {
+        return map.get(key);
+    }
+
+    public final Set<String> keys() {
+        return map.keySet();
+    }
+
     protected abstract V doCreateRef(String key);
 
     public abstract static class Ref {
@@ -46,13 +55,10 @@ public abstract class RefResourcePool<V extends RefResourcePool.Ref> {
         private Thread creator = Thread.currentThread();
         private volatile int refCount = 1;
         private final RefResourcePool<? extends Ref> pool;
-        private String key;
+        private final String key;
 
-        protected Ref(RefResourcePool<? extends Ref> pool) {
+        protected Ref(RefResourcePool<? extends Ref> pool, String key) {
             this.pool = pool;
-        }
-
-        void setKey(String key) {
             this.key = key;
         }
 

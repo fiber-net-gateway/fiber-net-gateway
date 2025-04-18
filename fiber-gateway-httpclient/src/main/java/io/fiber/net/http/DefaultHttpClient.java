@@ -1,20 +1,26 @@
 package io.fiber.net.http;
 
+import io.fiber.net.common.ioc.Initializable;
 import io.fiber.net.http.impl.ConnectionPool;
 import io.fiber.net.http.impl.PoolConfig;
+import io.fiber.net.http.util.ConnectionFactory;
 import io.netty.channel.EventLoopGroup;
 
 import java.util.concurrent.CompletableFuture;
 
-public class DefaultHttpClient implements HttpClient {
+public class DefaultHttpClient implements HttpClient, Initializable {
     private final ConnectionPool connectionPool;
 
     public DefaultHttpClient(EventLoopGroup group) {
         this(group, new PoolConfig());
     }
 
-    public DefaultHttpClient(EventLoopGroup group, PoolConfig pc) {
-        this.connectionPool = new ConnectionPool(group, pc);
+    public DefaultHttpClient(EventLoopGroup group, PoolConfig poolConfig) {
+        this(new ConnectionFactory(group, poolConfig.getChannelConfig()), poolConfig);
+    }
+
+    public DefaultHttpClient(ConnectionFactory connectionFactory, PoolConfig pc) {
+        this.connectionPool = new ConnectionPool(connectionFactory, pc);
     }
 
     public CompletableFuture<Void> getStartPromise() {
@@ -31,5 +37,16 @@ public class DefaultHttpClient implements HttpClient {
         return new ClientExchange(connectionPool, httpHost);
     }
 
+    public ConnectionFactory getConnectionFactory() {
+        return connectionPool.getConnectionFactory();
+    }
 
+    @Override
+    public void init() {
+        try {
+            connectionPool.getStartPromise().get();
+        } catch (Exception e) {
+            throw new IllegalStateException("init start failed", e);
+        }
+    }
 }

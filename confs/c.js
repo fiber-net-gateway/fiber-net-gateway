@@ -6,3 +6,4 @@ try {
 }catch (e) {
     p.e = e;
 }
+return p;

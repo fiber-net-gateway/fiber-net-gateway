@@ -70,7 +70,7 @@ public class ClzAssembler {
     private static final String CREATE_ARRAY_DESC = "()Lio/fiber/net/common/json/ArrayNode;";
     private static final String BINARY_JSON_DESC = "(Lio/fiber/net/common/json/JsonNode;Lio/fiber/net/common/json/JsonNode;)Lio/fiber/net/common/json/JsonNode;";
     private static final String BINARY_BOOL_DESC = "(Lio/fiber/net/common/json/JsonNode;Lio/fiber/net/common/json/JsonNode;)Lio/fiber/net/common/json/BooleanNode;";
-    private static final String UNSAFE_UNTIL_NAME = Type.getInternalName(UnsafeUtil.class);
+    private static final String UNSAFE_UNTIL_NAME = Type.getInternalName(ObjectNodeUnsafeUtil.class);
     private static final String STACK_OFFSET_NAME = "STACK_OFFSET";
     private static final String JSON_NODE_OCCUPY_NAME = "JSON_NODE_OCCUPY";
     private static final String ASYNC_STATE_NAME = "asyncState";
@@ -414,7 +414,7 @@ public class ClzAssembler {
                     false
             );
             cInit.visitMethodInsn(Opcodes.INVOKESTATIC,
-                    "io/fiber/net/script/run/UnsafeUtil",
+                    UNSAFE_UNTIL_NAME,
                     "getObjectOffset",
                     "(Ljava/lang/reflect/Field;)J",
                     false
@@ -427,7 +427,7 @@ public class ClzAssembler {
                 STACK_OFFSET_NAME,
                 "J");
         cInit.visitMethodInsn(Opcodes.INVOKESTATIC,
-                "io/fiber/net/script/run/UnsafeUtil",
+                UNSAFE_UNTIL_NAME,
                 "getJsonNodeOccupy",
                 "()J",
                 false

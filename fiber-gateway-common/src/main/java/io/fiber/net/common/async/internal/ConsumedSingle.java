@@ -1,22 +1,27 @@
 package io.fiber.net.common.async.internal;
 
 import io.fiber.net.common.async.Disposable;
-import io.fiber.net.common.async.Observable;
+import io.fiber.net.common.async.Single;
 import io.fiber.net.common.utils.Exceptions;
 
-public class ConsumedObservable<T> implements Observable<T>, Disposable {
+public class ConsumedSingle<T> implements Single<T>, Disposable {
+    private final Throwable err;
     @SuppressWarnings("rawtypes")
-    private static final ConsumedObservable INSTANCE = new ConsumedObservable();
+    private static final ConsumedSingle CONSUMED = new ConsumedSingle(Exceptions.OB_CONSUMED);
+
+    public ConsumedSingle(Throwable err) {
+        this.err = err;
+    }
 
     @SuppressWarnings("unchecked")
-    public static <T> ConsumedObservable<T> getInstance() {
-        return INSTANCE;
+    public static <T> ConsumedSingle<T> getConsumed() {
+        return CONSUMED;
     }
 
     @Override
     public void subscribe(Observer<? super T> observer) {
         observer.onSubscribe(this);
-        observer.onError(Exceptions.OB_CONSUMED);
+        observer.onError(err);
     }
 
     @Override

@@ -43,12 +43,13 @@ public class EngineModule implements Module {
             }
             return header;
         });
+        binder.bind(ErrorHandler.class, HttpEngine.ERR_HANDLER);
         binder.bindFactory(EventLoopGroupHolder.class, injector -> new EventLoopGroupHolder());
         binder.bindPrototype(EventLoopGroup.class, injector -> injector.getInstance(EventLoopGroupHolder.class).getGroup());
         binder.bindFactory(HttpServer.class, injector -> new Server(injector.getInstance(EventLoopGroup.class)));
         binder.bindMultiBean(StartListener.class, HttpServerStartListener.class);
         if (!binder.contains(HttpServerStartListener.class)) {
-            binder.bindPrototype(HttpServerStartListener.class, i -> new HttpServerStartListener());
+            binder.bindPrototype(HttpServerStartListener.class, HttpServerStartListener::new);
         }
     }
 }

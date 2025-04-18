@@ -58,7 +58,7 @@ public class Parser {
     }
 
     enum Keyword {
-        LET, IF, ELSE, FOR, OF, CONTINUE, BREAK, RETURN, DIRECTIVE, FROM, TRY, CATCH, THROW;
+        LET, IF, ELSE, FOR, OF, CONTINUE, BREAK, RETURN, DIRECTIVE, TRY, CATCH, THROW;
 
         final String idt;
 
@@ -249,10 +249,9 @@ public class Parser {
 
         Identifier name = eatIdentifier();
 
-        if (!peekIdentifierToken(Keyword.FROM.idt)) {
-            raiseInternalException(name.getEndPosition() + 1, SpelMessage.KEYWORD_DIRECTIVE_NOT_EXPECTED, "");
+        if (!peekToken(TokenKind.ASSIGN, true)) {
+            raiseInternalException(name.getEndPosition() + 1, SpelMessage.KEYWORD_DIRECTIVE_NOT_EXPECTED, peekToken());
         }
-        nextToken();
 
         Identifier type = eatIdentifier();
 

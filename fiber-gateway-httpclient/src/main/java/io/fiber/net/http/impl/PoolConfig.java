@@ -3,6 +3,7 @@ package io.fiber.net.http.impl;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.Fiber;
 import io.fiber.net.common.utils.SystemPropertyUtil;
+import io.fiber.net.http.util.ChannelConfig;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 import javax.net.ssl.TrustManagerFactory;
@@ -24,8 +25,8 @@ public class PoolConfig {
     public static final int DEF_MAX_CHUNK_SIZE =
             SystemPropertyUtil.getInt("fiber.http.client.maxChunkSize", 512 << 10);
 
-    public static final int DEF_MAX_BODY_SIZE =
-            SystemPropertyUtil.getInt("fiber.http.client.maxBodySize", 4 << 20);
+    public static final long DEF_MAX_BODY_SIZE =
+            SystemPropertyUtil.getLong("fiber.http.client.maxBodySize", 4 << 20);
     public static final boolean DEF_TCP_NO_DELAY =
             SystemPropertyUtil.getBoolean("fiber.http.client.tcpNoDelay", true);
     public static final boolean DEF_TCP_KEEP_ALIVE =
@@ -36,6 +37,10 @@ public class PoolConfig {
             SystemPropertyUtil.getBoolean("fiber.http.client.dnsCache", true);
     public static final boolean DEF_DNS_CNAME_CACHE =
             SystemPropertyUtil.getBoolean("fiber.http.client.dnsCnameCache", true);
+    public static final int DEF_DNS_QUERY_TIMEOUT =
+            SystemPropertyUtil.getInt("fiber.http.client.dnsQueryTimeout", 5000);
+    public static final boolean DEF_USE_CROSS_CONNECTION =
+            SystemPropertyUtil.getBoolean("fiber.http.client.useCrossConnection", true);
 
     public static final int DEF_MAX_IDLE_PER_HOST =
             SystemPropertyUtil.getInt("fiber.http.client.maxIdlePerHost", 100);
@@ -44,20 +49,25 @@ public class PoolConfig {
     public static final int DEF_IDLE_TIME =
             SystemPropertyUtil.getInt("fiber.http.client.idleLiveTime", 25000);
     public static final int DEF_MAX_REQUEST_PER_CONN =
-            SystemPropertyUtil.getInt("fiber.http.client.maxRequestPerConn", 150);
+            SystemPropertyUtil.getInt("fiber.http.client.maxRequestPerConn", 800);
     public static final int DEF_CONNECT_TIMEOUT =
             SystemPropertyUtil.getInt("fiber.http.client.connectTimeout", 3000);
     public static final int DEF_REQUEST_TIMEOUT =
             SystemPropertyUtil.getInt("fiber.http.client.requestTimeout", 5000);
+    public static final int DEF_UPGRADE_CONN_TIMEOUT =
+            SystemPropertyUtil.getInt("fiber.http.client.upgradeConnTimeout", 70000);
 
     int maxIdlePerHost = DEF_MAX_IDLE_PER_HOST;
     long evictInterval = DEF_EVICT_INTERVAL;
     long idleLiveTime = DEF_IDLE_TIME;
-    boolean enableDnsCache = DEF_DNS_CACHE;
-    boolean enableDnsCnameCache = DEF_DNS_CNAME_CACHE;
-    boolean tcpNoDelay = DEF_TCP_NO_DELAY;
-    boolean tcpKeepalive = DEF_TCP_KEEP_ALIVE;
-    boolean reuseAddr = DEF_REUSE_ADDR;
+    long upgradeConnTimeout = DEF_UPGRADE_CONN_TIMEOUT;
+    ChannelConfig channelConfig = new ChannelConfig(DEF_TCP_NO_DELAY,
+            DEF_TCP_KEEP_ALIVE,
+            DEF_REUSE_ADDR,
+            DEF_DNS_CACHE,
+            DEF_DNS_CNAME_CACHE,
+            DEF_DNS_QUERY_TIMEOUT);
+    boolean useCrossConnection = DEF_USE_CROSS_CONNECTION;
     int maxInlineLen = DEF_MAX_INITIAL_LINE_LENGTH;
     int maxChunkLen = DEF_MAX_CHUNK_SIZE;
     int maxHeaderLen = DEF_MAX_HEADER_SIZE;
@@ -90,36 +100,12 @@ public class PoolConfig {
         this.idleLiveTime = idleLiveTime;
     }
 
-    public boolean isEnableDnsCache() {
-        return enableDnsCache;
+    public boolean isUseCrossConnection() {
+        return useCrossConnection;
     }
 
-    public void setEnableDnsCache(boolean enableDnsCache) {
-        this.enableDnsCache = enableDnsCache;
-    }
-
-    public boolean isEnableDnsCnameCache() {
-        return enableDnsCnameCache;
-    }
-
-    public void setEnableDnsCnameCache(boolean enableDnsCnameCache) {
-        this.enableDnsCnameCache = enableDnsCnameCache;
-    }
-
-    public boolean isTcpNoDelay() {
-        return tcpNoDelay;
-    }
-
-    public void setTcpNoDelay(boolean tcpNoDelay) {
-        this.tcpNoDelay = tcpNoDelay;
-    }
-
-    public boolean isTcpKeepalive() {
-        return tcpKeepalive;
-    }
-
-    public void setTcpKeepalive(boolean tcpKeepalive) {
-        this.tcpKeepalive = tcpKeepalive;
+    public void setUseCrossConnection(boolean useCrossConnection) {
+        this.useCrossConnection = useCrossConnection;
     }
 
     public int getMaxInlineLen() {
@@ -154,14 +140,6 @@ public class PoolConfig {
         this.trustManager = trustManager;
     }
 
-    public boolean isReuseAddr() {
-        return reuseAddr;
-    }
-
-    public void setReuseAddr(boolean reuseAddr) {
-        this.reuseAddr = reuseAddr;
-    }
-
     public int getMaxRequestPerConn() {
         return maxRequestPerConn;
     }
@@ -176,5 +154,21 @@ public class PoolConfig {
 
     public void setUserAgent(String userAgent) {
         this.userAgent = userAgent;
+    }
+
+    public long getUpgradeConnTimeout() {
+        return upgradeConnTimeout;
+    }
+
+    public void setUpgradeConnTimeout(long upgradeConnTimeout) {
+        this.upgradeConnTimeout = upgradeConnTimeout;
+    }
+
+    public ChannelConfig getChannelConfig() {
+        return channelConfig;
+    }
+
+    public void setChannelConfig(ChannelConfig channelConfig) {
+        this.channelConfig = channelConfig;
     }
 }

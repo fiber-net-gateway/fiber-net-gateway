@@ -305,4 +305,32 @@ return strings.toString(null) === "null"
     && strings.toString({}) === "<ObjectNode>" 
     && strings.toString(3.5) === '3.5';
 ```
+#### 二进制操作 binary.XXX
+针对 binary 数据类型操作
+- binary.base64Encode base64 编码
+- binary.base64Decode base64 解码
+- binary.hex 二进制转 hex 字符串
+
+#### hash 函数 hash.XXX
+- hash.crc32 crc32 编码
+- hash.md5 32位 md5 编码
+- hash.sha1 sha1 编码
+- hash.sha256 sha256 编码
+
+#### json操作 json.XXX
+- json.parse 字符串或者二进制 json 反序列化
+- json.stringify 运行时对象转 json 字符串
+
+#### math.XXX
+- math.floor
+- math.abs
+
+#### rand.XXX
+- rand.random 随机
+- rand.canary 根据参数转数字
+
+#### time.XXX
+- time.now 获取当前时间
+- time.format 时间格式化
+
 #### 文档完善中 敬请期待......

@@ -61,8 +61,11 @@ public class TestPipeline {
         Channel channel = bs.connect("127.0.0.1", 16688).syncUninterruptibly()
                 .channel();
 
-        sendReq(channel, 3000);
-        sendReq(channel, 10);
+        for (int i = 0; i < rh.latch.getCount(); i++) {
+            int t = 3000 - 10 * i;
+            sendReq(channel, t);
+        }
+
         channel.flush();
 
         rh.latch.await();
@@ -74,6 +77,7 @@ public class TestPipeline {
     private static void sendReq(Channel channel, int t) {
         DefaultHttpHeaders entries = new DefaultHttpHeaders();
         entries.set(Constant.X_FIBER_PROJECT_HEADER, RouterNameFetcher.DEF_ROUTER_NAME);
+//        entries.set(HttpHeaderNames.CONTENT_LENGTH, 0);
         channel.write(new DefaultFullHttpRequest(
                 HttpVersion.HTTP_1_1,
                 HttpMethod.GET,
@@ -91,7 +95,7 @@ public class TestPipeline {
 
     private static class RH extends ChannelInboundHandlerAdapter {
 
-        final CountDownLatch latch = new CountDownLatch(2);
+        final CountDownLatch latch = new CountDownLatch(10);
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {

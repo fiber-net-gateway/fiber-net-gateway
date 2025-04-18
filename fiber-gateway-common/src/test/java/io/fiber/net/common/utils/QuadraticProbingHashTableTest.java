@@ -1,12 +1,8 @@
 package io.fiber.net.common.utils;
 
-import io.netty.util.AsciiString;
 import io.netty.util.HashingStrategy;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class QuadraticProbingHashTableTest {
 
@@ -25,6 +21,8 @@ public class QuadraticProbingHashTableTest {
             String s = table.get("aaaaaa" + (13232 + i));
             Assert.assertEquals("AAAAAA" + (13232 + i), s);
         }
+
+        Assert.assertEquals(10000, table.size());
 
     }
 }

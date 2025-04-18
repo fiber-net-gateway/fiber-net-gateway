@@ -99,20 +99,6 @@ public class InterpreterVm extends AbstractVm {
         }
     }
 
-    public JsonNode getResultNow() throws Throwable {
-        switch (this.state) {
-            case STAT_END_SEC: {
-                int sp = this.sp;
-                return sp > 0 ? stack[sp - 1] : null;
-            }
-            case STAT_END_ERR:
-                assert rtError != null;
-                throw rtError;
-            default:
-                throw new IllegalStateException("vm not end");
-        }
-    }
-
     @Override
     protected void run() {
         int[] code = this.code;

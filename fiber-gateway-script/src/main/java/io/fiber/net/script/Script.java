@@ -6,7 +6,7 @@ import io.fiber.net.script.ast.Block;
 import io.fiber.net.script.ast.ExpressionNode;
 import io.fiber.net.script.ast.ReturnStatement;
 import io.fiber.net.script.parse.AotCompiledScript;
-import io.fiber.net.script.parse.InterpretorScript;
+import io.fiber.net.script.parse.InterpreterScript;
 import io.fiber.net.script.parse.ParseException;
 import io.fiber.net.script.parse.Parser;
 import io.fiber.net.script.std.StdLibrary;
@@ -30,7 +30,7 @@ public interface Script {
     static Script compileWithoutOptimization(String script, Library library, boolean allowAssign) throws ParseException {
         Parser parser = new Parser(library, allowAssign);
         Block block = parser.parseScript(script);
-        return InterpretorScript.createNonOptimise(script, block);
+        return InterpreterScript.createNonOptimise(script, block);
     }
 
     static Script compile(String script, Library library) throws ParseException {
@@ -40,7 +40,7 @@ public interface Script {
     static Script compile(String script, Library library, boolean allowAssign) throws ParseException {
         Parser parser = new Parser(library, allowAssign);
         Block block = parser.parseScript(script);
-        return InterpretorScript.create(script, block);
+        return InterpreterScript.create(script, block);
     }
 
     static Script compileExpression(String expression, boolean allowAssign) throws ParseException {
@@ -51,7 +51,7 @@ public interface Script {
         Parser parser = new Parser(library, allowAssign);
         ExpressionNode ast = parser.parseExpression(expression);
         Block block = new Block(ast.getPos(), Collections.singletonList(new ReturnStatement(ast.getPos(), ast)), Block.Type.SCRIPT);
-        return InterpretorScript.create(expression, block);
+        return InterpreterScript.create(expression, block);
     }
 
     static Script aotCompile(String script) throws ParseException {
@@ -100,4 +100,7 @@ public interface Script {
 
     Maybe<JsonNode> exec(JsonNode root, Object attach);
 
+    boolean containsAsyncIR();
+
+    JsonNode execForSync(JsonNode root, Object attach) throws Throwable;
 }

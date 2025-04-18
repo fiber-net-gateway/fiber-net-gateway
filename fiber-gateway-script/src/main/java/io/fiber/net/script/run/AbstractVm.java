@@ -178,6 +178,19 @@ public abstract class AbstractVm implements ExecutionContext {
         state = STAT_RUNNING;
     }
 
+    public JsonNode getResultNow() throws Throwable {
+        switch (this.state) {
+            case STAT_END_SEC: {
+                return rtValue;
+            }
+            case STAT_END_ERR:
+                assert rtError != null;
+                throw rtError;
+            default:
+                throw new IllegalStateException("vm not end");
+        }
+    }
+
     protected abstract void run() throws ScriptExecException;
 
 

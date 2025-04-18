@@ -18,7 +18,7 @@ import java.time.Duration;
 class MetricRouteHandler implements RouterHandler<HttpExchange> {
     private final PrometheusMeterRegistry registry;
     private final RateLimiter rateLimiter = RateLimiter.of("echo rate",
-            Duration.ofSeconds(3),
+            Duration.ofSeconds(20),
             3
     );
     private final JvmGcMetrics jvmGcMetrics = new JvmGcMetrics();

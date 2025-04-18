@@ -19,6 +19,11 @@ public class ServerConfig {
             SystemPropertyUtil.getBoolean("fiber.http.server.tcpNoDelay", true);
     public static final boolean DEF_TCP_KEEP_ALIVE =
             SystemPropertyUtil.getBoolean("fiber.http.server.tcpKeepAlive", true);
+    public static final boolean DEF_TCP_ADDR_REUSE =
+            SystemPropertyUtil.getBoolean("fiber.http.server.tcpReuseAddr", false);
+    public static final boolean DEF_TCP_PORT_REUSE =
+            SystemPropertyUtil.getBoolean("fiber.http.server.tcpReusePort", false);
+    public static final String DEF_ECHO_SERVER = SystemPropertyUtil.get("fiber.http.server.echoServer");
 
     private int backlog = DEF_BACKLOG;
     private int maxInitialLineLength = DEF_MAX_INITIAL_LINE_LENGTH;
@@ -29,7 +34,10 @@ public class ServerConfig {
     private int maxBodySize = DEF_MAX_BODY_SIZE;
     private boolean tcpNoDelay = DEF_TCP_NO_DELAY;
     private boolean tcpKeepAlive = DEF_TCP_KEEP_ALIVE;
+    private boolean tcpReuseAddr = DEF_TCP_ADDR_REUSE;
+    private boolean tcpReusePort = DEF_TCP_PORT_REUSE;
     private String bindIp;
+    private String echoServer = DEF_ECHO_SERVER;
 
     public int getBacklog() {
         return backlog;
@@ -101,5 +109,29 @@ public class ServerConfig {
 
     public void setBindIp(String bindIp) {
         this.bindIp = bindIp;
+    }
+
+    public String getEchoServer() {
+        return echoServer;
+    }
+
+    public void setEchoServer(String echoServer) {
+        this.echoServer = echoServer;
+    }
+
+    public boolean isTcpReuseAddr() {
+        return tcpReuseAddr;
+    }
+
+    public void setTcpReuseAddr(boolean tcpReuseAddr) {
+        this.tcpReuseAddr = tcpReuseAddr;
+    }
+
+    public boolean isTcpReusePort() {
+        return tcpReusePort;
+    }
+
+    public void setTcpReusePort(boolean tcpReusePort) {
+        this.tcpReusePort = tcpReusePort;
     }
 }

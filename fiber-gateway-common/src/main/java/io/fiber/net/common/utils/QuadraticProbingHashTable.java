@@ -3,6 +3,7 @@ package io.fiber.net.common.utils;
 import io.netty.util.HashingStrategy;
 
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 public class QuadraticProbingHashTable<K, V> {
     private static final int MAXIMUM_CAPACITY = 1 << 30;
@@ -73,9 +74,6 @@ public class QuadraticProbingHashTable<K, V> {
     @SuppressWarnings("unchecked")
     public V put(K key, V value) {
         Objects.requireNonNull(key);
-        if ((size << 1) >= capacity) {
-            rehash();
-        }
 
         Object[] ks = keys;
         Object[] vs = values;
@@ -96,7 +94,9 @@ public class QuadraticProbingHashTable<K, V> {
 
         ks[index] = key;
         vs[index] = value;
-        size++;
+        if ((++size << 1) >= capacity) {
+            rehash();
+        }
         return null;
     }
 
@@ -119,6 +119,18 @@ public class QuadraticProbingHashTable<K, V> {
             index = (index + 1) & mask;
         }
         return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void forEach(BiConsumer<K, V> func) {
+        Object[] keys = this.keys;
+        Object[] values = this.values;
+        for (int i = 0, c = capacity; i < c; i++) {
+            Object key;
+            if ((key = keys[i]) != null) {
+                func.accept((K) key, (V) values[i]);
+            }
+        }
     }
 
     public int size() {

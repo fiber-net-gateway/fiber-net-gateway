@@ -509,10 +509,17 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
         Object[] keys = inlineObject.getKeys();
         ExpressionNode[] valueChildren = inlineObject.getValueChildren();
         for (int i = 0; i < keys.length; i++) {
-            valueChildren[i].accept(this);
-            if (!InlineObject.isExpandKey(keys[i])) {
-                assert keys[i] instanceof String : "key 必须是 string";
-                push((pushExt(keys[i]) << 8) | Code.PROP_SET_1, valueChildren[i].getPos(), -1);
+            Object key = keys[i];
+            if (key instanceof InlineObject.ExpressionKey) {
+                ((InlineObject.ExpressionKey) key).getExpressionNode().accept(this);
+                valueChildren[i].accept(this);
+                push(Code.IDX_SET_1, ((InlineObject.ExpressionKey) key).getExpressionNode().getPos(), -2);
+            } else {
+                valueChildren[i].accept(this);
+                if (!InlineObject.isExpandKey(key)) {
+                    assert key instanceof String : "key 必须是 string";
+                    push((pushExt(key) << 8) | Code.PROP_SET_1, valueChildren[i].getPos(), -1);
+                }
             }
         }
         return null;

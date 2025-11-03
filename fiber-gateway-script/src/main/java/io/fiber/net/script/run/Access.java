@@ -65,7 +65,7 @@ public class Access {
         return MissingNode.getInstance();
     }
 
-    public static JsonNode indexSet(JsonNode parent, JsonNode key, JsonNode alien) throws ScriptExecException {
+    private static void indexSet0(JsonNode parent, JsonNode key, JsonNode alien) throws ScriptExecException {
         if (parent.isArray()) {
             ArrayNode array = (ArrayNode) parent;
 
@@ -81,7 +81,7 @@ public class Access {
                 ));
             }
             array.set(idx, alien);
-            return alien;
+            return;
         }
 
         if (parent.isObject()) {
@@ -91,7 +91,27 @@ public class Access {
             }
 
             ((ObjectNode) parent).set(key.textValue(), alien);
-            return alien;
+            return;
+        }
+
+        throw new ScriptExecException(SpelMessage.INDEXING_NOT_SUPPORTED_FOR_TYPE
+                .formatMessage(parent.getNodeType()));
+    }
+
+    public static JsonNode indexSet(JsonNode parent, JsonNode key, JsonNode alien) throws ScriptExecException {
+        indexSet0(parent, key, alien);
+        return alien;
+    }
+
+    public static JsonNode indexSet1(JsonNode parent, JsonNode key, JsonNode alien) throws ScriptExecException {
+        indexSet0(parent, key, alien);
+        return parent;
+    }
+
+    private static void propSet0(JsonNode parent, JsonNode alien, String key) throws ScriptExecException {
+        if (parent.isObject()) {
+            ((ObjectNode) parent).set(key, alien);
+            return;
         }
 
         throw new ScriptExecException(SpelMessage.INDEXING_NOT_SUPPORTED_FOR_TYPE
@@ -99,23 +119,14 @@ public class Access {
     }
 
     public static JsonNode propSet(JsonNode parent, JsonNode alien, String key) throws ScriptExecException {
-        if (parent.isObject()) {
-            ((ObjectNode) parent).set(key, alien);
-            return alien;
-        }
-
-        throw new ScriptExecException(SpelMessage.INDEXING_NOT_SUPPORTED_FOR_TYPE
-                .formatMessage(parent.getNodeType()));
+        propSet0(parent, alien, key);
+        return alien;
     }
 
-    public static JsonNode propSet1(JsonNode parent, JsonNode alien, String key) throws ScriptExecException {
-        if (parent.isObject()) {
-            ((ObjectNode) parent).set(key, alien);
-            return parent;
-        }
 
-        throw new ScriptExecException(SpelMessage.INDEXING_NOT_SUPPORTED_FOR_TYPE
-                .formatMessage(parent.getNodeType()));
+    public static JsonNode propSet1(JsonNode parent, JsonNode alien, String key) throws ScriptExecException {
+        propSet0(parent, alien, key);
+        return parent;
     }
 
     public static JsonNode propGet(JsonNode parent, String key) {

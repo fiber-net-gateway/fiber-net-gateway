@@ -68,7 +68,7 @@ public class UriCodec {
             byte[] array = buf.array();
             int off = buf.arrayOffset();
             uri.getBytes(0, length, array, off);
-            array[length] = 0;
+            array[off + length] = 0;
             try {
                 ngx_http_parse_complex_uri(array, off, uri, callback);
             } finally {
@@ -87,7 +87,7 @@ public class UriCodec {
         int[] usual = UriCodec.usual;
 
         state = sw_usual;
-        p = 0;
+        p = off;
         u = off;
         ch = uri_data[p++];
 

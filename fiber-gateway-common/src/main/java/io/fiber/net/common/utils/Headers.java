@@ -40,4 +40,7 @@ public class Headers {
         return HOP_HEADERS.get(key);
     }
 
+    public static QuadraticProbingHashTable<CharSequence, Boolean> getReadonlyHopHeaders() {
+        return HOP_HEADERS;
+    }
 }

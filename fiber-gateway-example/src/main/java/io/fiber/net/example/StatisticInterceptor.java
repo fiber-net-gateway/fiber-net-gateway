@@ -5,6 +5,7 @@ import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.async.Disposable;
 import io.fiber.net.common.async.Observable;
 import io.fiber.net.common.ext.Interceptor;
+import io.fiber.net.common.ext.RouterHandler;
 import io.fiber.net.server.HttpExchange;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -25,12 +26,12 @@ public class StatisticInterceptor implements Interceptor<HttpExchange>, HttpExch
     }
 
     @Override
-    public void intercept(String project, HttpExchange exchange, Invocation<HttpExchange> invocation) throws Exception {
-        Recorder recorder = Recorder.of(project, exchange.getPath(), exchange.getRequestMethod());
+    public void intercept(RouterHandler<HttpExchange> handler, HttpExchange exchange, Invocation<HttpExchange> invocation) throws Exception {
+        Recorder recorder = Recorder.of(handler.getRouterName(), exchange.getPath(), exchange.getRequestMethod());
         TIMER.set(exchange, recorder);
         exchange.addListener(this);
         exchange.peekBody().subscribe(recorder);
-        invocation.invoke(project, exchange);
+        invocation.invoke(handler, exchange);
     }
 
     @Override

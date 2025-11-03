@@ -1,11 +1,14 @@
 package io.fiber.net.example;
 
 import com.fasterxml.jackson.databind.JavaType;
+import io.fiber.net.common.async.ScheduledFuture;
+import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.ioc.Destroyable;
 import io.fiber.net.common.utils.ArrayUtils;
 import io.fiber.net.common.utils.JsonUtil;
+import io.fiber.net.http.HttpClient;
 import io.fiber.net.proxy.*;
-import io.fiber.net.server.HttpEngine;
+import io.fiber.net.server.HttpServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,54 +20,39 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class DirectoryFilesConfigWatcher implements ConfigWatcher, Destroyable, Runnable {
+public class DirectoryFilesConfigWatcher implements ConfigWatcher, Destroyable {
     private static final Logger log = LoggerFactory.getLogger(DirectoryFilesConfigWatcher.class);
     private static final JavaType URL_ROUTE_TYPE = JsonUtil.MAPPER.getTypeFactory()
             .constructCollectionType(ArrayList.class, UrlRoute.class);
 
-    volatile boolean stop;
     Map<String, Long> lastUpdate = new HashMap<>();
     private final File file;
     private final CorsConfig corsConfig = new CorsConfig();
-    private HttpEngine engine;
+    private HttpServer server;
+    private ScheduledFuture future;
 
     public DirectoryFilesConfigWatcher(File file) {
         this.file = file;
     }
 
     @Override
-    public void startWatch(HttpEngine engine) throws Exception {
-        this.engine = engine;
-        engine.addHandlerRouter(engine.getInjector().getInstance(MetricRouteHandler.class));
+    public void startWatch(HttpServer server) {
+        this.server = server;
+        server.addHandlerRouter(server.getInjector().getInstance(MetricRouteHandler.class));
+        HttpClient httpClient = server.getInjector().getInstance(HttpClient.class);
+        server.addHandlerRouter(new WebSocketHandler(httpClient));
         scanFile();
-        Thread thread = new Thread(this);
-        thread.setDaemon(true);
-        thread.start();
+        future = Scheduler.current().scheduleAtFixedRate(this::scanFile, 10000, 10000);
     }
 
     @Override
     public void destroy() {
-        stop = true;
-        synchronized (this) {
-            notify();
+        if (future != null) {
+            future.cancel(false);
+            future = null;
         }
     }
 
-    @Override
-    public void run() {
-        while (!stop) {
-            synchronized (this) {
-                try {
-                    wait(10000);
-                } catch (InterruptedException ignore) {
-                }
-            }
-            if (stop) {
-                break;
-            }
-            scanFile();
-        }
-    }
 
     private void scanFile() {
         File[] files = file.listFiles();
@@ -93,8 +81,8 @@ public class DirectoryFilesConfigWatcher implements ConfigWatcher, Destroyable, 
         String name = parseName(listFile);
         try {
             List<UrlRoute> routes = JsonUtil.MAPPER.readValue(listFile, URL_ROUTE_TYPE);
-            engine.addHandlerRouter(LibProxyMainModule.createUrlMappingRouter(
-                    engine.getInjector(),
+            server.addHandlerRouter(LibProxyMainModule.createUrlMappingRouter(
+                    server.getInjector(),
                     name,
                     routes,
                     corsConfig));
@@ -107,10 +95,10 @@ public class DirectoryFilesConfigWatcher implements ConfigWatcher, Destroyable, 
     private void addJsProject(File listFile, String name) {
         try {
             byte[] bytes = Files.readAllBytes(listFile.toPath());
-            ScriptHandler project = LibProxyMainModule.createProject(engine.getInjector(),
+            ScriptHandler project = LibProxyMainModule.createProject(server.getInjector(),
                     name,
                     new String(bytes, StandardCharsets.UTF_8));
-            engine.addHandlerRouter(project);
+            server.addHandlerRouter(project);
         } catch (Exception e) {
             log.error("error init project", e);
         }

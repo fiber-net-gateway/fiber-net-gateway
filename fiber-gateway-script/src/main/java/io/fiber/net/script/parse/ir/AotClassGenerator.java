@@ -220,11 +220,14 @@ public class AotClassGenerator {
                     ep.pushArray();
                     break;
                 //
+                case Code.IDX_GET://!
+                    ep.idxGet();
+                    break;
                 case Code.IDX_SET://!
                     ep.idxSet();
                     break;
-                case Code.IDX_GET://!
-                    ep.idxGet();
+                case Code.IDX_SET_1://!
+                    ep.idxSet1();
                     break;
                 case Code.PROP_GET://!
                     ep.propGet(clzAssembler.addStringProp(code >>> 8));

@@ -21,12 +21,6 @@ if ("/ws" == req.getPath()) {
         },
         "websocket": 50000
     });
-} else if("/" != req.getPath()) {
-    return bd.proxyPass({
-        headers: {
-            "X-Fiber-Project": null,
-        }
-    });
 }
 
 let result = {};

@@ -14,9 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.SocketAddress;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class HttpExchange {
@@ -265,6 +263,10 @@ public abstract class HttpExchange {
 
     public abstract String getRequestHeader(CharSequence name);
 
+    public abstract Iterator<Map.Entry<CharSequence, CharSequence>> getRequestHeaderIterator();
+
+    public abstract Iterator<Map.Entry<CharSequence, CharSequence>> getResponseHeaderIterator();
+
     public abstract List<String> getRequestHeaderList(CharSequence name);
 
     public abstract Collection<String> getRequestHeaderNames();
@@ -353,4 +355,6 @@ public abstract class HttpExchange {
     public abstract Maybe<ByteBuf> readFullBody(Scheduler scheduler);
 
     public abstract boolean isClientClosed();
+
+    public abstract Scheduler getScheduler();
 }

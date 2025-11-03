@@ -1,26 +1,26 @@
 package io.fiber.net.proxy;
 
 import io.fiber.net.common.Engine;
-import io.fiber.net.common.ioc.Binder;
-import io.fiber.net.common.ioc.Injector;
+import io.fiber.net.common.Server;
+import io.fiber.net.common.ext.EventSyncer;
+import io.fiber.net.common.ext.LifecycleListener;
 import io.fiber.net.common.ioc.Module;
-import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.common.ioc.*;
 import io.fiber.net.common.utils.Assert;
 import io.fiber.net.common.utils.CollectionUtils;
+import io.fiber.net.common.utils.EpollAvailable;
 import io.fiber.net.common.utils.StringUtils;
+import io.fiber.net.http.ConnectionFactory;
 import io.fiber.net.http.DefaultHttpClient;
 import io.fiber.net.http.HttpClient;
 import io.fiber.net.http.HttpHost;
-import io.fiber.net.http.util.ConnectionFactory;
 import io.fiber.net.proxy.gov.GovLibConfigure;
-import io.fiber.net.proxy.lib.ExtensiveHttpLib;
-import io.fiber.net.proxy.lib.HttpFunc;
+import io.fiber.net.proxy.lib.*;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.Script;
 import io.fiber.net.script.ast.Literal;
-import io.fiber.net.server.EngineModule;
-import io.fiber.net.server.HttpEngine;
-import io.fiber.net.server.HttpServerStartListener;
+import io.fiber.net.server.HttpServer;
+import io.fiber.net.server.HttpServerModule;
 import io.netty.channel.EventLoopGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +47,7 @@ public class LibProxyMainModule implements Module {
             binder.bindPrototype(ProxyHttpLibConfigure.class, ProxyHttpLibConfigure::new);
             binder.bindMultiBean(HttpLibConfigure.class, GovLibConfigure.class);
             binder.bind(GovLibConfigure.class, new GovLibConfigure());
+            binder.bindMultiBean(HttpLibConfigure.class, new RequestLibConfigure());
         }
 
         synchronized ScriptHandler createProject(String projectName, String code) throws Exception {
@@ -74,14 +75,7 @@ public class LibProxyMainModule implements Module {
         }
 
         static Script compileScript(String code, Injector injector) throws Exception {
-            HttpLibConfigure[] configures = injector.getInstances(HttpLibConfigure.class);
-
-            ExtensiveHttpLib library = new ExtensiveHttpLib(injector, configures);
-            if (ArrayUtils.isNotEmpty(configures)) {
-                for (HttpLibConfigure configure : configures) {
-                    configure.onInit(library);
-                }
-            }
+            ExtensiveHttpLib library = new ExtensiveHttpLib(injector);
             return Script.aotCompile(code, library);
         }
 
@@ -110,6 +104,23 @@ public class LibProxyMainModule implements Module {
         }
 
         @Override
+        public Library.AsyncFunction findAsyncFunction(String name) {
+            if ("req.tunnelProxy".equals(name)) {
+                return new TunnelProxy(injector.getInstance(ConnectionFactory.class),
+                        injector.getInstance(HttpClient.class));
+            }
+            return null;
+        }
+
+        @Override
+        public Library.Function findFunction(String name) {
+            if ("req.tunnelProxyAuth".equals(name)) {
+                return new TunnelProxyAuth();
+            }
+            return null;
+        }
+
+        @Override
         public Library.DirectiveDef findDirectiveDef(String type, String name, List<Literal> literals) {
             if ("http".equals(type)) {
                 HttpHost httpHost = HttpHost.create(literals.get(0).getLiteralValue().textValue());
@@ -119,30 +130,53 @@ public class LibProxyMainModule implements Module {
         }
     }
 
-    private static class ProxyStartListener extends HttpServerStartListener {
-        public ProxyStartListener(Injector injector) {
-            super(injector);
+    private static class LoadConfigWatcherListener implements LifecycleListener {
+        @Override
+        public void onEvent(Server<?> server, Event event) throws Exception {
+            if (event == Event.INIT && server instanceof HttpServer) {
+                ConfigWatcher watcher = server.getInjector().getInstance(ConfigWatcher.class);
+                watcher.startWatch((HttpServer) server);
+            }
+        }
+    }
+
+    static class EventLoopGroupHolder implements Destroyable, Initializable {
+        private EventLoopGroup group;
+
+        @Override
+        public void init() {
+            group = EpollAvailable.workerGroup();
+        }
+
+        public EventLoopGroup getGroup() {
+            return group;
         }
 
         @Override
-        protected void beforeServerStart(HttpEngine engine) throws Exception {
-            ConfigWatcher watcher = engine.getInjector().getInstance(ConfigWatcher.class);
-            watcher.startWatch(engine);
+        public void destroy() {
+            group.shutdownGracefully().syncUninterruptibly();
         }
+
     }
 
 
     @Override
     public void install(Binder binder) {
+        binder.bindFactory(EventLoopGroupHolder.class, injector -> new EventLoopGroupHolder());
+        binder.bindPrototype(EventLoopGroup.class, injector -> injector.getInstance(EventLoopGroupHolder.class).getGroup());
+        binder.bindFactory(Engine.class, Engine::new);
+        binder.bindFactory(EventSyncer.class, i -> new EventSyncer());
+
         binder.bindLink(HttpClient.class, DefaultHttpClient.class);
         binder.bindFactory(DefaultHttpClient.class, injector -> new DefaultHttpClient(injector.getInstance(EventLoopGroup.class)));
         binder.bindPrototype(ConnectionFactory.class, injector -> injector.getInstance(DefaultHttpClient.class).getConnectionFactory());
         binder.bindMultiBean(ProxyModule.class, SubModule.class);
         binder.bindFactory(SubModule.class, SubModule::new);
-        binder.forceBindPrototype(HttpServerStartListener.class, ProxyStartListener::new);
+        binder.bindMultiBean(LifecycleListener.class, new LoadConfigWatcherListener());
         binder.bind(ConfigWatcher.class, ConfigWatcher.NOOP_WATCHER);
         binder.bindFactory(UrlHandlerManager.class, UrlHandlerManager::new);
     }
+
 
     public static ScriptHandler createProject(Injector injector, String projectName, String code) throws Exception {
         SubModule subModule = injector.getInstance(SubModule.class);
@@ -155,38 +189,37 @@ public class LibProxyMainModule implements Module {
                                                           List<UrlRoute> routes,
                                                           CorsConfig defCorsConfig) throws Exception {
         SubModule subModule = injector.getInstance(SubModule.class);
-        assert subModule.engineInjector == injector;
         return subModule.createProject(projectName, routes, defCorsConfig);
     }
 
-    public static CorsScriptHandler createProject(Injector injector,
+    public static CorsScriptHandler createProject(Server<?> injector,
                                                   String projectName,
                                                   String code,
                                                   CorsConfig corsConfig) throws Exception {
-        ScriptHandler scriptHandler = createProject(injector, projectName, code);
+        ScriptHandler scriptHandler = createProject(injector.getInjector(), projectName, code);
         return CorsScriptHandler.create(scriptHandler, corsConfig);
     }
 
-    public static HttpEngine createEngineWithSPI(ClassLoader loader) throws Exception {
+    public static Engine createEngineWithSPI(ClassLoader loader) throws Exception {
         ServiceLoader<Module> serviceLoader = ServiceLoader.load(Module.class,
                 loader == null ? Thread.currentThread().getContextClassLoader() : loader);
         return createEngine(serviceLoader);
     }
 
-    public static HttpEngine createEngine(Module... extModules) throws Exception {
+    public static Engine createEngine(Module... extModules) throws Exception {
         return createEngine(Arrays.asList(extModules));
     }
 
-    public static HttpEngine createEngine(Iterable<Module> extModules) throws Exception {
+    public static Engine createEngine(Iterable<Module> extModules) throws Exception {
         List<Module> modules = new ArrayList<>();
         modules.add(new LibProxyMainModule());
-        modules.add(new EngineModule());
+        modules.add(new HttpServerModule());
         for (Module module : extModules) {
             modules.add(module);
         }
 
         Injector injector = Injector.getRoot().createChild(modules);
-        HttpEngine engine = (HttpEngine) injector.getInstance(Engine.class);
+        Engine engine = injector.getInstance(Engine.class);
         try {
             engine.installExt();
         } catch (Throwable e) {

@@ -49,13 +49,33 @@ public interface Maybe<T> {
         return new MaybeToSingle<>(defaultValue, this);
     }
 
-    static <T> Maybe<T> create(OnSubscribe<T> onSubscribe) {
-        return new MaybeCreate<>(onSubscribe);
+    default <U extends T> Single<T> flatSingle(Supplier<? extends Single<U>> supplier) {
+        return new FlatSingleMaybe<>(supplier, this);
     }
 
-    @SuppressWarnings("unchecked")
-    static <T> Maybe<T> ofErr(Throwable err) {
-        return (Maybe<T>) new ErrMaybe(err);
+
+    /**
+     * 创建一个 Maybe. onComplete() if value is null
+     *
+     * @param value nullable
+     * @param <T>   泛型
+     * @param <V>   actual type
+     * @return Maybe
+     */
+    static <T, V extends T> Maybe<T> just(V value) {
+        return new JustMaybe<>(value, null);
+    }
+
+    static <T> Maybe<T> justErr(Throwable err) {
+        return new JustMaybe<>(null, err);
+    }
+
+    static <T> Maybe<T> create(OnSubscribe<T> onSubscribe) {
+        return new MaybeCreate<>(onSubscribe, Functions.getNoopConsumer());
+    }
+
+    static <T> Maybe<T> create(OnSubscribe<T> onSubscribe, Consumer<? super T> onDismiss) {
+        return new MaybeCreate<>(onSubscribe, onDismiss);
     }
 
     default Maybe<T> notifyOn(Scheduler scheduler) {

@@ -36,9 +36,9 @@ public class BinaryNode
         }
     }
 
-    public static BinaryNode valueOf(byte[] data) {
+    public static ValueNode valueOf(byte[] data) {
         if (data == null) {
-            return null;
+            return NullNode.getInstance();
         }
         if (data.length == 0) {
             return EMPTY_BINARY_NODE;

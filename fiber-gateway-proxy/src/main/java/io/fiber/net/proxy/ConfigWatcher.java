@@ -1,10 +1,10 @@
 package io.fiber.net.proxy;
 
-import io.fiber.net.server.HttpEngine;
+import io.fiber.net.server.HttpServer;
 
 public interface ConfigWatcher {
     ConfigWatcher NOOP_WATCHER = engine -> {
     };
 
-    void startWatch(HttpEngine engine) throws Exception;
+    void startWatch(HttpServer engine) throws Exception;
 }

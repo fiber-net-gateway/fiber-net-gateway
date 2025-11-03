@@ -1,7 +1,6 @@
 package io.fiber.net.script.std;
 
 import io.fiber.net.common.json.ArrayNode;
-import io.fiber.net.common.json.IntNode;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.ObjectNode;
 import io.fiber.net.common.utils.JsonUtil;
@@ -88,16 +87,13 @@ public class ObjectsFuncs {
             }
 
             ObjectNode obj = (ObjectNode) arg;
-            int size = 0;
             for (int i = 1; i < length; i++) {
                 if (context.getArgVal(i).isTextual()) {
-                    if (obj.remove(context.getArgVal(i).textValue()) != null) {
-                        size++;
-                    }
+                     obj.remove(context.getArgVal(i).textValue());
                 }
             }
 
-            return IntNode.valueOf(size);
+            return arg;
         }
     }
 
@@ -105,6 +101,6 @@ public class ObjectsFuncs {
         FUNC.put("Object.assign", new AssignMethod());
         FUNC.put("Object.keys", new KeysMethod());
         FUNC.put("Object.values", new ValuesMethod());
-        FUNC.put("Object.delete", new DeleteKeyFunc());
+        FUNC.put("Object.deleteProperties", new DeleteKeyFunc());
     }
 }

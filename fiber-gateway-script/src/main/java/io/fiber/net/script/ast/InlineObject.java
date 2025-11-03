@@ -18,6 +18,18 @@ public class InlineObject extends ExpressionNode {
         }
     }
 
+    public static class ExpressionKey {
+        private final ExpressionNode expressionNode;
+
+        private ExpressionKey(ExpressionNode expressionNode) {
+            this.expressionNode = expressionNode;
+        }
+
+        public ExpressionNode getExpressionNode() {
+            return expressionNode;
+        }
+    }
+
     private static final ExpandKey EXPAND_KEY = new ExpandKey();
 
     public static Object expandKey() {
@@ -26,6 +38,10 @@ public class InlineObject extends ExpressionNode {
 
     public static boolean isExpandKey(Object key) {
         return EXPAND_KEY == key;
+    }
+
+    public static ExpressionKey expressionKey(ExpressionNode expressionNode) {
+        return new ExpressionKey(expressionNode);
     }
 
     private final Object[] keys;
@@ -58,6 +74,10 @@ public class InlineObject extends ExpressionNode {
             Object key = keys[i];
             if (isExpandKey(key)) {
                 sb.append("...");
+            } else if (key instanceof ExpressionKey) {
+                sb.append("[");
+                ((ExpressionKey) key).getExpressionNode().toStringAST(sb);
+                sb.append("]:");
             } else {
                 sb.append('"');
                 sb.append(key);

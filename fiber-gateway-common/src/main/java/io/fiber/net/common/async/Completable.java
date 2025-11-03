@@ -1,10 +1,7 @@
 package io.fiber.net.common.async;
 
 
-import io.fiber.net.common.async.internal.CompletableCreate;
-import io.fiber.net.common.async.internal.FuncCompletableObserver;
-import io.fiber.net.common.async.internal.FuncMaybeObserver;
-import io.fiber.net.common.async.internal.JustCompletable;
+import io.fiber.net.common.async.internal.*;
 
 public interface Completable {
 
@@ -41,6 +38,15 @@ public interface Completable {
     static Completable error(Throwable err) {
         return JustCompletable.ofErr(err);
     }
+
+    default Completable onEvent(Consumer<? super Throwable> e) {
+        return new OnEventCompletable(this, e);
+    }
+
+    default Completable onErrorResume(Function<? super Throwable, Completable> resume) {
+        return new ErrorResumeCompletable(this, resume);
+    }
+
 
     void subscribe(Observer observer);
 

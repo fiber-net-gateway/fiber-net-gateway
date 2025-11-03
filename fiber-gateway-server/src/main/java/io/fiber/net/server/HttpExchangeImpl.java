@@ -22,7 +22,9 @@ import io.netty.util.concurrent.Future;
 
 import java.net.SocketAddress;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 class HttpExchangeImpl extends HttpExchange implements UriCodec.Callback {
     private static final AsciiString APPLICATION_JSON_UTF8 = AsciiString.cached("application/json; charset=utf-8");
@@ -147,6 +149,16 @@ class HttpExchangeImpl extends HttpExchange implements UriCodec.Callback {
     @Override
     public String getRequestHeader(CharSequence name) {
         return request.headers().get(name);
+    }
+
+    @Override
+    public Iterator<Map.Entry<CharSequence, CharSequence>> getRequestHeaderIterator() {
+        return request.headers().iteratorCharSequence();
+    }
+
+    @Override
+    public Iterator<Map.Entry<CharSequence, CharSequence>> getResponseHeaderIterator() {
+        return headers.iteratorCharSequence();
     }
 
     @Override
@@ -284,9 +296,6 @@ class HttpExchangeImpl extends HttpExchange implements UriCodec.Callback {
         }
 
         long len = fileRegion.count() - fileRegion.transferred();
-        if ((status == 0 || status == 200) && len == 0) {
-            status = 204;
-        }
         wroteStatus = status;
         sentRespBodyLen = len;
 
@@ -366,9 +375,6 @@ class HttpExchangeImpl extends HttpExchange implements UriCodec.Callback {
     }
 
     private void writeBody0(ByteBuf buf, int status) {
-        if ((status == 0 || status == 200) && buf.readableBytes() == 0) {
-            status = 204;
-        }
         wroteStatus = status;
         sentRespBodyLen = buf.readableBytes();
         DefaultHttpHeaders headers = headerForSend(buf.readableBytes());
@@ -433,6 +439,11 @@ class HttpExchangeImpl extends HttpExchange implements UriCodec.Callback {
         return clientClosed;
     }
 
+    @Override
+    public Scheduler getScheduler() {
+        return reqBufSubject.getProducerScheduler();
+    }
+
     void feedReqBody(ByteBuf buf, boolean last) {
         if (receiveCompleted) {
             buf.release();
@@ -459,7 +470,7 @@ class HttpExchangeImpl extends HttpExchange implements UriCodec.Callback {
 
     void onDestroy(Throwable bodyError) {
         if (!responseWrote) {
-            log.warn("[bug]no response write after request ending");
+            log.error("[bug]no response write after request ending");
         }
         respEnd = true;
         discardReqBody();

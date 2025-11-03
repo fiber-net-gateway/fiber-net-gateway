@@ -308,7 +308,7 @@ public class JsonNodeFactory
      * String value
      */
     @Override
-    public BinaryNode binaryNode(byte[] data) {
+    public ValueNode binaryNode(byte[] data) {
         return BinaryNode.valueOf(data);
     }
 

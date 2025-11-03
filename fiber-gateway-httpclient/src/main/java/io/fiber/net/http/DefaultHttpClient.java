@@ -3,7 +3,7 @@ package io.fiber.net.http;
 import io.fiber.net.common.ioc.Initializable;
 import io.fiber.net.http.impl.ConnectionPool;
 import io.fiber.net.http.impl.PoolConfig;
-import io.fiber.net.http.util.ConnectionFactory;
+import io.fiber.net.http.util.ConnectionFactoryImpl;
 import io.netty.channel.EventLoopGroup;
 
 import java.util.concurrent.CompletableFuture;
@@ -16,7 +16,7 @@ public class DefaultHttpClient implements HttpClient, Initializable {
     }
 
     public DefaultHttpClient(EventLoopGroup group, PoolConfig poolConfig) {
-        this(new ConnectionFactory(group, poolConfig.getChannelConfig()), poolConfig);
+        this(new ConnectionFactoryImpl(group, poolConfig.getChannelConfig()), poolConfig);
     }
 
     public DefaultHttpClient(ConnectionFactory connectionFactory, PoolConfig pc) {

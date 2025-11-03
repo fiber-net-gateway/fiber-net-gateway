@@ -103,6 +103,14 @@ public class BeanDefinationRegistry implements Binder {
         beanList.addObj(real, order);
     }
 
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T, V extends T> void bindMultiBeanPrototype(Class<T> clz, Function<Injector, V> creator, int order) {
+        BeanList<V> beanList = (BeanList<V>) multiBeans.computeIfAbsent(clz, k -> new BeanList<>());
+        beanList.addCreator(creator, order);
+    }
+
+
     @Override
     public <T> boolean removeBind(Class<T> clz) {
         return beanMap.remove(clz) != null || multiBeans.remove(clz) != null;
@@ -149,7 +157,7 @@ public class BeanDefinationRegistry implements Binder {
             for (Map.Entry<Class<?>, BeanList<?>> next : multiBeans.entrySet()) {
                 next.getValue().sort();
                 for (BeanList.BeanElement element : next.getValue().getBeanElements()) {
-                    if (element.isClzBean() && !containsBean(element.getClz(), true)) {
+                    if (element.isClz() && !containsBean(element.getClz(), true)) {
                         throw new IllegalStateException("bean not found:" + element.getClz());
                     }
                 }

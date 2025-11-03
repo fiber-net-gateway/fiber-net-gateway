@@ -32,11 +32,19 @@ public interface Single<T> {
     }
 
     static <T> Single<T> create(OnSubscribe<T> onSubscribe) {
-        return new SingleCreate<>(onSubscribe);
+        return new SingleCreate<>(onSubscribe, Functions.getNoopConsumer());
+    }
+
+    static <T> Single<T> create(OnSubscribe<T> onSubscribe, Consumer<? super T> onDismiss) {
+        return new SingleCreate<>(onSubscribe, onDismiss);
     }
 
     static <T> Single<T> just(T t) {
-        return new JustSingle<>(t);
+        return new JustSingle<>(t, null);
+    }
+
+    static <T> Single<T> justErr(Throwable err) {
+        return new JustSingle<>(null, err);
     }
 
     void subscribe(Observer<? super T> observer);
@@ -66,8 +74,12 @@ public interface Single<T> {
         return new ErrMappedSingle<>(mapErr, this);
     }
 
+    default Single<T> onErrorResume(Function<? super Throwable, Single<? extends T>> resume) {
+        return new ErrorResumeSingle<>(resume, this);
+    }
+
     default <R> Observable<R> switchToObservable(Function<? super T, Observable<? extends R>> function) {
-        return new SingleToObservable<T, R>(function, this);
+        return new SingleToObservable<>(function, this);
     }
 
     @SuppressWarnings("unchecked")
@@ -96,5 +108,9 @@ public interface Single<T> {
 
     default Completable toCompletable(Consumer<? super T> con) {
         return new SingleToCompletable<>(con, this);
+    }
+
+    default Completable flatCompletable(Function<? super T, ? extends Completable> map) {
+        return new SingleFlatCompletable<>(map, this);
     }
 }

@@ -454,6 +454,13 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     }
 
     private void onRequestSent(Future<? super Void> future) {
+        ClientHttpExchange exchange;
+        if ((exchange = this.exchange) != null) {
+            exchange.bodySentNano = System.nanoTime();
+            if (exchange.headerSentNano == 0L) {
+                exchange.headerSentNano = exchange.bodySentNano;
+            }
+        }
         if (future.isSuccess()) {
             if (exchange != null) {
                 exchange.bodySent = exchange.headerSent = true;
@@ -467,6 +474,11 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
     }
 
     private boolean onRequestHeaderSent(Future<? super Void> future) {
+        ClientHttpExchange exchange;
+        if ((exchange = this.exchange) != null) {
+            exchange.headerSentNano = System.nanoTime();
+        }
+
         if (future.isSuccess()) {
             if (exchange != null) {
                 exchange.headerSent = true;

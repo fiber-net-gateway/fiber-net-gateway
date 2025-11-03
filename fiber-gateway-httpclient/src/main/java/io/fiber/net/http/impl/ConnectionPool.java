@@ -1,8 +1,8 @@
 package io.fiber.net.http.impl;
 
 import io.fiber.net.common.async.Scheduler;
+import io.fiber.net.http.ConnectionFactory;
 import io.fiber.net.http.HttpHost;
-import io.fiber.net.http.util.ConnectionFactory;
 import io.netty.channel.Channel;
 import io.netty.channel.EventLoop;
 import io.netty.channel.EventLoopGroup;
@@ -91,7 +91,14 @@ public class ConnectionPool {
     }
 
     public void getConn(ConnFetcher fetcher) {
-        assert Scheduler.isInIOThread(group) : "not in io thread??";
+        if (Scheduler.isInIOThread(group)) {
+            getConn0(fetcher);
+        } else {
+            group.execute(() -> getConn0(fetcher));
+        }
+    }
+
+    private void getConn0(ConnFetcher fetcher) {
         final ThreadConnHolder holder = TH.get();
         HttpConnection httpConnection = holder.tryGet(fetcher.httpHost());
         if (httpConnection != null) {

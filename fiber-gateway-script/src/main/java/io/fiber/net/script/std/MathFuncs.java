@@ -22,7 +22,22 @@ public class MathFuncs {
         @Override
         public JsonNode call(ExecutionContext context) throws ScriptExecException {
             NumericNode numNode = assertNumNode(context, 1);
-            return IntNode.valueOf((int) Math.floor(numNode.doubleValue()));
+            if (numNode.isIntegralNumber()) {
+                return numNode;
+            }
+            if (numNode.isFloat()) {
+                return IntNode.valueOf((int) Math.floor(numNode.floatValue()));
+            }
+
+            if (numNode.isDouble()) {
+                return LongNode.valueOf((long) Math.floor(numNode.doubleValue()));
+            }
+
+            if (numNode.isBigDecimal()) {
+                return BigIntegerNode.valueOf(numNode.decimalValue().toBigInteger());
+            }
+            // not hit
+            return numNode;
         }
     }
 

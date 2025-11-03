@@ -9,7 +9,7 @@ import java.util.Set;
 
 public class CorsConfig {
     private static final Set<HttpMethod> DEF_ALLOW_METHODS = EnumSet.of(HttpMethod.GET,
-            HttpMethod.POST, HttpMethod.OPTIONS, HttpMethod.DELETE, HttpMethod.TRACE);
+            HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.TRACE);
     private static final Set<String> DEF_ALLOW_HEADERS = Collections.emptySet();
     private static final Set<String> DEF_ALLOW_EXPOSE = Collections.emptySet();
     private static final Set<String> DEF_ALLOW_ORIGIN;

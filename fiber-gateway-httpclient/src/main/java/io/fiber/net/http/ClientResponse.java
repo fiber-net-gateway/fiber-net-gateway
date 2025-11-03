@@ -7,7 +7,9 @@ import io.fiber.net.common.codec.UpgradedConnection;
 import io.netty.buffer.ByteBuf;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 public interface ClientResponse {
     int status();
@@ -21,6 +23,8 @@ public interface ClientResponse {
     List<String> getHeaderList(CharSequence name);
 
     Collection<String> getHeaderNames();
+
+    Iterator<Map.Entry<CharSequence, CharSequence>> getHeaderIterator();
 
     void discardRespBody();
 
@@ -56,4 +60,6 @@ public interface ClientResponse {
     UpgradedConnection upgradeConnection();
 
     void discardBodyOrUpgrade();
+
+    long getRequestSendDurationNano();
 }

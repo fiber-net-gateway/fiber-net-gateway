@@ -2,7 +2,7 @@ package io.fiber.net.http;
 
 import io.fiber.net.common.utils.Predictions;
 import io.fiber.net.common.utils.StringUtils;
-import io.fiber.net.http.util.IpUtils;
+import io.fiber.net.common.utils.IpUtils;
 
 import java.io.Serializable;
 import java.net.InetAddress;

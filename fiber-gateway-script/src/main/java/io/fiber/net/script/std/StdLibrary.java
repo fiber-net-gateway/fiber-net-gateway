@@ -23,6 +23,7 @@ public class StdLibrary implements Library {
         DEF_FUNC_MAP.putAll(HashFuncs.FUNC);
         DEF_FUNC_MAP.putAll(RandFuncs.FUNC);
         DEF_FUNC_MAP.putAll(TimeFuncs.FUNC);
+        DEF_FUNC_MAP.putAll(UrlFunc.FUNC);
     }
 
     protected static Map<String, Library.Function> getDefFuncMap() {

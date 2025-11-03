@@ -42,7 +42,7 @@ public class JsonFunc {
     static final Map<String, Library.Function> FUNC = new HashMap<>();
 
     static {
-        FUNC.put("json.parse", new Parse());
-        FUNC.put("json.stringify", new Stringify());
+        FUNC.put("JSON.parse", new Parse());
+        FUNC.put("JSON.stringify", new Stringify());
     }
 }

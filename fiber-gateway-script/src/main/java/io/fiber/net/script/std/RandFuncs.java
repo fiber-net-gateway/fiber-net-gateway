@@ -60,7 +60,7 @@ public class RandFuncs {
 
             int argCnt = context.getArgCnt();
             if (argCnt == 1) {
-                return BooleanNode.valueOf(ThreadLocalRandom.current().nextInt(101) <= ratio);
+                return BooleanNode.valueOf(ThreadLocalRandom.current().nextInt(100) < ratio);
             }
 
             CRC32 crc32 = new CRC32();

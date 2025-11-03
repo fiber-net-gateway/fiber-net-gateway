@@ -1,28 +1,29 @@
 package io.fiber.net.common.async.internal;
 
-import io.fiber.net.common.async.Disposable;
 import io.fiber.net.common.async.Single;
 
-public class JustSingle<T> implements Single<T>, Disposable {
+public class JustSingle<T> implements Single<T> {
     private final T value;
+    private final Throwable err;
 
-    public JustSingle(T value) {
+    public JustSingle(T value, Throwable err) {
         this.value = value;
+        this.err = err;
     }
 
     @Override
     public void subscribe(Observer<? super T> observer) {
-        observer.onSubscribe(this);
-        observer.onSuccess(value);
+        DisposableOb d = new SimpleDisposableOb();
+        observer.onSubscribe(d);
+        if (d.isDisposed()) {
+            return;
+        }
+        if (err == null) {
+            observer.onSuccess(value);
+        } else {
+            observer.onError(err);
+        }
     }
 
-    @Override
-    public boolean isDisposed() {
-        return false;
-    }
 
-    @Override
-    public boolean dispose() {
-        return false;
-    }
 }

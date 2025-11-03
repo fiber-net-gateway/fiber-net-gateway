@@ -755,12 +755,21 @@ public class Parser {
                     nextToken();
                     ExpandArrArg expand = new ExpandArrArg(toPos(t), eatExpression(), ExpandArrArg.Where.INIT_OBJ);
                     map.put(InlineObject.expandKey(), expand);
+                } else if(k.kind == TokenKind.LSQUARE) {
+                    nextToken();
+                    InlineObject.ExpressionKey key = InlineObject.expressionKey(eatExpression());
+                    if(!peekToken(TokenKind.RSQUARE, true) ){
+                        Token token = peekToken();
+                        raiseInternalException(token.startpos, SpelMessage.INLINE_OBJECT_SQUARE_KEY, TokenKind.RSQUARE, token);
+                    }
+                    eatToken(TokenKind.COLON);
+                    map.put(key, eatExpression());
                 } else {
                     String key = null;
                     if (k.kind == TokenKind.LITERAL_STRING) {
                         nextToken();
                         try {
-                            JsonNode node = JsonUtil.readTree(k.data);
+                            JsonNode node = Literal.ofString(toPos(k), k.data).getLiteralValue();
                             if (!node.isTextual()) {
                                 raiseInternalException(t.startpos, SpelMessage.NOT_SUPPORT_INLINE_OBJECT_KEY, k);
                             }
@@ -768,7 +777,7 @@ public class Parser {
                         } catch (ParseException e) {
                             throw e;
                         } catch (Exception e) {
-                            throw new ParseException(e.getMessage());
+                            throw new ParseException(e.getMessage(), e);
                         }
                     } else if (k.kind == TokenKind.IDENTIFIER) {
                         key = k.data;

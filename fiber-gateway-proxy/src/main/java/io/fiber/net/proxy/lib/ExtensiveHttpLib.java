@@ -2,35 +2,35 @@ package io.fiber.net.proxy.lib;
 
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.utils.ArrayUtils;
-import io.fiber.net.http.HttpClient;
-import io.fiber.net.http.util.ConnectionFactory;
 import io.fiber.net.proxy.HttpLibConfigure;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ast.Literal;
 import io.fiber.net.script.std.StdLibrary;
 
 import java.util.List;
-import java.util.Map;
 
 public class ExtensiveHttpLib extends StdLibrary {
     final Injector injector;
     final HttpLibConfigure[] configures;
 
+    public ExtensiveHttpLib() {
+        this.injector = null;
+        this.configures = null;
+    }
+
+    public ExtensiveHttpLib(Injector injector) {
+        this(injector, injector.getInstances(HttpLibConfigure.class));
+    }
+
     public ExtensiveHttpLib(Injector injector, HttpLibConfigure[] configures) {
         this.injector = injector;
         this.configures = configures;
-        for (Map.Entry<String, AsyncFunction> entry : ReqFunc.ASYNC_FC_MAP.entrySet()) {
-            putAsyncFunc(entry.getKey(), entry.getValue());
+
+        if (ArrayUtils.isNotEmpty(configures)) {
+            for (HttpLibConfigure configure : configures) {
+                configure.onInit(this);
+            }
         }
-        for (Map.Entry<String, Function> entry : ReqFunc.FC_MAP.entrySet()) {
-            putFunc(entry.getKey(), entry.getValue());
-        }
-        for (Map.Entry<String, SyncHttpFunc> entry : RespFunc.FC_MAP.entrySet()) {
-            putFunc(entry.getKey(), entry.getValue());
-        }
-        putAsyncFunc("req.tunnelProxy", new TunnelProxy(injector.getInstance(ConnectionFactory.class),
-                injector.getInstance(HttpClient.class)));
-        putFunc("req.tunnelProxyAuth", new TunnelProxyAuth());
     }
 
     @Override
@@ -60,6 +60,28 @@ public class ExtensiveHttpLib extends StdLibrary {
                 }
 
                 Library.AsyncConstant ac = configure.findAsyncConstant(namespace, key);
+                if (ac != null) {
+                    return ac;
+                }
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public Object findFunc(String name) {
+        Object func = super.findFunc(name);
+        if (func != null) {
+            return func;
+        }
+        if (ArrayUtils.isNotEmpty(configures)) {
+            for (HttpLibConfigure configure : configures) {
+                Library.Function c = configure.findFunction(name);
+                if (c != null) {
+                    return c;
+                }
+
+                Library.AsyncFunction ac = configure.findAsyncFunction(name);
                 if (ac != null) {
                     return ac;
                 }

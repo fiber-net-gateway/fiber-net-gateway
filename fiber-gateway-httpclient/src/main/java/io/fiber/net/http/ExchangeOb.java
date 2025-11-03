@@ -14,7 +14,9 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 class ExchangeOb extends ClientHttpExchange implements ConnectionPool.ConnFetcher, ClientResponse, Single<ClientResponse>, Disposable {
@@ -60,6 +62,7 @@ class ExchangeOb extends ClientHttpExchange implements ConnectionPool.ConnFetche
     ExchangeOb(ClientExchange exchange, Scheduler creator) {
         this.exchange = exchange;
         this.creator = creator == null ? Scheduler.current() : creator;
+        this.startNano = System.nanoTime();
     }
 
     @Override
@@ -71,6 +74,7 @@ class ExchangeOb extends ClientHttpExchange implements ConnectionPool.ConnFetche
 
     @Override
     public void onConnSuccess(HttpConnection connection) {
+        connectedNano = System.nanoTime();
         Function<ClientExchange, ByteBuf> reqBufFullFunc = exchange.reqBufFullFunc;
         Function<ClientExchange, FileRegion> reqFileFunc = exchange.reqFileFunc;
         Function<ClientExchange, Observable<ByteBuf>> reqBodyFunc = exchange.reqBodyFunc;
@@ -202,6 +206,7 @@ class ExchangeOb extends ClientHttpExchange implements ConnectionPool.ConnFetche
         respHeaders = headers;
         connUpgrade = cu;
         headerReceived = true;
+        respHeaderReceivedNano = System.nanoTime();
         HttpConnection hc;
         respBody = new BodyBufSubject((hc = cn).ioScheduler());
         if (cu) {
@@ -260,6 +265,11 @@ class ExchangeOb extends ClientHttpExchange implements ConnectionPool.ConnFetche
     @Override
     public Collection<String> getHeaderNames() {
         return respHeaders.names();
+    }
+
+    @Override
+    public Iterator<Map.Entry<CharSequence, CharSequence>> getHeaderIterator() {
+        return respHeaders.iteratorCharSequence();
     }
 
     @Override
@@ -331,6 +341,11 @@ class ExchangeOb extends ClientHttpExchange implements ConnectionPool.ConnFetche
             upgradeConn.discardData();
             upgradeConn.close();
         }
+    }
+
+    @Override
+    public long getRequestSendDurationNano() {
+        return bodySentNano - connectedNano;
     }
 
     @Override

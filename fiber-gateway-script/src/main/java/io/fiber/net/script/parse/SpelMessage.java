@@ -120,7 +120,8 @@ public enum SpelMessage {
     STRING_LITERAL_EXPECTED(Kind.ERROR, 1079, "string literal is expected but found ''{0}''"),
     DIRECTIVE_NOT_FOUND(Kind.ERROR, 1080, "directive ''{0}''=>''{1}'' is not found"),
     DIRECTIVE_EXISTS(Kind.ERROR, 1081, "directive ''{0}''=>''{1}'' exists"),
-    COMPUTE_ERROR(Kind.ERROR, 1082, "compute error in ''{0}'' ''{1}'' ''{2}''");
+    COMPUTE_ERROR(Kind.ERROR, 1082, "compute error in ''{0}'' ''{1}'' ''{2}''"),
+    INLINE_OBJECT_SQUARE_KEY(Kind.ERROR, 1082, "inline object expression key expected ''{0}'' but got ''{1}''");
 
 
     private final Kind kind;

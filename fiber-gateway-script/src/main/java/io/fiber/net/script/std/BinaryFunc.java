@@ -5,11 +5,13 @@ import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.MissingNode;
 import io.fiber.net.common.json.TextNode;
 import io.fiber.net.common.utils.HashUtils;
+import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -70,12 +72,42 @@ public class BinaryFunc {
         }
     }
 
+    static class FromHexFunc implements Library.Function {
+
+        @Override
+        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+            if (context.noArgs()) {
+                return MissingNode.getInstance();
+            }
+            JsonNode arg = context.getArgVal(0);
+            if (!arg.isTextual()) {
+                throw new ScriptExecException(arg.getNodeType() + " is not support hex");
+            }
+            return BinaryNode.valueOf(HashUtils.fromHex(arg.textValue()));
+        }
+    }
+
+    static class GetUtf8Bytes implements Library.Function {
+
+        @Override
+        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+            if (context.noArgs()) {
+                return MissingNode.getInstance();
+            }
+            JsonNode arg = context.getArgVal(0);
+            byte[] bytes = JsonUtil.toString(arg).getBytes(StandardCharsets.UTF_8);
+            return BinaryNode.valueOf(bytes);
+        }
+    }
+
     static final Map<String, Library.Function> FUNC = new HashMap<>();
 
     static {
         FUNC.put("binary.base64Encode", new EncodeBase64());
         FUNC.put("binary.base64Decode", new DecodeBase64());
         FUNC.put("binary.hex", new HexFunc());
+        FUNC.put("binary.fromHex", new FromHexFunc());
+        FUNC.put("binary.getUtf8Bytes", new GetUtf8Bytes());
     }
 
 }

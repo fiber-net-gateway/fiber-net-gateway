@@ -300,11 +300,11 @@ public class StringsFuncs {
         public JsonNode call(ExecutionContext context) {
             TextNode textNode = assertTextNode(context, 2);
             if (textNode == null) {
-                return NullNode.getInstance();
+                return BooleanNode.FALSE;
             }
             JsonNode argVal = context.getArgVal(1);
             if (!argVal.isTextual()) {
-                return NullNode.getInstance();
+                return BooleanNode.FALSE;
             }
 
             return BooleanNode.valueOf(textNode.textValue().matches(argVal.textValue()));

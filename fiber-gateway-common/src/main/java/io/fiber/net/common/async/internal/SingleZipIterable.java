@@ -82,6 +82,7 @@ public final class SingleZipIterable<T, R> implements Single<R> {
 
         @SuppressWarnings("unchecked")
         private ZipCoordinator(Function<? super Object[], ? extends R> zipper, int n, Observer<? super R> observer) {
+            super(n);
             this.zipper = zipper;
             this.obs = new Ob[n];
             arr = new Object[n];

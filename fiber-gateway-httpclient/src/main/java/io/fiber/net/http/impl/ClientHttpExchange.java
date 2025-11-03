@@ -8,16 +8,18 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 
 public abstract class ClientHttpExchange {
+    protected long startNano;
+    protected long connectedNano;
+    protected long headerSentNano;
+    protected long bodySentNano;
+    protected long respHeaderReceivedNano;
+    protected long respBodyReceivedNano;
     protected boolean headerSent;
     protected boolean bodySent;
     protected boolean headerReceived;
     protected boolean requestSec;
     protected boolean requestErr;
     protected BodyBufSubject respBody;
-
-    public void reset() {
-        requestSec = headerReceived = bodySent = headerSent = false;
-    }
 
     public boolean isHeaderSent() {
         return headerSent;
@@ -88,6 +90,7 @@ public abstract class ClientHttpExchange {
         respBody.onNext(buf);
         if (last) {
             requestSec = true;
+            respBodyReceivedNano = System.nanoTime();
             respBody.onComplete();
             onBodyCompleted();
         }

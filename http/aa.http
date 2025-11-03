@@ -13,4 +13,14 @@ Hi-Trace-Cluster: p2
 tracestate: cluster=p2
 
 ###
+###
+POST http://localhost:16688/xxx?k=ppvss&u=433424
+X-Fiber-Project: c
+Content-Type: application/json
+
+{
+  "a": 1
+}
+
+###
 

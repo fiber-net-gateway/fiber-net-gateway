@@ -4,14 +4,11 @@ import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.async.internal.SerializeJsonObservable;
 import io.fiber.net.common.codec.UpgradedConnection;
 import io.fiber.net.common.json.*;
-import io.fiber.net.common.utils.Constant;
-import io.fiber.net.common.utils.JsonUtil;
-import io.fiber.net.common.utils.StringUtils;
+import io.fiber.net.common.utils.*;
 import io.fiber.net.http.ClientExchange;
 import io.fiber.net.http.ClientResponse;
 import io.fiber.net.http.HttpClient;
 import io.fiber.net.http.HttpHost;
-import io.fiber.net.proxy.util.UrlEncoded;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
@@ -275,8 +272,13 @@ public class HttpFunc implements Library.DirectiveDef {
             setMethod(param, httpExchange.getRequestMethod(), exchange);
             setUri(param, httpExchange.getPath(), httpExchange.getQuery(), exchange);
             setTimeout(param, exchange);
-            for (String headerName : httpExchange.getRequestHeaderNames()) {
-                exchange.addHeader(headerName, httpExchange.getRequestHeaderList(headerName));
+            Iterator<Map.Entry<CharSequence, CharSequence>> iterator = httpExchange.getRequestHeaderIterator();
+            while (iterator.hasNext()) {
+                Map.Entry<CharSequence, CharSequence> entry = iterator.next();
+                CharSequence key;
+                if (Headers.getHopHeaders(key = entry.getKey()) == null) {
+                    exchange.addHeaderUnsafe(key, entry.getValue());
+                }
             }
             addHeader(exchange, param);
             exchange.setReqBodyFunc(ec -> httpExchange.readBodyUnsafe(), false);
@@ -318,8 +320,12 @@ public class HttpFunc implements Library.DirectiveDef {
 
     static int copyResponse(ClientResponse response, HttpExchange httpExchange, JsonNode node, int upgradeTimeout, boolean flush) {
         int status = response.status();
-        for (String name : response.getHeaderNames()) {
-            httpExchange.addResponseHeader(name, response.getHeaderList(name));
+        Iterator<Map.Entry<CharSequence, CharSequence>> iterator = response.getHeaderIterator();
+        while (iterator.hasNext()) {
+            Map.Entry<CharSequence, CharSequence> entry = iterator.next();
+            if (Headers.getHopHeaders(entry.getKey()) == null) {
+                httpExchange.addResponseHeaderUnsafe(entry.getKey(), entry.getValue());
+            }
         }
         addResponseHeaders(node, httpExchange);
         String cl = response.getHeader(HttpHeaderNames.CONTENT_LENGTH);

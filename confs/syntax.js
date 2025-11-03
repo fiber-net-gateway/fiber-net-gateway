@@ -1,9 +1,15 @@
 // 变量定义，函数调用。req 不是变量，readJson 不是方法。req.readJson 是一个函数。
 let jsonBody = req.readJson();
 // 对象
-let result = {jsonBody};
+let result = {
+    jsonBody,
+    dynamic: {
+        'x-user-info': req.getQuery('u'),
+        [req.getQuery('k')]: "3",
+    }
+};
 // 表达式，数组
-jsonBody =  [...jsonBody, 1 + 2 - 3, 1 ,2];
+jsonBody = [...jsonBody, 1 + 2 - 3, 1, 2];
 // 迭代： idx 为 index 或者 key
 for (let idx, item of jsonBody) {
     // if else

@@ -1,9 +1,6 @@
 package io.fiber.net.common.async;
 
-import io.fiber.net.common.async.internal.Functions;
-import io.fiber.net.common.async.internal.ObToMaybe;
-import io.fiber.net.common.async.internal.ObservableCreate;
-import io.fiber.net.common.async.internal.SchedulerNotifyObservable;
+import io.fiber.net.common.async.internal.*;
 
 /**
  * 承诺由 subscribe 的线程发出通知，并且每个 Observable 仅可以被订阅一次。
@@ -41,7 +38,11 @@ public interface Observable<T> {
     }
 
     static <T> Observable<T> create(OnSubscribe<T> source) {
-        return new ObservableCreate<>(source);
+        return new ObservableCreate<>(source, Functions.getNoopConsumer());
+    }
+
+    static <T> Observable<T> create(OnSubscribe<T> source, Consumer<? super T> disFunc) {
+        return new ObservableCreate<>(source, disFunc);
     }
 
     void subscribe(Observer<? super T> observer);
@@ -55,6 +56,10 @@ public interface Observable<T> {
         return toMaybe(Functions.getUseLaterMerger(), Functions.getNoopConsumer());
     }
 
+    default Maybe<T> first() {
+        return new ObFirstToMaybe<>(this);
+    }
+
     default Observable<T> notifyOn(Scheduler scheduler) {
         if (scheduler == Scheduler.direct()) {
             return this;
@@ -63,4 +68,11 @@ public interface Observable<T> {
         return new SchedulerNotifyObservable<>(scheduler, this);
     }
 
+    default <R> Observable<R> map(Function<? super T, ? extends R> mapper) {
+        return new ObservableMap<>(this, mapper);
+    }
+
+    default Completable toCompletable(Consumer<? super T> consumer) {
+        return new ObservableToCompletable<>(this, consumer);
+    }
 }

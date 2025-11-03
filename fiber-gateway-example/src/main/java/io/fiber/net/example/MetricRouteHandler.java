@@ -1,6 +1,6 @@
 package io.fiber.net.example;
 
-import io.fiber.net.common.RouterHandler;
+import io.fiber.net.common.ext.RouterHandler;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.server.HttpExchange;
 import io.fiber.net.support.RateLimiter;

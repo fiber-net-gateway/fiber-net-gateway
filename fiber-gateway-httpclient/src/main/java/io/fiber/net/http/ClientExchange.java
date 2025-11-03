@@ -16,9 +16,7 @@ import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClientExchange {
@@ -290,6 +288,10 @@ public class ClientExchange {
 
     public final Collection<String> getHeaderNames() {
         return headers.names();
+    }
+
+    public final Iterator<Map.Entry<CharSequence, CharSequence>> getHeaderIterator() {
+        return headers.iteratorCharSequence();
     }
 
     public final void resetHost(HttpHost httpHost) {

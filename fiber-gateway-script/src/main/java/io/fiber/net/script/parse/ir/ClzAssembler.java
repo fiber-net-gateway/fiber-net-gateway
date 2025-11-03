@@ -904,6 +904,16 @@ public class ClzAssembler {
         );
     }
 
+    void indexSet1() {
+        visitor.visitMethodInsn(
+                Opcodes.INVOKESTATIC,
+                ACCESS_NAME,
+                "indexSet1",
+                "(Lio/fiber/net/common/json/JsonNode;Lio/fiber/net/common/json/JsonNode;Lio/fiber/net/common/json/JsonNode;)Lio/fiber/net/common/json/JsonNode;",
+                false
+        );
+    }
+
     void propGet(int keyId) {
         visitor.visitLdcInsn(propOperand.getKeyList().get(keyId).getKey());
         visitor.visitMethodInsn(
@@ -1225,12 +1235,12 @@ public class ClzAssembler {
     void constCall(ConstCall cc) {
         visitor.visitFieldInsn(Opcodes.GETSTATIC,
                 internalClzName,
-                CONST_NAME_CACHE.getNameById(functionExtOperand.getKeyList().get(cc.getConstId()).getId()),
+                CONST_NAME_CACHE.getNameById(constantExtOperand.getKeyList().get(cc.getConstId()).getId()),
                 CONSTANT_FIELD_TYPE_DESC
         );
         visitor.visitVarInsn(Opcodes.ALOAD, 0);
         visitor.visitMethodInsn(Opcodes.INVOKEINTERFACE,
-                FUNC_TYPE_NAME,
+                CONSTANT_FIELD_TYPE_NAME,
                 "get",
                 "(Lio/fiber/net/script/ExecutionContext;)Lio/fiber/net/common/json/JsonNode;",
                 true

@@ -207,11 +207,11 @@ return typeof b === 'array'
     && b[0] === 1
     && b[1] === 2;
 ```
-- Object.delete 删除 object 中的 key， 返回实际删除的个数
+- Object.deleteProperties 删除 object 中的 key， 返回对象
 ```javascript
 let a = {a:1,b:2};
-let b = Object.delete(a, "a", "c");
-return b === 1
+let b = Object.deleteProperties(a, "a", "c");
+return b === a
     && length(a) === 1 // a -> {b:2}
     && a.b === 2
     && typeof a.a === "missing"; // a.a is deleted
@@ -317,9 +317,9 @@ return strings.toString(null) === "null"
 - hash.sha1 sha1 编码
 - hash.sha256 sha256 编码
 
-#### json操作 json.XXX
-- json.parse 字符串或者二进制 json 反序列化
-- json.stringify 运行时对象转 json 字符串
+#### json操作 JSON.XXX
+- JSON.parse 字符串或者二进制 json 反序列化
+- JSON.stringify 运行时对象转 json 字符串
 
 #### math.XXX
 - math.floor
@@ -332,5 +332,11 @@ return strings.toString(null) === "null"
 #### time.XXX
 - time.now 获取当前时间
 - time.format 时间格式化
+
+#### url.XXX
+- url.parseQuery 解析 query
+- url.buildQuery 构建 query
+- url.decodeComponent 解码
+- url.encodeComponent 编码
 
 #### 文档完善中 敬请期待......

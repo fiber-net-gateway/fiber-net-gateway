@@ -1,12 +1,8 @@
 package io.fiber.net.proxy;
 
-import io.fiber.net.common.HttpMethod;
-import io.fiber.net.common.json.JsonNode;
-import io.fiber.net.common.json.MissingNode;
-import io.fiber.net.common.json.ObjectNode;
-import io.fiber.net.common.json.TextNode;
-import io.fiber.net.common.utils.*;
-import io.fiber.net.server.HttpExchange;
+import io.fiber.net.common.utils.CharArrUtil;
+import io.fiber.net.common.utils.Predictions;
+import io.fiber.net.common.utils.StringUtils;
 
 import java.util.*;
 
@@ -22,16 +18,18 @@ public class RoutePathMatcher<H> {
         private final byte[] name;
         private final int hash;
         private final String nameTxt;
+        private String fullPath = "";
         private Node[] children;
         private int childrenSize;
         private Node[] placeholders;
         private int placeholderSize;
-        private Node wildcard;
+        private Node[] wildcard;
+        private int wildcardSize;
+        private int id = -1;
 
         //
         int handlerIdxStart = -1;
         int handlerIdxEnd = -1;
-        int handlerMask;
 
         public Node(byte[] name, int hash) {
             this.name = name;
@@ -110,7 +108,7 @@ public class RoutePathMatcher<H> {
             }
 
             for (int i = 0; i < len; i++) {
-                if (t[i] != cs[s + i]) {
+                if (t[i] != (cs[s + i])) {
                     return false;
                 }
             }
@@ -140,17 +138,24 @@ public class RoutePathMatcher<H> {
         }
 
         public Node setWildcard(byte[] cs, int s, int e, int hash) {
-            if (this.wildcard != null) {
-                if (!this.wildcard.equalsArrRange(cs, s, e, hash)) {// 通配符不允许有两个值。
-                    throw new RouteConflictException("wildcard exists: " + this.wildcard);
+            if (this.wildcard == null) {
+                wildcard = new Node[4];
+            } else {
+                for (int i = 0; i < wildcardSize; i++) {
+                    if (wildcard[i].equalsArrRange(cs, s, e, hash)) {
+                        return wildcard[i];
+                    }
                 }
-                return this.wildcard;
+                if (wildcardSize == wildcard.length) {
+                    wildcard = Arrays.copyOf(wildcard, wildcardSize << 1);
+                }
             }
-            return this.wildcard = new Node(s == e ? CharArrUtil.EMPTY_BYTES : Arrays.copyOfRange(cs, s, e), hash);
+
+            return wildcard[wildcardSize++] = new Node(s == e ? CharArrUtil.EMPTY_BYTES : Arrays.copyOfRange(cs, s, e), hash);
         }
 
 
-        public Node getWildcard() {
+        public Node[] getWildcard() {
             return wildcard;
         }
 
@@ -160,85 +165,63 @@ public class RoutePathMatcher<H> {
 
         @Override
         public String toString() {
-            return nameTxt;
+            return fullPath;
         }
     }
 
 
-    public static <H> Builder<H> builder() {
-        return new Builder<>();
+    public static <B, H> Builder<B, H> builder(RouteVarDefiner<B, H> routeDefiner) {
+        return new Builder<>(routeDefiner);
     }
 
-    private static final HttpMethod[] METHODS = Constant.METHODS;
-    private static final int METHOD_CELL = METHODS.length + 1;
-    private static final int ALL_METHOD_BIT = 1 << METHODS.length;
-    private static final int ALL_METHOD_MASK = (1 << HttpMethod.GET.ordinal())
-            | (1 << HttpMethod.POST.ordinal())
-            | (1 << HttpMethod.PUT.ordinal())
-            | (1 << HttpMethod.DELETE.ordinal()
-            | (1 << HttpMethod.PATCH.ordinal()));
 
-
-    public static class Builder<H> {
-        private final Node root = new Node(CharArrUtil.EMPTY_BYTES, 1);
-        private final List<Node> nodes = new ArrayList<>();
+    public static class Builder<B, H> {
+        private final Node root = new Node(CharArrUtil.EMPTY_BYTES, 0);
+        private final IdentityHashMap<Node, List<B>> cache = new IdentityHashMap<>();
+        private final RouteVarDefiner<B, H> routeDefiner;
         private boolean complete;
-        private H[] scripts;
-        private int cIdx;
+        private int handlerSize;
+        private int maxPathVarLength;
+        private int currentId;
 
-        @SuppressWarnings("unchecked")
-        private void expandScripts() {
-            if (scripts == null || scripts.length <= cIdx) {
-                scripts = scripts == null ? (H[]) new Object[16 * METHOD_CELL] : Arrays.copyOf(scripts, cIdx << 1);
-            }
+        public Builder(RouteVarDefiner<B, H> routeDefiner) {
+            this.routeDefiner = routeDefiner;
         }
 
-        public void addUrlHandler(HttpMethod method, String url, H handler) {
+        public void addUrlHandler(String url, B builder) {
             if (complete) {
                 throw new IllegalStateException("config completed");
             }
 
-            if (method == HttpMethod.HEAD || method == HttpMethod.CONNECT) {
-                throw new IllegalStateException("method HEAD/CONNECT is not allowed");
+            Node node = addPath(root, url, builder);
+            if (StringUtils.isEmpty(node.fullPath)) {
+                node.fullPath = url;
             }
-
-            int mIdx = method == null ? METHODS.length : method.ordinal();
-
-            Node node = addPath(root, url);
-            if (node.handlerIdxStart == -1) {
-                nodes.add(node);
-                expandScripts();
-                node.handlerIdxStart = cIdx;
-                cIdx += METHOD_CELL;
+            if (node.id < 0) {
+                node.id = currentId++;
             }
-
-            int i = node.handlerIdxStart + mIdx;
-            if (scripts[i] != null) {
-                throw new RouteConflictException("router exists:" + method + "  " + url);
-            }
-            node.handlerIdxEnd = Math.max(node.handlerIdxEnd, i);
-            node.handlerMask |= 1 << mIdx;
-            scripts[i] = handler;
+            handlerSize++;
+            cache.computeIfAbsent(node, n -> new ArrayList<>()).add(builder);
         }
 
-        private Node addPath(Node root, String path) {
-            int h = 1;
-            if (StringUtils.isEmpty(path)) {
-                return root.addOrGetChildrenWithName(CharArrUtil.EMPTY_BYTES, 0, 0, 1);
-            }
+        private Node addPath(Node root, String path, B builder) {
 
             Node n = root;
+            Predictions.assertTextNotEmpty(path, "empty path is not allowed");
+
             byte[] chars = CharArrUtil.toReadOnlyAsciiCharArr(path);
-            int i = 0;
             int length = chars.length;
             if (length != path.length()) {
                 throw new RouteConflictException("path is not ascii char???");
             }
 
-            byte c;
+            int pathVarIdx = 0;
+
+            int h = 0;
+            int c;
             int s = 0;
             int wild = 0;// 0 NONE 1 PLACEHOLDERS 2 wildcard
-            for (; i <= length; i++) {
+            for (int i = 0; i <= length; i++) {
                 c = i < length ? chars[i] : 0;
                 if (c == 0 || c == '/') {
                     Node cn;
@@ -247,15 +230,21 @@ public class RoutePathMatcher<H> {
                             throw new RouteConflictException("wildcard occur in middle of path not allowed: " + path);
                         }
                         cn = n.setWildcard(chars, s + 1, i, h);
+                        if (s + 1 < i) {
+                            routeDefiner.addPathVarDefiner(builder, cn.nameTxt, pathVarIdx++);
+                        }
                     } else if (wild == 1) {
                         cn = n.addOrGetPlaceholder(chars, s + 1, i, h);
+                        if (s + 1 < i) {
+                            routeDefiner.addPathVarDefiner(builder, cn.nameTxt, pathVarIdx++);
+                        }
                     } else if (i > 0) {
-                        cn = n.addOrGetChildrenWithName(chars, s, i, h);
+                        cn = (s < i || s == length) ? n.addOrGetChildrenWithName(chars, s, i, h) : n;
                     } else {
                         cn = root;
                     }
                     n = cn;
-                    h = 1;
+                    h = 0;
                     s = i + 1;
                     wild = 0;
                 } else if (s != i || c != ':' && c != '*') {
@@ -265,53 +254,25 @@ public class RoutePathMatcher<H> {
                 }
             }
 
+            maxPathVarLength = Math.max(maxPathVarLength, pathVarIdx);
             return n;
         }
 
         @SuppressWarnings("unchecked")
         public RoutePathMatcher<H> build() {
             complete = true;
-
-            int len = 0;
-            for (Node node : nodes) {
-                if ((node.handlerMask & ALL_METHOD_BIT) != 0) {
-                    Assert.isTrue(node.handlerIdxEnd == node.handlerIdxStart + METHODS.length);
-                    int hm = (node.handlerMask & ~ALL_METHOD_BIT) | ALL_METHOD_MASK;
-                    len += 32 - Integer.numberOfLeadingZeros(hm);
-                } else {
-                    int cl = node.handlerIdxEnd - node.handlerIdxStart + 1;
-                    Assert.isTrue(cl > 0);
-                    len += cl;
+            H[] ns = (H[]) new Object[handlerSize];
+            int i = 0;
+            for (Map.Entry<Node, List<B>> entry : cache.entrySet()) {
+                Node node = entry.getKey();
+                node.handlerIdxStart = i;
+                node.handlerIdxEnd = i + entry.getValue().size();
+                for (B b : entry.getValue()) {
+                    ns[i++] = routeDefiner.onRouteMount(node.id, b);
                 }
             }
-            Assert.isTrue(len > 0);
-
-            H[] ns = (H[]) new Object[len];
-            int p = 0;
-            for (Node node : nodes) {
-                int currentPos = p;
-                if ((node.handlerMask & ALL_METHOD_BIT) != 0) {
-                    int hm = (node.handlerMask & ~ALL_METHOD_BIT) | ALL_METHOD_MASK;
-                    H am = scripts[node.handlerIdxStart + METHODS.length];
-                    int nodeLen = 32 - Integer.numberOfLeadingZeros(hm);
-                    for (int i = 0; i < nodeLen; i++) {
-                        H h = scripts[node.handlerIdxStart + i];
-                        if (h == null && ((1 << i) & ALL_METHOD_MASK) != 0) {
-                            h = am;
-                        }
-                        ns[p++] = h;
-                    }
-                    node.handlerMask = hm;
-                } else {
-                    for (int i = node.handlerIdxStart; i <= node.handlerIdxEnd; i++) {
-                        ns[p++] = scripts[i];
-                    }
-                }
-                node.handlerIdxStart = currentPos;
-                node.handlerIdxEnd = p;
-            }
-            Assert.isTrue(len == p);
-            return new RoutePathMatcher<>(root, ns);
+            assert i == handlerSize;
+            return new RoutePathMatcher<>(root, ns, maxPathVarLength);
         }
 
     }
@@ -319,149 +280,138 @@ public class RoutePathMatcher<H> {
 
     private final Node root;
     private final H[] handlers;
+    private final int maxPathVarLength;
 
-    RoutePathMatcher(Node root, H[] handlers) {
+    RoutePathMatcher(Node root, H[] handlers, int maxPathVarLength) {
         this.root = root;
         this.handlers = handlers;
+        this.maxPathVarLength = maxPathVarLength;
     }
 
+    public interface RouteVarDefiner<B, H> {
+        void addPathVarDefiner(B builder, String varName, int idx);
 
-    private static <H> boolean exec(byte[] cs, int idx, Node n, MappingResult<H> context) {
+        H onRouteMount(int routeNodeId, B builder) throws RouteConflictException;
+    }
+
+    private boolean exec(byte[] cs, int idx, Node n, MappingContext<H> context) {
         int length = cs.length;
-
-        int i, h = 1;
-        byte ch;
-        for (i = idx; i <= length; i++) {
-            if (i < length && (ch = cs[i]) != '/') {
+        int i, h = 0, b = idx;
+        for (i = b; i < length; i++) {
+            byte ch;
+            if ((ch = cs[i]) != '/') {
                 h = 31 * h + ch;
-                continue;
+            } else if (b < i) {// =/
+                break;
+            } else {
+                b++;
             }
+        }
 
-            Node cn = n.findChildWithName(cs, idx, i, h);
-            if (cn != null) {
-                idx = i + 1;
-                n = cn;
-                h = 1;
-                continue;
-            }
-
-            int phs;
-            if ((phs = n.placeholderSize) != 0) {
-                Node[] placeholders = n.placeholders;
-                for (int pi = 0; pi < phs; pi++) {
-                    Node c = placeholders[pi];
-                    if (exec(cs, i + 1, c, context)) {
-                        context.addParam(c.getName(), cs, idx, i - idx);
-                        return true;
-                    }
-                }
-            }
-
-            Node wildcard;
-            if ((wildcard = n.getWildcard()) != null) {
-                if (context.matchNode(wildcard)) {
-                    context.addParam(wildcard.getName(), cs, idx, length - idx);
+        int phs;
+        Node cn = n.findChildWithName(cs, b, i, h);
+        boolean ends = i >= length;
+        // end ...
+        if ((cn != null)) {
+            if (ends) {
+                if (matchNode(cn, context)) {
                     return true;
                 }
-            }
-
-            return false;
-        }
-
-        return context.matchNode(n);
-    }
-
-    public MappingResult<H> matchPath(HttpExchange exchange) {
-        MappingResult<H> result = new MappingResult<>(handlers, exchange);
-
-        byte[] cs = CharArrUtil.toReadOnlyAsciiCharArr(exchange.getPath());
-        int idx = 0;
-        if (cs[0] == '/') {
-            idx = 1;
-        }
-        exec(cs, idx, root, result);
-        return result;
-    }
-
-    public static class MappingResult<H> {
-        private final H[] handlers;
-        private final int methodBit;
-        private final int preflightMtdBit;
-        private boolean forCors;
-        private H handler;
-        private Map<String, JsonNode> map;
-
-        public MappingResult(H[] handlers, HttpExchange exchange) {
-            this.handlers = handlers;
-            HttpMethod method = exchange.getRequestMethod();
-            this.methodBit = method == HttpMethod.HEAD ? HttpMethod.GET.ordinal() : method.ordinal();
-            this.preflightMtdBit = method == HttpMethod.OPTIONS && CorsProcessor.isPreflightReq(exchange) ? computePreflightMtd(exchange) : -1;
-        }
-
-        private static int computePreflightMtd(HttpExchange exchange) {
-            HttpMethod method = HttpMethod.resolve(exchange.getRequestHeader(CorsScriptHandler.ACCESS_CTL_REQ_MTD_HEADER));
-            return method == null ? -1 : method.ordinal();
-        }
-
-        private boolean matchNode(Node node) {
-            int mb = methodBit, pmb = preflightMtdBit;
-            int hm = node.handlerMask, hid = node.handlerIdxStart;
-
-            if ((hm & (1 << mb)) != 0) {
-                handler = handlers[hid + mb];
+            } else if (exec(cs, i, cn, context)) {
                 return true;
             }
-
-            if (pmb >= 0 && (hm & (1 << pmb)) != 0) {
-                H h;
-                if ((h = handlers[hid + pmb]) instanceof CorsProcessor) {
-                    handler = h;
-                    forCors = true;
+        }
+        // 占为符 匹配 1 . / 结尾 匹配.
+        if ((i > b || b > idx) && (phs = n.placeholderSize) != 0) {
+            String value = null;
+            Node[] placeholders = n.placeholders;
+            for (int pi = 0; pi < phs; pi++) {
+                Node c = placeholders[pi];
+                boolean hasParam = StringUtils.isNotEmpty(c.nameTxt);
+                if (hasParam) {
+                    if (value == null) {
+                        value = RoutePathMatcher.ofValue(cs, b, i - b);
+                    }
+                    context.addPathVar(c.nameTxt, value);
+                }
+                if (ends) {
+                    if (matchNode(c, context)) {
+                        return true;
+                    }
+                } else if (exec(cs, i, c, context)) {
                     return true;
                 }
-            }
-
-            return false;
-        }
-
-        public H getHandler() {
-            return handler;
-        }
-
-        void addParam(String var, byte[] cs, int idx, int len) {
-            if (forCors) {
-                return;
-            }
-            if (map == null) {
-                map = new HashMap<>();
-            }
-            map.put(var, TextNode.valueOf(new String(cs, idx, len)));
-        }
-
-        public Map<String, JsonNode> getMap() {
-            return map == null ? Collections.emptyMap() : map;
-        }
-
-        public JsonNode getVar(String var) {
-            if (map == null) {
-                return MissingNode.getInstance();
-            }
-            return map.getOrDefault(var, MissingNode.getInstance());
-        }
-
-        public ObjectNode toObjNode() {
-            ObjectNode node = JsonUtil.createObjectNode();
-            if (map != null) {
-                for (Map.Entry<String, JsonNode> entry : map.entrySet()) {
-                    node.set(entry.getKey(), entry.getValue());
+                if (hasParam) {
+                    context.popPathVar();
                 }
             }
-            return node;
         }
 
-        public boolean isForCors() {
-            return forCors;
+        // 统配符 * ,匹配 0-N
+        if ((phs = n.wildcardSize) != 0) {
+            String value = null;
+            Node[] wildcard = n.wildcard;
+            for (int pi = 0; pi < phs; pi++) {
+                Node c = wildcard[pi];
+                boolean hasParam = StringUtils.isNotEmpty(c.nameTxt);
+                if (hasParam) {
+                    if (value == null) {
+                        value = RoutePathMatcher.ofValue(cs, b, length - b);
+                    }
+                    context.addPathVar(c.nameTxt, value);
+                }
+                if (matchNode(c, context)) {
+                    return true;
+                }
+                if (hasParam) {
+                    context.popPathVar();
+                }
+            }
         }
+        // /a match /a/ and /a/*
+        if (i > b) {
+            return cn != null && ends && exec(cs, i, cn, context);
+        } else {
+            return b > idx && matchNode(n, context);  // b > idx match /a/b/  -> try parent /a/b
+        }
+    }
+
+    public boolean matchPath(String path, MappingContext<H> context) {
+        byte[] cs = CharArrUtil.toReadOnlyAsciiCharArr(path);
+        return exec(cs, 0, root, context);
+    }
+
+    public int getMaxPathVarLength() {
+        return maxPathVarLength;
+    }
+
+    public interface MappingContext<H> {
+        boolean matched(int nodeId, H handler);
+
+        void addPathVar(String var, String value);
+
+        void popPathVar();
+    }
+
+    private static String ofValue(byte[] cs, int idx, int len) {
+        if (len <= 0 || cs.length <= idx) {
+            return "";
+        }
+        return new String(cs, idx, len);
+    }
+
+    private boolean matchNode(Node node, MappingContext<H> context) {
+        int s = node.handlerIdxStart, e = node.handlerIdxEnd, nodeId = node.id;
+        if (s < 0) {
+            return false;
+        }
+        H[] handlers = this.handlers;
+        for (int i = s; i < e; i++) {
+            if (context.matched(nodeId, handlers[i])) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }

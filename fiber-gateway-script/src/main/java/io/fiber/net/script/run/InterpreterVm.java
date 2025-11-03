@@ -230,13 +230,19 @@ public class InterpreterVm extends AbstractVm {
                             Access.pushArray(stack[sp - 1], stack[sp]);
                             break;
 
+
+                        case Code.IDX_GET:
+                            --sp;
+                            stack[sp - 1] = Access.indexGet(stack[sp - 1], stack[sp]);
+                            break;
                         case Code.IDX_SET:
                             sp -= 2;
                             stack[sp - 1] = Access.indexSet(stack[sp - 1], stack[sp], stack[sp + 1]);
                             break;
-                        case Code.IDX_GET:
-                            --sp;
-                            stack[sp - 1] = Access.indexGet(stack[sp - 1], stack[sp]);
+
+                        case Code.IDX_SET_1:
+                            sp -= 2;
+                            Access.indexSet1(stack[sp - 1], stack[sp], stack[sp + 1]);
                             break;
 
                         case Code.PROP_GET: {

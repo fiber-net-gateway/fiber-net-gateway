@@ -27,10 +27,16 @@ public interface Binder {
         bindMultiBean(clz, real, 0);
     }
 
+    default <T, V extends T> void bindMultiBeanPrototype(Class<T> clz, Function<Injector, V> creator) {
+        bindMultiBeanPrototype(clz, creator, 0);
+    }
+
     <T, V extends T> void bindMultiBean(Class<T> clz, Class<V> real, int order);
 
     <T, V extends T> void bindMultiBean(Class<T> clz, V real, int order);
 
+
+    <T, V extends T> void bindMultiBeanPrototype(Class<T> clz, Function<Injector, V> creator, int order);
 
     <T> boolean removeBind(Class<T> clz);
 

@@ -16,35 +16,36 @@ public interface Code {
     int EXP_ARRAY = 13;
     int PUSH_ARRAY = 14;
     //
-    int IDX_SET = 15;//!
-    int IDX_GET = 16;//!
-    int PROP_GET = 17;//!
-    int PROP_SET = 18;//! {a:1}
-    int PROP_SET_1 = 19;//! {a:1}
+    int IDX_GET = 15;//!
+    int IDX_SET = 16;//!
+    int IDX_SET_1 = 17;//!
+    int PROP_GET = 18;//!
+    int PROP_SET = 19;//! {a:1}
+    int PROP_SET_1 = 20;//! {a:1}
 
     // hack 必需保持递增
-    int BOP_PLUS = 20;
-    int BOP_MINUS = 21;
-    int BOP_MULTIPLY = 22;
-    int BOP_DIVIDE = 23;
-    int BOP_MOD = 24;
-    int BOP_MATCH = 25; //~
+    int BOP_PLUS = 25;
+    int BOP_MINUS = 26;
+    int BOP_MULTIPLY = 27;
+    int BOP_DIVIDE = 28;
+    int BOP_MOD = 29;
+    int BOP_MATCH = 30; //~
 
-    int BOP_LT = 26; //<
-    int BOP_LTE = 27; //<=
-    int BOP_GT = 28; //~
-    int BOP_GTE = 29; //~
-    int BOP_EQ = 30; //~
-    int BOP_SEQ = 31; //~
-    int BOP_NE = 32; //~
-    int BOP_SNE = 33; //~
-    int BOP_IN = 34; // in
+    int BOP_LT = 31; //<
+    int BOP_LTE = 32; //<=
+    int BOP_GT = 33; //~
+    int BOP_GTE = 34; //~
+    int BOP_EQ = 35; //~
+    int BOP_SEQ = 36; //~
+    int BOP_NE = 37; //~
+    int BOP_SNE = 38; //~
+    int BOP_IN = 39; // in
 
     // hack 必需保持递增
-    int UNARY_PLUS = 40;
-    int UNARY_MINUS = 41;
-    int UNARY_NEG = 42;//!
-    int UNARY_TYPEOF = 43;//!
+    int UNARY_PLUS = 43;
+    int UNARY_MINUS = 44;
+    int UNARY_NEG = 45;//!
+    int UNARY_TYPEOF = 46;//!
 
     //
     //

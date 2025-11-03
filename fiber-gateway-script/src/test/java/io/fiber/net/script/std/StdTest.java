@@ -87,11 +87,11 @@ public class StdTest extends TestInIOThreadParent {
     @Test
     public void test__Object_delete() throws Exception {
         runAndAssertTrue("let a = {a:1,b:2};\n" +
-                "let b = Object.delete(a, \"a\", \"c\");\n" +
-                "return b === 1\n" +
+                "let b = Object.deleteProperties(a, \"a\", \"c\");\n" +
+                "return b === a\n" +
                 "    && length(a) === 1 \n" +
                 "    && a.b === 2\n" +
-                "    && typeof a.a === \"missing\";", "Object.delete");
+                "    && typeof a.a === \"missing\";", "Object.deleteProperties");
     }
 
 

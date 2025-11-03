@@ -17,6 +17,14 @@ public interface HttpLibConfigure {
         return null;
     }
 
+    default Library.Function findFunction(String name) {
+        return null;
+    }
+
+    default Library.AsyncFunction findAsyncFunction(String name) {
+        return null;
+    }
+
     default Library.DirectiveDef findDirectiveDef(String type, String name, List<Literal> literals) {
         return null;
     }

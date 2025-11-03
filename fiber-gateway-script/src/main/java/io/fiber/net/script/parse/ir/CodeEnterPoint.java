@@ -450,6 +450,14 @@ public class CodeEnterPoint {
         addCode(indexSet);
     }//!
 
+    //
+    public void idxSet1() {
+        sp -= 2;
+        IndexSet1 indexSet = IndexSet1.of(ins[sp - 1], ins[sp], ins[sp + 1]);
+        ins[sp - 1] = indexSet;
+        addCode(indexSet);
+    }//!
+
     public void idxGet() {
         sp -= 1;
         IndexGet get = IndexGet.of(ins[sp - 1], ins[sp]);

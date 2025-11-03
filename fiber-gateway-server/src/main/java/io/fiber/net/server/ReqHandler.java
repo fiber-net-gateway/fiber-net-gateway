@@ -55,7 +55,7 @@ public class ReqHandler extends ChannelDuplexHandler {
 
     private final Date tmpDate = new Date();
     private final long defaultMaxBodyLength;
-    private final HttpEngine engine;
+    private final HttpServer httpServer;
     private final AsciiString echoServer;
     private final HttpServerCodec serverCodec;
     private final HttpServerKeepAliveHandler keepAliveHandler;
@@ -73,9 +73,9 @@ public class ReqHandler extends ChannelDuplexHandler {
     private int readBodySize;
     private Scheduler scheduler;
 
-    public ReqHandler(long maxLength, HttpEngine engine, AsciiString echoServer, HttpServerCodec serverCodec, HttpServerKeepAliveHandler keepAliveHandler) {
+    public ReqHandler(long maxLength, HttpServer server, AsciiString echoServer, HttpServerCodec serverCodec, HttpServerKeepAliveHandler keepAliveHandler) {
         this.defaultMaxBodyLength = maxLength;
-        this.engine = engine;
+        this.httpServer = server;
         this.echoServer = echoServer;
         this.serverCodec = serverCodec;
         this.keepAliveHandler = keepAliveHandler;
@@ -130,7 +130,7 @@ public class ReqHandler extends ChannelDuplexHandler {
                     ctx.writeAndFlush(EXPECTATION_FAILED);
                     return;
                 }
-                if (httpExchange.continue100 = HttpUtil.is100ContinueExpected(httpRequest)) {
+                if ((httpExchange.continue100 = HttpUtil.is100ContinueExpected(httpRequest))) {
                     httpRequest.headers().remove(HttpHeaderNames.EXPECT);
                 }
 
@@ -183,7 +183,7 @@ public class ReqHandler extends ChannelDuplexHandler {
     private void invokeEngine(HttpExchangeImpl httpExchange) {
         httpExchange.requestInvoked = true;
         try {
-            engine.run(httpExchange);
+            httpServer.process(httpExchange);
             httpExchange.doCheckBodySize();
         } catch (Throwable e) {
             logger.error("error run engine", e);

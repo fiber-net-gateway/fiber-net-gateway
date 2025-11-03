@@ -1,0 +1,35 @@
+package io.fiber.net.script.parse.ir;
+
+class IndexSet1 extends Exp {
+    private final Exp parent;
+    private final Exp key;
+    private final Exp alien;
+
+    IndexSet1(Exp parent, Exp key, Exp alien) {
+        this.parent = parent;
+        this.key = key;
+        this.alien = alien;
+    }
+
+    public Exp getParent() {
+        return parent;
+    }
+
+    public Exp getKey() {
+        return key;
+    }
+
+    public Exp getAlien() {
+        return alien;
+    }
+
+    public static IndexSet1 of(Exp parent, Exp key, Exp alien) {
+        return new IndexSet1(parent, key, alien);
+    }
+
+    @Override
+    int assemble(ClzAssembler assembler) {
+        assembler.indexSet1();
+        return -2;
+    }
+}

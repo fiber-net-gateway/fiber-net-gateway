@@ -65,6 +65,11 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
     public void bb() throws Throwable {
         testScript("/a.js");
     }
+    @Test
+    public void b3b() throws Throwable {
+        testScript("/cd.js");
+    }
+
 
     @Test
     public void b1() throws Throwable {

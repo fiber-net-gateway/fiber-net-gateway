@@ -1,16 +1,18 @@
 package io.fiber.net.proxy;
 
+import io.fiber.net.common.Engine;
 import io.fiber.net.common.FiberException;
-import io.fiber.net.common.RouterHandler;
 import io.fiber.net.common.async.Disposable;
 import io.fiber.net.common.async.Observable;
 import io.fiber.net.common.async.Scheduler;
+import io.fiber.net.common.ext.RouterHandler;
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.http.ClientExchange;
 import io.fiber.net.http.HttpClient;
-import io.fiber.net.server.*;
+import io.fiber.net.server.HttpExchange;
+import io.fiber.net.server.HttpServer;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.EventLoopGroup;
@@ -35,16 +37,17 @@ public class TestClient {
         ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.PARANOID);
     }
 
-    HttpEngine engine;
+    HttpServer server;
 
     @Before
     public void init() throws Exception {
-        engine = LibProxyMainModule.createEngine();
+        Engine engine = LibProxyMainModule.createEngine();
+        server = (HttpServer) engine.getServer("main");
     }
 
     @After
     public void destroy() {
-        engine.getInjector().destroy();
+        server.getInjector().getParent().destroy();
     }
 
     private static final int REQUESTS_SIZE = 200000;
@@ -52,8 +55,8 @@ public class TestClient {
 
     @Test
     public void t() throws Exception {
-        Injector injector = engine.getInjector();
-        engine.addInterceptor((project, exchange, invocation) -> {
+        Injector injector = server.getInjector();
+        server.addInterceptor((project, exchange, invocation) -> {
             String size = exchange.getRequestHeader("x-body-size");
             int len = 0;
             if (StringUtils.isEmpty(size)) {
@@ -69,8 +72,7 @@ public class TestClient {
             exchange.writeRawBytes(200, exchange.readBodyUnsafe());
         });
         HttpClient client = injector.getInstance(HttpClient.class);
-        EngineModule.EventLoopGroupHolder groupHolder = injector.getInstance(EngineModule.EventLoopGroupHolder.class);
-        EventLoopGroup group = groupHolder.getGroup();
+        EventLoopGroup group = injector.getInstance(EventLoopGroup.class);
 
         Vector<BatchReqExecutor> vector = new Vector<>();
         int count = REQUESTS_SIZE / CONCURRENT_SIZE;
@@ -220,8 +222,8 @@ public class TestClient {
     @Test
     public void t2() throws Exception {
 
-        Injector injector = engine.getInjector();
-        engine.addHandlerRouter(new RouterHandler<HttpExchange>() {
+        Injector injector = server.getInjector();
+        server.addHandlerRouter(new RouterHandler<HttpExchange>() {
             @Override
             public String getRouterName() {
                 return x;
@@ -240,8 +242,7 @@ public class TestClient {
             }
         });
         HttpClient client = injector.getInstance(HttpClient.class);
-        EngineModule.EventLoopGroupHolder groupHolder = injector.getInstance(EngineModule.EventLoopGroupHolder.class);
-        EventLoopGroup group = groupHolder.getGroup();
+        EventLoopGroup group = injector.getInstance(EventLoopGroup.class);
         int s = 0;
         for (EventExecutor executor : group) {
             s++;
@@ -250,7 +251,7 @@ public class TestClient {
 
         Vector<HtmlBatch> vector = new Vector<>();
 
-        for (EventExecutor eventExecutor : groupHolder.getGroup()) {
+        for (EventExecutor eventExecutor : group) {
             eventExecutor.execute(() -> {
                 HtmlBatch htmlBatch = new HtmlBatch(client, latch);
                 htmlBatch.exec();

@@ -17,9 +17,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.net.SocketAddress;
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 public class RoutePathMatcherTest {
 
@@ -233,6 +231,16 @@ public class RoutePathMatcherTest {
         }
 
         @Override
+        public Iterator<Map.Entry<CharSequence, CharSequence>> getRequestHeaderIterator() {
+            return null;
+        }
+
+        @Override
+        public Iterator<Map.Entry<CharSequence, CharSequence>> getResponseHeaderIterator() {
+            return null;
+        }
+
+        @Override
         public List<String> getRequestHeaderList(CharSequence name) {
             return null;
         }
@@ -364,6 +372,11 @@ public class RoutePathMatcherTest {
         @Override
         public boolean isClientClosed() {
             return false;
+        }
+
+        @Override
+        public Scheduler getScheduler() {
+            return null;
         }
     }
 

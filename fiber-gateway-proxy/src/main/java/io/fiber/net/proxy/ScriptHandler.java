@@ -1,7 +1,7 @@
 package io.fiber.net.proxy;
 
 import io.fiber.net.common.FiberException;
-import io.fiber.net.common.RouterHandler;
+import io.fiber.net.common.ext.RouterHandler;
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.json.NullNode;
 import io.fiber.net.common.utils.ErrorInfo;

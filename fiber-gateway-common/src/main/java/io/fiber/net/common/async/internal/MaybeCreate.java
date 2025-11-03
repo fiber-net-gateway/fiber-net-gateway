@@ -1,19 +1,23 @@
 package io.fiber.net.common.async.internal;
 
+import io.fiber.net.common.async.Consumer;
 import io.fiber.net.common.async.Maybe;
 import io.fiber.net.common.utils.Exceptions;
 
 public final class MaybeCreate<T> implements Maybe<T> {
 
     private final OnSubscribe<T> source;
+    private final Consumer<? super T> onDismiss;
 
-    public MaybeCreate(OnSubscribe<T> source) {
+
+    public MaybeCreate(OnSubscribe<T> source, Consumer<? super T> onDismiss) {
         this.source = source;
+        this.onDismiss = onDismiss;
     }
 
     @Override
     public void subscribe(Observer<? super T> observer) {
-        ObE<T> obE = new ObE<>(observer);
+        ObE<T> obE = new ObE<>(observer, onDismiss);
         observer.onSubscribe(obE);
         try {
             source.subscribe(obE);
@@ -26,9 +30,11 @@ public final class MaybeCreate<T> implements Maybe<T> {
     static class ObE<T> extends DisposableOb implements Emitter<T> {
 
         private final Observer<? super T> observer;
+        private final Consumer<? super T> onDismiss;
 
-        ObE(Observer<? super T> observer) {
+        ObE(Observer<? super T> observer, Consumer<? super T> onDismiss) {
             this.observer = observer;
+            this.onDismiss = onDismiss;
         }
 
         @Override
@@ -38,6 +44,11 @@ public final class MaybeCreate<T> implements Maybe<T> {
                     observer.onSuccess(t);
                 } finally {
                     dispose();
+                }
+            } else {
+                try {
+                    onDismiss.accept(t);
+                } catch (Throwable ignore) {
                 }
             }
 

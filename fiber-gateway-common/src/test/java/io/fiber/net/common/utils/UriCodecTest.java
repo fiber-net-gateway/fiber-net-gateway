@@ -48,11 +48,20 @@ public class UriCodecTest {
             for (int i = 0; i < 1024; i++) {
                 sb.append("xxxxxxxxx");
             }
-            String uri = "/xx/xxx/xxxx" + sb;
-            UriCodec.parseComplexUri(uri, (path, argsStart, argsEnd) -> {
-                Assert.assertEquals(uri, path);
-                Assert.assertEquals(0, argsStart + argsEnd);
-            });
+            {
+                String uri = "/xx/xxx/xxxx" + sb;
+                UriCodec.parseComplexUri(uri, (path, argsStart, argsEnd) -> {
+                    Assert.assertEquals(uri, path);
+                    Assert.assertEquals(0, argsStart + argsEnd);
+                });
+            }
+            {
+                String uri = "/xx/xxx/xxxx" + sb + "vvv" + sb;
+                UriCodec.parseComplexUri(uri, (path, argsStart, argsEnd) -> {
+                    Assert.assertEquals(uri, path);
+                    Assert.assertEquals(0, argsStart + argsEnd);
+                });
+            }
         }
         {
             StringBuilder sb = new StringBuilder();

@@ -1,7 +1,7 @@
 package io.fiber.net.proxy;
 
 import io.fiber.net.common.HttpMethod;
-import io.fiber.net.common.RouterHandler;
+import io.fiber.net.common.ext.RouterHandler;
 import io.fiber.net.common.utils.CollectionUtils;
 import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.server.HttpExchange;

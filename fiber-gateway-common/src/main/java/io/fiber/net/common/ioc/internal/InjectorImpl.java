@@ -87,10 +87,18 @@ public class InjectorImpl extends Injector {
         int i = 0;
         T[] result = (T[]) Array.newInstance(clz, size);
         for (BeanList.BeanElement id : beans.getBeanElements()) {
-            if (id.isClzBean()) {
-                result[i++] = (T) getInstance(id.getClz());
-            } else {
-                result[i++] = (T) id.getObj();
+            switch (id.getType()) {
+                case BeanList.CT_CLZ:
+                    result[i++] = (T) getInstance(id.getClz());
+                    break;
+                case BeanList.CT_INS:
+                    result[i++] = (T) id.getObj();
+                    break;
+                case BeanList.CT_CTR:
+                    result[i++] = (T) id.getCtr().apply(this);
+                    break;
+                default:
+                    throw new IllegalStateException("unknown bean type");
             }
         }
         return result;

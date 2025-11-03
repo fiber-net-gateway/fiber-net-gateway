@@ -4,13 +4,12 @@ import io.netty.channel.EventLoop;
 import io.netty.channel.EventLoopGroup;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.FastThreadLocal;
-import io.netty.util.concurrent.ScheduledFuture;
 import io.netty.util.internal.ThreadExecutorMap;
 
 import java.util.concurrent.TimeUnit;
 
 public abstract class Scheduler {
-    private static final FastThreadLocal<IOScheduler> TH = new FastThreadLocal<>();
+    static final FastThreadLocal<Scheduler> TH = new FastThreadLocal<>();
 
     public static void assertInIoThread() {
         if (ThreadExecutorMap.currentExecutor() == null) {
@@ -28,7 +27,7 @@ public abstract class Scheduler {
     }
 
     public static Scheduler current() {
-        IOScheduler scheduler = TH.getIfExists();
+        Scheduler scheduler = TH.getIfExists();
         if (scheduler == null) {
             EventExecutor currentExecutor = ThreadExecutorMap.currentExecutor();
             if (currentExecutor == null) {
@@ -50,9 +49,11 @@ public abstract class Scheduler {
 
     public abstract void execute(Runnable runnable);
 
-    public abstract ScheduledFuture<?> schedule(Runnable task, long timeoutMs);
+    public abstract ScheduledFuture schedule(Runnable task, long timeoutMs);
 
-    public abstract ScheduledFuture<?> scheduleInNano(Runnable task, long timeoutNano);
+    public abstract ScheduledFuture scheduleInNano(Runnable task, long timeoutNano);
+
+    public abstract ScheduledFuture scheduleAtFixedRate(Runnable task, long initialDelayMs, long periodMs);
 
     public abstract boolean inLoop();
 
@@ -71,13 +72,18 @@ public abstract class Scheduler {
         }
 
         @Override
-        public ScheduledFuture<?> schedule(Runnable task, long timeoutMs) {
-            return eventExecutor.schedule(task, timeoutMs, TimeUnit.MILLISECONDS);
+        public ScheduledFuture schedule(Runnable task, long timeoutMs) {
+            return new WrapNettyScheduledFuture(eventExecutor.schedule(task, timeoutMs, TimeUnit.MILLISECONDS));
         }
 
         @Override
-        public ScheduledFuture<?> scheduleInNano(Runnable task, long timeoutNano) {
-            return eventExecutor.schedule(task, timeoutNano, TimeUnit.NANOSECONDS);
+        public ScheduledFuture scheduleInNano(Runnable task, long timeoutNano) {
+            return new WrapNettyScheduledFuture(eventExecutor.schedule(task, timeoutNano, TimeUnit.NANOSECONDS));
+        }
+
+        @Override
+        public ScheduledFuture scheduleAtFixedRate(Runnable task, long initialDelayMs, long periodMs) {
+            return new WrapNettyScheduledFuture(eventExecutor.scheduleAtFixedRate(task, initialDelayMs, periodMs, TimeUnit.MILLISECONDS));
         }
 
         public boolean inLoop() {
@@ -104,13 +110,18 @@ public abstract class Scheduler {
         }
 
         @Override
-        public ScheduledFuture<?> schedule(Runnable task, long timeoutMs) {
+        public ScheduledFuture schedule(Runnable task, long timeoutMs) {
             return current().schedule(task, timeoutMs);
         }
 
         @Override
-        public ScheduledFuture<?> scheduleInNano(Runnable task, long timeoutNano) {
+        public ScheduledFuture scheduleInNano(Runnable task, long timeoutNano) {
             return current().scheduleInNano(task, timeoutNano);
+        }
+
+        @Override
+        public ScheduledFuture scheduleAtFixedRate(Runnable task, long initialDelayMs, long periodMs) {
+            return current().scheduleAtFixedRate(task, initialDelayMs, periodMs);
         }
 
         @Override

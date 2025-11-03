@@ -1,7 +1,8 @@
 package io.fiber.net.proxy;
 
+import io.fiber.net.common.Engine;
+import io.fiber.net.common.Server;
 import io.fiber.net.common.async.Scheduler;
-import io.fiber.net.common.ext.RouterNameFetcher;
 import io.fiber.net.common.ioc.Binder;
 import io.fiber.net.common.json.IntNode;
 import io.fiber.net.common.utils.Constant;
@@ -9,7 +10,7 @@ import io.fiber.net.common.utils.EpollAvailable;
 import io.fiber.net.proxy.lib.ExtensiveHttpLib;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ast.Literal;
-import io.fiber.net.server.HttpEngine;
+import io.fiber.net.server.HttpServer;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
@@ -23,7 +24,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 public class TestPipeline {
-    HttpEngine engine;
+    Engine engine;
 
     @Before
     public void t() throws Exception {
@@ -34,9 +35,10 @@ public class TestPipeline {
                     binder.bind(MProxy.class, new MProxy());
                 }
         );
+        HttpServer instance = (HttpServer) engine.getServer("main");
 
-        engine.addHandlerRouter(LibProxyMainModule.createProject(engine.getInjector(),
-                RouterNameFetcher.DEF_ROUTER_NAME, "return sleep(+req.getQuery(\"t\"));"));
+        instance.addHandlerRouter(LibProxyMainModule.createProject(engine.getInjector(),
+                Constant.FIBER_NET, "return sleep(+req.getQuery(\"t\"));"));
     }
 
     @Test
@@ -76,7 +78,7 @@ public class TestPipeline {
 
     private static void sendReq(Channel channel, int t) {
         DefaultHttpHeaders entries = new DefaultHttpHeaders();
-        entries.set(Constant.X_FIBER_PROJECT_HEADER, RouterNameFetcher.DEF_ROUTER_NAME);
+        entries.set(Constant.X_FIBER_PROJECT_HEADER, Constant.FIBER_NET);
 //        entries.set(HttpHeaderNames.CONTENT_LENGTH, 0);
         channel.write(new DefaultFullHttpRequest(
                 HttpVersion.HTTP_1_1,

@@ -1,22 +1,14 @@
 package io.fiber.net.proxy.lib;
 
-import io.fiber.net.common.RouterHandler;
 import io.fiber.net.common.json.*;
-import io.fiber.net.common.utils.CollectionUtils;
-import io.fiber.net.common.utils.Constant;
-import io.fiber.net.common.utils.JsonUtil;
-import io.fiber.net.common.utils.StringUtils;
-import io.fiber.net.proxy.RoutePathMatcher;
-import io.fiber.net.proxy.util.MultiMap;
-import io.fiber.net.proxy.util.UrlEncoded;
+import io.fiber.net.common.utils.*;
+import io.fiber.net.proxy.RouteContext;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.server.HttpExchange;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufUtil;
-import io.netty.handler.codec.http.cookie.Cookie;
-import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -27,7 +19,7 @@ import java.util.Map;
 public class ReqFunc {
     private static final ObjectNode EMPTY = JsonUtil.createObjectNode();
 
-    private static class Ctx {
+    public static class Ctx {
         private final HttpExchange exchange;
         private ObjectNode query;
         private ObjectNode headers;
@@ -41,12 +33,8 @@ public class ReqFunc {
             if (query == null) {
                 String queryText = exchange.getQuery();
                 if (StringUtils.isNotEmpty(queryText)) {
-                    MultiMap<String> map = new MultiMap<>();
-                    UrlEncoded.decodeUtf8To(queryText, map);
                     query = JsonUtil.createObjectNode();
-                    for (Map.Entry<String, List<String>> entry : map.entrySet()) {
-                        query.put(entry.getKey(), entry.getValue().get(0));
-                    }
+                    UrlEncoded.decodeUtf8To(queryText, 0, queryText.length(), query::put);
                 } else {
                     query = EMPTY;
                 }
@@ -70,12 +58,16 @@ public class ReqFunc {
             ObjectNode cookieNodes = this.cookies;
             if (cookieNodes == null) {
                 cookieNodes = this.cookies = JsonUtil.createObjectNode();
+                ObjectNode finalCookieNodes = cookieNodes;
                 List<String> cookies = exchange.getRequestHeaderList("cookie");
                 if (CollectionUtils.isNotEmpty(cookies)) {
                     for (String cookie : cookies) {
-                        for (Cookie c : ServerCookieDecoder.STRICT.decodeAll(cookie)) {
-                            cookieNodes.put(c.name(), c.value());
-                        }
+                        ServerCookieDecodeUtil.decode(cookie, true, (src, nameBegin, nameEnd, valueBegin, valueEnd, wrap) -> {
+                            String name = src.substring(nameBegin, nameEnd);
+                            String value = src.substring(valueBegin, valueEnd);
+                            finalCookieNodes.put(name, value);
+                            return false;
+                        });
                     }
                 }
             }
@@ -86,7 +78,7 @@ public class ReqFunc {
 
     private static final HttpExchange.Attr<Ctx> CTX_ATTR = HttpExchange.createAttr();
 
-    private static Ctx getOrCreateCtx(ExecutionContext context) {
+    public static Ctx getOrCreateCtx(ExecutionContext context) {
         HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
         Ctx ctx = CTX_ATTR.get(exchange);
         if (ctx != null) {
@@ -248,17 +240,16 @@ public class ReqFunc {
 
         @Override
         public JsonNode call(ExecutionContext context) {
-            RoutePathMatcher.MappingResult<RouterHandler<HttpExchange>> result
-                    = MAPPING_RESULT_ATTR.get(HttpDynamicFunc.httpExchange(context));
-            if (result == null) {
+            RouteContext routeContext = RouteContext.of(HttpDynamicFunc.httpExchange(context));
+            if (routeContext == null) {
                 return MissingNode.getInstance();
             }
-
+            ObjectNode node = routeContext.getNode();
             if (context.noArgs()) {
-                return result.toObjNode();
+                return node.deepCopy();
             }
 
-            return result.getVar(context.getArgVal(0).asText());
+            return node.path(context.getArgVal(0).asText());
         }
     }
 
@@ -290,7 +281,4 @@ public class ReqFunc {
         ASYNC_FC_MAP.put("req.readJson", new ReadJsonBody());
         ASYNC_FC_MAP.put("req.readBinary", new ReadBinaryBody());
     }
-
-    public static final HttpExchange.Attr<RoutePathMatcher.MappingResult<RouterHandler<HttpExchange>>> MAPPING_RESULT_ATTR
-            = HttpExchange.createAttr();
 }

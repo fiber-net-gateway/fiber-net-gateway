@@ -84,6 +84,9 @@ public abstract class RefResourcePool<V extends RefResourcePool.Ref> {
             return true;
         }
 
+        public final boolean isClosed() {
+            return refCount <= 0;
+        }
 
         public final void destroy() {
             int c;

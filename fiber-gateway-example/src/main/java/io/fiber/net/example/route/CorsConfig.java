@@ -1,4 +1,4 @@
-package io.fiber.net.proxy;
+package io.fiber.net.example.route;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.fiber.net.common.HttpMethod;

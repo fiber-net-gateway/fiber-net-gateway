@@ -3,19 +3,25 @@ package io.fiber.net.example;
 import io.fiber.net.common.Engine;
 import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.ext.Interceptor;
-import io.fiber.net.server.ServerModule;
 import io.fiber.net.common.ioc.Binder;
 import io.fiber.net.common.json.IntNode;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.TextNode;
 import io.fiber.net.common.utils.ArrayUtils;
 import io.fiber.net.common.utils.StringUtils;
-import io.fiber.net.proxy.*;
+import io.fiber.net.example.route.ScriptCodeSource;
+import io.fiber.net.example.route.UrlHandlerManager;
+import io.fiber.net.proxy.ConfigWatcher;
+import io.fiber.net.proxy.HttpLibConfigure;
+import io.fiber.net.proxy.LibProxyMainModule;
+import io.fiber.net.proxy.ProxyModule;
 import io.fiber.net.proxy.lib.ExtensiveHttpLib;
 import io.fiber.net.proxy.lib.HttpDynamicFunc;
+import io.fiber.net.proxy.route.SimpleConstLibConfigure;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
+import io.fiber.net.server.ServerModule;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.prometheus.PrometheusConfig;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
@@ -46,6 +52,8 @@ public class Main {
 
 
         binder.bindMultiBean(ProxyModule.class, binder1 -> {
+            binder1.bindFactory(SimpleConstLibConfigure.class, i -> new SimpleConstLibConfigure());
+            binder1.bindMultiBean(HttpLibConfigure.class, SimpleConstLibConfigure.class);
             binder1.bindMultiBean(HttpLibConfigure.class, new LibSleepFunc());
         });
 
@@ -54,6 +62,7 @@ public class Main {
             binder1.bindFactory(StatisticInterceptor.class, i -> new StatisticInterceptor(registry));
         });
 
+        binder.bindFactory(UrlHandlerManager.class, UrlHandlerManager::new);
         binder.forceBindFactory(ConfigWatcher.class, i -> new DirectoryFilesConfigWatcher(file));
         File fileDir = new File(file, "file");
         fileDir.mkdirs();

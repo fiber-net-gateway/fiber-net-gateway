@@ -4,10 +4,15 @@ import com.fasterxml.jackson.databind.JavaType;
 import io.fiber.net.common.async.ScheduledFuture;
 import io.fiber.net.common.async.Scheduler;
 import io.fiber.net.common.ioc.Destroyable;
+import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.utils.ArrayUtils;
+import io.fiber.net.common.utils.Assert;
+import io.fiber.net.common.utils.CollectionUtils;
 import io.fiber.net.common.utils.JsonUtil;
+import io.fiber.net.example.route.*;
 import io.fiber.net.http.HttpClient;
-import io.fiber.net.proxy.*;
+import io.fiber.net.proxy.ConfigWatcher;
+import io.fiber.net.proxy.route.VarType;
 import io.fiber.net.server.HttpServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +38,20 @@ public class DirectoryFilesConfigWatcher implements ConfigWatcher, Destroyable {
 
     public DirectoryFilesConfigWatcher(File file) {
         this.file = file;
+    }
+
+
+    private static UrlMappingRouter createProject(Injector injector,
+                                                  String projectName,
+                                                  List<UrlRoute> routes,
+                                                  CorsConfig defCorsConfig) throws Exception {
+        Assert.isTrue(CollectionUtils.isNotEmpty(routes));
+        UrlHandlerManager urlHandlerManager = injector.getInstance(UrlHandlerManager.class);
+        UrlMappingRouter.Builder builder = UrlMappingRouter.builder(urlHandlerManager);
+        return builder.setName(projectName)
+                .setRoutes(routes)
+                .setDefaultCorsConfig(defCorsConfig)
+                .build();
     }
 
     @Override
@@ -81,7 +100,7 @@ public class DirectoryFilesConfigWatcher implements ConfigWatcher, Destroyable {
         String name = parseName(listFile);
         try {
             List<UrlRoute> routes = JsonUtil.MAPPER.readValue(listFile, URL_ROUTE_TYPE);
-            server.addHandlerRouter(LibProxyMainModule.createUrlMappingRouter(
+            server.addHandlerRouter(createProject(
                     server.getInjector(),
                     name,
                     routes,
@@ -95,10 +114,16 @@ public class DirectoryFilesConfigWatcher implements ConfigWatcher, Destroyable {
     private void addJsProject(File listFile, String name) {
         try {
             byte[] bytes = Files.readAllBytes(listFile.toPath());
-            ScriptHandler project = LibProxyMainModule.createProject(server.getInjector(),
+            SimpleScriptHandler project = UrlHandlerManager.createScriptHandler(server.getInjector(),
                     name,
                     new String(bytes, StandardCharsets.UTF_8));
-            server.addHandlerRouter(project);
+            int varLength = project.getVarConfigSource().getVarLength(VarType.PATH);
+            if (varLength > 0) {
+                project.destroy();
+                throw new IllegalArgumentException("project " + name + " path var length is " + varLength);
+            }
+
+            server.addHandlerRouter(new SimpleJsRouteHandler(project));
         } catch (Exception e) {
             log.error("error init project", e);
         }

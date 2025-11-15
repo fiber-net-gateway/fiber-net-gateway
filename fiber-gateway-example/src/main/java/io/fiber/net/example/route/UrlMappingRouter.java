@@ -1,4 +1,4 @@
-package io.fiber.net.proxy;
+package io.fiber.net.example.route;
 
 import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.ext.RouterHandler;
@@ -7,6 +7,9 @@ import io.fiber.net.common.utils.Assert;
 import io.fiber.net.common.utils.CollectionUtils;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.common.utils.StringUtils;
+import io.fiber.net.proxy.route.RouteConflictException;
+import io.fiber.net.proxy.route.RoutePathMatcher;
+import io.fiber.net.proxy.route.VarType;
 import io.fiber.net.script.run.Compares;
 import io.fiber.net.server.HttpExchange;
 import io.netty.util.collection.IntObjectHashMap;
@@ -14,6 +17,7 @@ import io.netty.util.collection.IntObjectMap;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class UrlMappingRouter implements RouterHandler<HttpExchange> {
@@ -47,7 +51,6 @@ public class UrlMappingRouter implements RouterHandler<HttpExchange> {
         }
         RouteContext routeContext = new RouteContext(matcher.getMaxPathVarLength(), exchange);
         boolean matched = matcher.matchPath(exchange.getPath(), routeContext);
-        RouterHandler<HttpExchange> handler = routeContext.getHandler();
         if (!matched) {
             exchange.discardReqBody();
             exchange.writeJson(404, "URL_NOT_MATCHED");
@@ -55,8 +58,7 @@ public class UrlMappingRouter implements RouterHandler<HttpExchange> {
         }
 
         exchange.checkMaxReqBodySize();
-
-        handler.invoke(exchange);
+        routeContext.invokeHandler();
     }
 
     @Override
@@ -80,6 +82,7 @@ public class UrlMappingRouter implements RouterHandler<HttpExchange> {
         private String name;
         private UrlMappingRouter router;
         private IntObjectMap<MethodSlotHandler> methodSlotHandlers = new IntObjectHashMap<>();
+
 
         Builder(UrlHandlerManager urlHandlerManager) {
             this.urlHandlerManager = urlHandlerManager;
@@ -122,7 +125,7 @@ public class UrlMappingRouter implements RouterHandler<HttpExchange> {
 
         @Override
         public void addPathVarDefiner(UrlRoute builder, String varName, int idx) {
-
+            builder.varDefinitions.add(varName);
         }
 
         @Override
@@ -142,7 +145,22 @@ public class UrlMappingRouter implements RouterHandler<HttpExchange> {
 
             UrlHandlerManager.ScriptRef scriptRef = urlHandlerManager.getOrCreate(f);
             router.refs.add(scriptRef);
-            ScriptHandler handler = scriptRef.getHandler();
+            SimpleScriptHandler handler = scriptRef.getHandler();
+
+            int size = urlRoute.varDefinitions.size();
+            if (size > 0) {
+                int[] idxMap = new int[size];
+                Arrays.fill(idxMap, -1);
+                handler.getVarConfigSource().forEach(VarType.PATH, varConst -> {
+                    int i = urlRoute.varDefinitions.indexOf(varConst.getNameTxt());
+                    if (i < 0) {
+                        throw new RouteConflictException("path var not defined:" + varConst.getNameTxt());
+                    }
+                    idxMap[i] = varConst.getIdx();
+                });
+                handler.setVarDefinitions(idxMap);
+            }
+
 
             JsonNode cors = urlRoute.getCors();
             if (!Compares.logic(cors)) {

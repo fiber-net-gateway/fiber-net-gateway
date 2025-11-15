@@ -1,383 +1,192 @@
 package io.fiber.net.proxy;
 
-import io.fiber.net.common.FiberException;
-import io.fiber.net.common.HttpMethod;
-import io.fiber.net.common.async.Maybe;
-import io.fiber.net.common.async.Observable;
-import io.fiber.net.common.async.Scheduler;
-import io.fiber.net.common.codec.ClosedConnection;
-import io.fiber.net.common.codec.UpgradedConnection;
-import io.fiber.net.common.json.JsonNode;
-import io.fiber.net.common.json.TextNode;
-import io.fiber.net.script.Script;
-import io.fiber.net.server.HttpExchange;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.FileRegion;
+import io.fiber.net.proxy.route.RouteConflictException;
+import io.fiber.net.proxy.route.RoutePathMatcher;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.net.SocketAddress;
 import java.util.*;
 
 public class RoutePathMatcherTest {
 
-    RoutePathMatcher.Builder<TS> builder;
-    RoutePathMatcher<TS> matcher;
+    private static class TestVarDefiner implements RoutePathMatcher.RouteVarDefiner<Object, Object> {
+        Set<Integer> set = new HashSet<>();
+
+        @Override
+        public void addPathVarDefiner(Object builder, String varName, int idx) {
+            System.out.println("addPathVarDefiner: " + builder + " -> " + varName + " " + idx);
+        }
+
+        @Override
+        public Object onRouteMount(int routeNodeId, Object builder) throws RouteConflictException {
+            Assert.assertTrue(set.add(routeNodeId));
+            return builder;
+        }
+    }
+
+    private static class Tester implements RoutePathMatcher.MappingContext<Object> {
+        RoutePathMatcher.Builder<Object, Object> builder = RoutePathMatcher.builder(new TestVarDefiner());
+        private int id = 0;
+        private RoutePathMatcher<Object> matcher;
+        private Object matchedToken;
+        private final ArrayList<String> pathVars = new ArrayList<>();
+
+        Object addPath(String pathPattern) {
+            Object r = id++;
+            builder.addUrlHandler(pathPattern, r);
+            return r;
+        }
+
+        void test(String path, Object token, Map<String, String> values) {
+            if (values == null) {
+                values = Collections.emptyMap();
+            }
+
+            values = new HashMap<>(values);
+            this.matchedToken = token;
+            if (matcher == null) {
+                matcher = builder.build();
+            }
+            Assert.assertTrue(matcher.matchPath(path, this));
+            for (int i = 0; i < pathVars.size(); i += 2) {
+                Assert.assertTrue(values.remove(pathVars.get(i), pathVars.get(i + 1)));
+            }
+            Assert.assertTrue(values.isEmpty());
+            pathVars.clear();
+        }
+
+        void test(String path, Object token) {
+            test(path, token, Collections.emptyMap());
+        }
+
+        void testUnmatched(String path) {
+            if (matcher == null) {
+                matcher = builder.build();
+            }
+            Assert.assertFalse(matcher.matchPath(path, this));
+        }
+
+
+        @Override
+        public boolean matched(int nodeId, Object handler) {
+            Assert.assertSame(matchedToken, handler);
+            return true;
+        }
+
+        @Override
+        public void addPathVar(String var, String value) {
+            pathVars.add(var);
+            pathVars.add(value);
+        }
+
+        @Override
+        public void popPathVar() {
+            pathVars.remove(pathVars.size() - 1);
+            pathVars.remove(pathVars.size() - 1);
+        }
+    }
+
 
     @Test
-    public void matchPath() {
-        builder = RoutePathMatcher.builder();
-        TS ts0 = new TS(HttpMethod.GET, "/a/b/c");
-        TS ts1 = new TS(HttpMethod.GET, "/c/v/c");
-        TS ts2 = new TS(HttpMethod.GET, "/a/b/e");
-        TS ts3 = new TS(HttpMethod.GET, "/aa/b/f");
-        TS ts4 = new TS(HttpMethod.GET, "/a/b/g");
-        TS ts5 = new TS(HttpMethod.GET, "/a/b/g/");
-        TS ts6 = new TS(HttpMethod.GET, "/a/b/a/a");
-        TS ts7 = new TS(null, "/a/b/a/a");
-
-        TS ts8 = new TS(HttpMethod.GET, "/aa/b/:f");
-        TS ts9 = new TS(HttpMethod.GET, "/aa/b/*f");
-        TS ts10 = new TS(HttpMethod.GET, "/aa/b/:ff/vv");
-        TS ts11 = new TS(null, "/aa/b/:ff/kk/");
-        TS ts12 = new TS(HttpMethod.GET, "/aa/b/:ff/vv/:aa/3");
-
-        add(ts0, ts1, ts2, ts3, ts4, ts5, ts6, ts7, ts8, ts9, ts10, ts11, ts12);
-        matcher = builder.build();
-
-        match(new E(HttpMethod.GET, "/a/b/g"), ts4);
-        match(new E(HttpMethod.GET, "/a/b/a/a"), ts6);
-        match(new E(HttpMethod.GET, "/a/b/c"), ts0);
-        match(new E(HttpMethod.GET, "/a/b/g/"), ts5);
-        match(new E(HttpMethod.GET, "/a/b/g"), ts4);
-        match(new E(HttpMethod.DELETE, "/a/b/a/a"), ts7);
-        match(new E(HttpMethod.GET, "/a/b/a/a"), ts6);
-
-        Assert.assertNull(matcher.matchPath(new E(HttpMethod.POST, "/a/b/g")).getHandler());
+    public void builder1() {
         {
-            RoutePathMatcher.MappingResult<TS> result = matcher.matchPath(new E(HttpMethod.GET, "/aa/b/tt"));
-            Assert.assertSame(result.getHandler(), ts8);
-            Assert.assertEquals(result.getMap().size(), 1);
-            Assert.assertEquals(TextNode.valueOf("tt"), result.getMap().get("f"));
-        }
-
-        {
-            RoutePathMatcher.MappingResult<TS> result = matcher.matchPath(new E(HttpMethod.GET, "/aa/b/tt/vv"));
-            Assert.assertSame(result.getHandler(), ts10);
-            Assert.assertEquals(result.getMap().size(), 1);
-            Assert.assertEquals(TextNode.valueOf("tt"), result.getMap().get("ff"));
+            Tester tester = new Tester();
+            Object i1 = tester.addPath("/a/b/");
+            Object i2 = tester.addPath("/a/b/*tail");
+            Object i0 = tester.addPath("/a/b");
+            tester.test("/a/b", i0);
+            tester.test("/a/b/", i1);
+            tester.test("/a/b/aa", i2, Collections.singletonMap("tail", "aa"));
         }
         {
-            RoutePathMatcher.MappingResult<TS> result = matcher.matchPath(new E(HttpMethod.PUT, "/aa/b/tt/kk/"));
-            Assert.assertSame(result.getHandler(), ts11);
-            Assert.assertEquals(result.getMap().size(), 1);
-            Assert.assertEquals(TextNode.valueOf("tt"), result.getMap().get("ff"));
-        }
-
-        {
-            RoutePathMatcher.MappingResult<TS> result = matcher.matchPath(new E(HttpMethod.GET, "/aa/b/tt/vv/bb/3"));
-            Assert.assertSame(result.getHandler(), ts12);
-            Assert.assertEquals(result.getMap().size(), 2);
-            Assert.assertEquals(TextNode.valueOf("tt"), result.getMap().get("ff"));
-            Assert.assertEquals(TextNode.valueOf("bb"), result.getMap().get("aa"));
-        }
-
-        {
-            RoutePathMatcher.MappingResult<TS> result = matcher.matchPath(new E(HttpMethod.GET, "/aa/b/tt/vvt"));
-            Assert.assertSame(result.getHandler(), ts9);
-            Assert.assertEquals(result.getMap().size(), 1);
-            Assert.assertEquals(TextNode.valueOf("tt/vvt"), result.getMap().get("f"));
-        }
-
-        {
-            RoutePathMatcher.MappingResult<TS> result = matcher.matchPath(new E(HttpMethod.GET, "/aa/b/tt/"));
-            Assert.assertSame(result.getHandler(), ts9);
-            Assert.assertEquals(result.getMap().size(), 1);
-            Assert.assertEquals(TextNode.valueOf("tt/"), result.getMap().get("f"));
-        }
-
-        {
-            Assert.assertNull(matcher.matchPath(new E(HttpMethod.POST, "/aa/b/tt")).getHandler());
+            Tester tester = new Tester();
+            Object i1 = tester.addPath("/a/b/");
+            Object i2 = tester.addPath("/a/b/*tail");
+            tester.test("/a/b", i1);
+            tester.test("/a/b/", i1);
+            tester.test("/a/b/aa", i2, Collections.singletonMap("tail", "aa"));
+            tester.test("/a/b/aa/bb", i2, Collections.singletonMap("tail", "aa/bb"));
+            tester.test("/a/b/aa/bb/cc.ccc", i2, Collections.singletonMap("tail", "aa/bb/cc.ccc"));
         }
 
     }
 
-    private void match(E e, TS ts) {
-        RoutePathMatcher.MappingResult<TS> result = matcher.matchPath(e);
-        Assert.assertSame(ts, result.getHandler());
-        Assert.assertTrue(result.getMap().isEmpty());
+
+    @Test
+    public void builder2() {
+        {
+            Tester tester = new Tester();
+            Object i1 = tester.addPath("/a/b/");
+            Object i2 = tester.addPath("/a/b/*tail");
+            Object i3 = tester.addPath("/a/b/:ph");
+            Object i0 = tester.addPath("/a/b");
+            tester.test("/a/b", i0);
+            tester.test("/a/b/", i1);
+            tester.test("/a/b/aa", i3, Collections.singletonMap("ph", "aa"));
+            tester.test("/a/b/aa/", i3, Collections.singletonMap("ph", "aa"));
+            tester.test("/a/b/aa/xx", i2, Collections.singletonMap("tail", "aa/xx"));
+            tester.testUnmatched("/a");
+            tester.testUnmatched("/a/c");
+        }
+        {
+            Tester tester = new Tester();
+//            Object i1 = tester.addPath("/a/b");
+            Object i2 = tester.addPath("/a/b/:xx");
+            tester.testUnmatched("/a/b");
+            tester.test("/a/b/", i2, Collections.singletonMap("xx", ""));
+            tester.test("/a/b/aa", i2, Collections.singletonMap("xx", "aa"));
+            tester.testUnmatched("/a/b/aa/cc");
+        }
+
     }
 
-    private void add(TS... tss) {
-        for (TS ts : tss) {
-            builder.addUrlHandler(ts.method, ts.url, ts);
+    @Test
+    public void builder3() {
+        {
+            Tester tester = new Tester();
+            Object i1 = tester.addPath("/");
+            Object i2 = tester.addPath("/*");
+            tester.test("/a/b", i2);
+            tester.test("//", i1);
+            tester.test("/", i1);
         }
+
+        {
+            Tester tester = new Tester();
+            Object i1 = tester.addPath("//a///b///*");
+            Object i2 = tester.addPath("/*");
+            Object i3 = tester.addPath("/cc/dd/:ee/*tail");
+            tester.test("/a/b", i1);
+            tester.test("//", i2);
+            tester.test("/", i2);
+            tester.test("/cc/dd/ee1/", i3, new HashMap<String, String>(){
+                {
+                    put("ee", "ee1");
+                    put("tail", "");
+                }
+            });
+        }
+
     }
 
+    @Test
+    public void builder4() {
+        {
+            Tester tester = new Tester();
+            Map<String, Object> m = new HashMap<>();
+            for (int i = 0; i < 100; i++) {
+                for(int j = 0; j < 100; j++) {
+                    String pathPattern = "/a/" + i + "/b/" + j;
+                    Object object = tester.addPath(pathPattern);
+                    m.put(pathPattern, object);
+                }
+            }
 
-    private static class TS implements Script {
-        private final String url;
-        private final HttpMethod method;
-
-        private TS(HttpMethod method, String url) {
-            this.url = url;
-            this.method = method;
-        }
-
-        @Override
-        public Maybe<JsonNode> exec(JsonNode root, Object attach) {
-            return null;
-        }
-
-        @Override
-        public boolean containsAsyncIR() {
-            return false;
-        }
-
-        @Override
-        public JsonNode execForSync(JsonNode root, Object attach) {
-            return null;
-        }
-
-        @Override
-        public boolean equals(Object object) {
-            if (this == object) return true;
-            if (object == null || getClass() != object.getClass()) return false;
-            TS ts = (TS) object;
-            return Objects.equals(url, ts.url) && method == ts.method;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(url, method);
-        }
-
-        @Override
-        public String toString() {
-            return "TS{" +
-                    "url='" + url + '\'' +
-                    ", method=" + method +
-                    '}';
+            for (int i = 0; i < 1000; i++) {
+                for (Map.Entry<String, Object> entry : m.entrySet()) {
+                    tester.test(entry.getKey(), entry.getValue());
+                }
+            }
         }
     }
-
-    private static class E extends HttpExchange {
-        private final HttpMethod method;
-        private final String path;
-
-        private E(HttpMethod method, String path) {
-            this.method = method;
-            this.path = path;
-        }
-
-        @Override
-        public String getPath() {
-            return path;
-        }
-
-        @Override
-        public String getQuery() {
-            return null;
-        }
-
-        @Override
-        public String getUri() {
-            return null;
-        }
-
-        @Override
-        public void setMaxReqBodySizeAndCheck(long maxReqBodyLength) throws FiberException {
-
-        }
-
-        @Override
-        public void checkMaxReqBodySize() throws FiberException {
-
-        }
-
-        @Override
-        public SocketAddress getRemoteAddress() {
-            return null;
-        }
-
-        @Override
-        public SocketAddress getLocalAddress() {
-            return null;
-        }
-
-        @Override
-        public void setRequestHeader(String name, String value) {
-
-        }
-
-        @Override
-        public void addRequestHeader(String name, String value) {
-
-        }
-
-        @Override
-        public String getRequestHeader(String name) {
-            return null;
-        }
-
-        @Override
-        public List<String> getRequestHeaderList(String name) {
-            return null;
-        }
-
-        @Override
-        public String getRequestHeader(CharSequence name) {
-            return "";
-        }
-
-        @Override
-        public Iterator<Map.Entry<CharSequence, CharSequence>> getRequestHeaderIterator() {
-            return null;
-        }
-
-        @Override
-        public Iterator<Map.Entry<CharSequence, CharSequence>> getResponseHeaderIterator() {
-            return null;
-        }
-
-        @Override
-        public List<String> getRequestHeaderList(CharSequence name) {
-            return null;
-        }
-
-        @Override
-        public Collection<String> getRequestHeaderNames() {
-            return null;
-        }
-
-        @Override
-        public void setResponseHeader(String name, String value) {
-
-        }
-
-        @Override
-        public void setResponseHeaderUnsafe(CharSequence name, CharSequence value) {
-
-        }
-
-        @Override
-        public void setResponseHeader(String name, List<String> values) {
-
-        }
-
-        @Override
-        public void addResponseHeader(String name, String value) {
-
-        }
-
-        @Override
-        public void addResponseHeaderUnsafe(CharSequence name, CharSequence value) {
-
-        }
-
-        @Override
-        public void addResponseHeader(String name, List<String> values) {
-
-        }
-
-        @Override
-        public void removeResponseHeader(String name) {
-
-        }
-
-        @Override
-        public String getResponseHeader(String name) {
-            return null;
-        }
-
-        @Override
-        public List<String> getResponseHeaderList(String name) {
-            return null;
-        }
-
-        @Override
-        public Collection<String> getResponseHeaderNames() {
-            return null;
-        }
-
-        @Override
-        public HttpMethod getRequestMethod() {
-            return method;
-        }
-
-        @Override
-        public void writeJson(int status, Object result) {
-
-        }
-
-        @Override
-        public void writeRawBytes(int status, ByteBuf buf) {
-
-        }
-
-        @Override
-        public void writeFileRegion(int status, FileRegion fileRegion) {
-        }
-
-        @Override
-        public void writeRawBytes(int status, Observable<ByteBuf> bufOb, long length, boolean flush) {
-
-        }
-
-        @Override
-        public UpgradedConnection upgrade(int status, CharSequence protocol, long timeout) {
-            return ClosedConnection.INSTANCE;
-        }
-
-        @Override
-        public boolean isResponseWrote() {
-            return false;
-        }
-
-        @Override
-        public void discardReqBody() {
-
-        }
-
-        @Override
-        public int getWroteStatus() {
-            return 0;
-        }
-
-        @Override
-        public int getRecvReqBodyLen() {
-            return 0;
-        }
-
-        @Override
-        public long getSentRespBodyLen() {
-            return 0;
-        }
-
-        @Override
-        public Observable<ByteBuf> peekBody() {
-            return null;
-        }
-
-        @Override
-        public Observable<ByteBuf> readBodyUnsafe() {
-            return null;
-        }
-
-        @Override
-        public Maybe<ByteBuf> readFullBody(Scheduler scheduler) {
-            return null;
-        }
-
-        @Override
-        public boolean isClientClosed() {
-            return false;
-        }
-
-        @Override
-        public Scheduler getScheduler() {
-            return null;
-        }
-    }
-
 }

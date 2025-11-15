@@ -1,4 +1,4 @@
-package io.fiber.net.proxy;
+package io.fiber.net.example.route;
 
 import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.utils.StringUtils;

@@ -2,7 +2,6 @@ package io.fiber.net.proxy.lib;
 
 import io.fiber.net.common.json.*;
 import io.fiber.net.common.utils.*;
-import io.fiber.net.proxy.RouteContext;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
@@ -236,23 +235,6 @@ public class ReqFunc {
         }
     }
 
-    private static class GetPathVar implements SyncHttpFunc {
-
-        @Override
-        public JsonNode call(ExecutionContext context) {
-            RouteContext routeContext = RouteContext.of(HttpDynamicFunc.httpExchange(context));
-            if (routeContext == null) {
-                return MissingNode.getInstance();
-            }
-            ObjectNode node = routeContext.getNode();
-            if (context.noArgs()) {
-                return node.deepCopy();
-            }
-
-            return node.path(context.getArgVal(0).asText());
-        }
-    }
-
     private static class GetCookie implements SyncHttpFunc {
 
         @Override
@@ -271,7 +253,6 @@ public class ReqFunc {
     static {
         FC_MAP.put("req.getPath", new GetPath());
         FC_MAP.put("req.getUri", new GetUri());
-        FC_MAP.put("req.getPathVar", new GetPathVar());
         FC_MAP.put("req.getQueryStr", new GetQueryText());
         FC_MAP.put("req.getMethod", new GetMethodText());
         FC_MAP.put("req.getHeader", new GetHeader());

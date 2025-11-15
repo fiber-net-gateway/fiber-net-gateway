@@ -37,6 +37,30 @@ public abstract class ClientHttpExchange {
         return requestSec || requestErr;
     }
 
+    public final long getStartNano() {
+        return startNano;
+    }
+
+    public final long getConnectedNano() {
+        return connectedNano;
+    }
+
+    public final long getHeaderSentNano() {
+        return headerSentNano;
+    }
+
+    public final long getBodySentNano() {
+        return bodySentNano;
+    }
+
+    public final long getRespHeaderReceivedNano() {
+        return respHeaderReceivedNano;
+    }
+
+    public final long getRespBodyReceivedNano() {
+        return respBodyReceivedNano;
+    }
+
     protected abstract HttpHeaders requestHeaders();
 
     protected abstract String requestUri();

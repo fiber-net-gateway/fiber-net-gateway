@@ -62,4 +62,16 @@ public interface ClientResponse {
     void discardBodyOrUpgrade();
 
     long getRequestSendDurationNano();
+
+    long getStartNano();
+
+    long getConnectedNano();
+
+    long getHeaderSentNano();
+
+    long getBodySentNano();
+
+    long getRespHeaderReceivedNano();
+
+    long getRespBodyReceivedNano();
 }

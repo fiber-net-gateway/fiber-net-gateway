@@ -1,23 +1,21 @@
-package io.fiber.net.proxy;
+package io.fiber.net.example.route;
 
 import io.fiber.net.common.HttpMethod;
-import io.fiber.net.common.ext.RouterHandler;
 import io.fiber.net.common.utils.Constant;
-import io.fiber.net.server.HttpExchange;
+import io.fiber.net.proxy.route.RouteConflictException;
 
 public class MethodSlotHandler {
     private final String urlPattern;
-    private final RouterHandler<HttpExchange>[] handlers;
+    private final ScriptHandler[] handlers;
 
-    @SuppressWarnings("unchecked")
     public MethodSlotHandler(String urlPattern) {
         this.urlPattern = urlPattern;
-        handlers = new RouterHandler[Constant.METHODS.length + 1];
+        handlers = new ScriptHandler[Constant.METHODS.length + 1];
     }
 
-    public void addHandler(HttpMethod method, RouterHandler<HttpExchange> handler) {
+    public void addHandler(HttpMethod method, ScriptHandler handler) {
         int idx = method != null ? method.ordinal() : Constant.METHODS.length;
-        RouterHandler<HttpExchange> old = handlers[idx];
+        ScriptHandler old = handlers[idx];
         if (old != null) {
             throw new RouteConflictException("method handler already exists:" + method);
         }
@@ -28,8 +26,8 @@ public class MethodSlotHandler {
         return urlPattern;
     }
 
-    public RouterHandler<HttpExchange> getHandler(HttpMethod method) {
-        RouterHandler<HttpExchange> handler = handlers[method.ordinal()];
+    public ScriptHandler getHandler(HttpMethod method) {
+        ScriptHandler handler = handlers[method.ordinal()];
         if (handler == null) {
             handler = handlers[Constant.METHODS.length];
         }

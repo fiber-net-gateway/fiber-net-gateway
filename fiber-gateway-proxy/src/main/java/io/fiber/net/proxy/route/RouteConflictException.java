@@ -1,4 +1,4 @@
-package io.fiber.net.proxy;
+package io.fiber.net.proxy.route;
 
 public class RouteConflictException extends RuntimeException {
     public RouteConflictException() {

@@ -1,19 +1,22 @@
-package io.fiber.net.proxy;
+package io.fiber.net.example.route;
 
+import io.fiber.net.common.FiberException;
 import io.fiber.net.common.HttpMethod;
 import io.fiber.net.common.ext.RouterHandler;
 import io.fiber.net.common.utils.CollectionUtils;
 import io.fiber.net.common.utils.StringUtils;
+import io.fiber.net.proxy.route.VarConfigSource;
+import io.fiber.net.proxy.route.WildHostNode;
 import io.fiber.net.server.HttpExchange;
 import io.netty.buffer.Unpooled;
 
 import java.util.Collection;
 import java.util.stream.Collectors;
 
-public class CorsScriptHandler implements RouterHandler<HttpExchange>, CorsProcessor {
-    private final ScriptHandler handler;
+public class CorsScriptHandler implements ScriptHandler, CorsProcessor {
+    private final SimpleScriptHandler handler;
 
-    public CorsScriptHandler(ScriptHandler handler) {
+    public CorsScriptHandler(SimpleScriptHandler handler) {
         this.handler = handler;
     }
 
@@ -140,12 +143,17 @@ public class CorsScriptHandler implements RouterHandler<HttpExchange>, CorsProce
     }
 
     @Override
-    public String getRouterName() {
-        return handler.getRouterName();
+    public VarConfigSource getVarConfigSource() {
+        return handler.getVarConfigSource();
     }
 
     @Override
-    public void invoke(HttpExchange exchange) throws Exception {
+    public int[] getVarDefinitions() {
+        return handler.getVarDefinitions();
+    }
+
+    @Override
+    public void invoke(HttpExchange exchange) throws FiberException {
         if (processCors(exchange)) {
             exchange.writeRawBytes(204, Unpooled.EMPTY_BUFFER);
             return;
@@ -158,7 +166,7 @@ public class CorsScriptHandler implements RouterHandler<HttpExchange>, CorsProce
         handler.destroy();
     }
 
-    public static CorsScriptHandler create(ScriptHandler scriptHandler, CorsConfig corsConfig) {
+    public static CorsScriptHandler create(SimpleScriptHandler scriptHandler, CorsConfig corsConfig) {
         CorsScriptHandler handler = new CorsScriptHandler(scriptHandler);
         handler.setAllowHeaders(corsConfig.getAllowHeaders());
         handler.setAllowCredentials(corsConfig.isAllowCredentials());

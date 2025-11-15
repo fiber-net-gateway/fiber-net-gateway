@@ -28,19 +28,6 @@
         <micrometer.version>1.12.6</micrometer.version>
     </properties>
 
-    <distributionManagement>
-        <repository>
-            <id>releases</id>
-            <name>Releases</name>
-            <url>http://nexus.haiercash.net/repository/releases/</url>
-        </repository>
-        <snapshotRepository>
-            <id>snapshots</id>
-            <name>Snapshots</name>
-            <url>http://nexus.haiercash.net/repository/snapshots/</url>
-        </snapshotRepository>
-    </distributionManagement>
-
     <dependencyManagement>
         <dependencies>
             <dependency>

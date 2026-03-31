@@ -4,6 +4,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.concurrent.FastThreadLocal;
 
+import static io.netty.util.internal.StringUtil.isSurrogate;
+
 @SuppressWarnings("deprecation")
 public class UriCodec {
 
@@ -467,7 +469,8 @@ public class UriCodec {
             0x00000000, /* 0000 0000 0000 0000  0000 0000 0000 0000 */
             0x00000000, /* 0000 0000 0000 0000  0000 0000 0000 0000 */
             0x00000000, /* 0000 0000 0000 0000  0000 0000 0000 0000 */};
-    private static final byte[] hex = "0123456789ABCDEF".getBytes();
+    private static final char[] hex = "0123456789ABCDEF".toCharArray();
+    private static final byte WRITE_UTF_UNKNOWN = '?';
 
     public static String escapeUri(String src) {
         return ngx_escape_uri(src, uri);
@@ -493,64 +496,104 @@ public class UriCodec {
         return ngx_escape_uri(src, memcached);
     }
 
-    @SuppressWarnings("deprecation")
+    private static int writeUriByte(char[] dst, int dstOff, int c, int[] escape) {
+        if ((escape[c >>> 5] & (1 << (c & 0x1f))) != 0) {
+            dst[dstOff++] = '%';
+            dst[dstOff++] = hex[c >>> 4];
+            dst[dstOff++] = hex[c & 0xf];
+        } else {
+            dst[dstOff++] = (char) c;
+        }
+        return dstOff;
+    }
+
     private static String ngx_escape_uri(String srcTxt, int[] escape) {
-        int e = 0, size = srcTxt.length();
-        byte[] src, dst;
-        ByteBuf buf = null;
-        int off;
-        try {
-            if (CharArrUtil.isUnsafeBytes()) {
-                src = CharArrUtil.toReadOnlyAsciiCharArr(srcTxt);
-                off = 0;
-                dst = null;
-            } else if ((size << 2) <= CACHE_LEN) {
-                srcTxt.getBytes(0, size, dst = src = LOCAL.get(), off = 0);
-            } else {
-                buf = ByteBufAllocator.DEFAULT.heapBuffer(size << 2);
-                srcTxt.getBytes(0, size, dst = src = buf.array(), off = buf.arrayOffset());
-            }
-            for (int i = 0; i < size; i++) {
-                byte c = src[i + off];
-                if ((escape[c >>> 5] & (1 << (c & 0x1f))) != 0) {
-                    e++;
-                }
-            }
-            if (e == 0) {
-                return srcTxt;// no escape
-            }
-
-            int dstOff;
-            if (dst != null) {
-                dstOff = off + size;
-            } else {
-                int dstSize = size + (e << 1);
-                if (dstSize <= CACHE_LEN) {
-                    dst = LOCAL.get();
-                    dstOff = 0;
-                } else {
-                    buf = ByteBufAllocator.DEFAULT.heapBuffer(dstSize);
-                    dst = buf.array();
-                    dstOff = buf.arrayOffset();
-                }
-            }
-
-            int di = dstOff;
-            for (int i = 0; i < size; i++) {
-                byte c = src[i + off];
-                if ((escape[c >>> 5] & (1 << (c & 0x1f))) != 0) {
-                    dst[di++] = '%';
-                    dst[di++] = hex[c >>> 4];
-                    dst[di++] = hex[c & 0xf];
-                } else {
-                    dst[di++] = c;
-                }
-            }
-            return new String(dst, dstOff, di - dstOff);
-        } finally {
-            if (buf != null) {
-                buf.release();
+        int end = srcTxt.length();
+        int i = 0;
+        {
+            char c;
+            // ASCII fast path
+            while (i < end && ((c = srcTxt.charAt(i)) < 0x80 && (escape[c >>> 5] & (1 << (c & 0x1f))) == 0)) {
+                ++i;
             }
         }
+
+        if (i == end) {
+            return srcTxt;
+        }
+        int encodedLength = i;
+        for (; i < end; i++) {
+            final char c = srcTxt.charAt(i);
+            // making it 100% branchless isn't rewarding due to the many bit operations necessary!
+            if (c < 0x80) {
+                encodedLength += ((escape[c >>> 5] & (1 << (c & 0x1f))) == 0) ? 1 : 3;
+            } else if (c < 0x800) {
+                encodedLength += 6;
+            } else if (isSurrogate(c)) {
+                if (!Character.isHighSurrogate(c)) {
+                    encodedLength += 3;
+                    // WRITE_UTF_UNKNOWN
+                    continue;
+                }
+                // Surrogate Pair consumes 2 characters.
+                if (++i == end) {
+                    encodedLength += 3;
+                    // WRITE_UTF_UNKNOWN
+                    break;
+                }
+                if (!Character.isLowSurrogate(srcTxt.charAt(i))) {
+                    // WRITE_UTF_UNKNOWN + (Character.isHighSurrogate(c2) ? WRITE_UTF_UNKNOWN : c2)
+                    encodedLength += 6;
+                    continue;
+                }
+                // See https://www.unicode.org/versions/Unicode7.0.0/ch03.pdf#G2630.
+                encodedLength += 12;
+            } else {
+                encodedLength += 9;
+            }
+        }
+
+        char[] dst = new char[encodedLength];
+        int j = 0;
+        for (i = 0; i < end; i++) {
+            final char c = srcTxt.charAt(i);
+            if (c < 0x80) {
+                j = writeUriByte(dst, j, c, escape);
+            } else if (c < 0x800) {
+
+                j = writeUriByte(dst, j, (0xc0 | (c >> 6)), escape);
+                j = writeUriByte(dst, j, (0x80 | (c & 0x3f)), escape);
+            } else if (isSurrogate(c)) {
+                if (!Character.isHighSurrogate(c)) {
+                    j = writeUriByte(dst, j, WRITE_UTF_UNKNOWN, escape);
+                    continue;
+                }
+                // Surrogate Pair consumes 2 characters.
+                if (++i == end) {
+                    j = writeUriByte(dst, j, WRITE_UTF_UNKNOWN, escape);
+                    break;
+                }
+                char c2 = srcTxt.charAt(i);
+                // Extra method is copied here to NOT allow inlining of writeUtf8
+                // and increase the chance to inline CharSequence::charAt instead
+                if (!Character.isLowSurrogate(c2)) {
+                    j = writeUriByte(dst, j, WRITE_UTF_UNKNOWN, escape);
+                    j = writeUriByte(dst, j,
+                            (byte) (Character.isHighSurrogate(c2) ? WRITE_UTF_UNKNOWN : c2), escape);
+                } else {
+                    int codePoint = Character.toCodePoint(c, c2);
+                    // See https://www.unicode.org/versions/Unicode7.0.0/ch03.pdf#G2630.
+                    j = writeUriByte(dst, j, (0xf0 | (codePoint >> 18)), escape);
+                    j = writeUriByte(dst, j, (0x80 | ((codePoint >> 12) & 0x3f)), escape);
+                    j = writeUriByte(dst, j, (0x80 | ((codePoint >> 6) & 0x3f)), escape);
+                    j = writeUriByte(dst, j, (0x80 | (codePoint & 0x3f)), escape);
+                }
+            } else {
+                j = writeUriByte(dst, j, (0xe0 | (c >> 12)), escape);
+                j = writeUriByte(dst, j, (0x80 | ((c >> 6) & 0x3f)), escape);
+                j = writeUriByte(dst, j, (0x80 | (c & 0x3f)), escape);
+            }
+        }
+        return new String(dst, 0, j);
     }
 }

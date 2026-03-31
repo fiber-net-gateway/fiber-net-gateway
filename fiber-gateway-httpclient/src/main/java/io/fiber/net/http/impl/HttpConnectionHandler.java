@@ -156,9 +156,9 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
             receivedBodyLength = 0;
             HttpHeaders headers = response.headers();
             boolean cu;
-            closeByProto |= connUpgrade = cu = exchange.isUpgradeAllowed()
+            connUpgrade = cu = exchange.isUpgradeAllowed()
                     && headers.containsValue(HttpHeaderNames.CONNECTION, HttpHeaderValues.UPGRADE, true);
-
+            closeByProto |= cu;
             if (cu) {
                 clientCodec.prepareUpgradeFrom(ctx);
             }
@@ -240,13 +240,11 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
         if (!headers.contains(HttpHeaderNames.USER_AGENT)) {
             headers.set(HttpHeaderNames.USER_AGENT, config.userAgent);
         }
-        String connection = headers.get(HttpHeaderNames.CONNECTION);
+        String connection;
         int maxRequest;
-        if (++requests >= (maxRequest = config.maxRequestPerConn) && maxRequest > 0
-                && connection == null) {
-            headers.set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+        if (++requests >= (maxRequest = config.maxRequestPerConn) && maxRequest > 0) {
             closeByProto = true;
-        } else if ("close".equalsIgnoreCase(connection)) {
+        } else if ("close".equalsIgnoreCase(connection = headers.get(HttpHeaderNames.CONNECTION))) {
             closeByProto = true;
         } else if ("upgrade".equalsIgnoreCase(connection)) {
             // upgrade ignore data;

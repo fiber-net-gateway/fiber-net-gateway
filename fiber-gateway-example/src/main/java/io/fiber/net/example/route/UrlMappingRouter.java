@@ -129,7 +129,7 @@ public class UrlMappingRouter implements RouterHandler<HttpExchange> {
         }
 
         @Override
-        public MethodSlotHandler onRouteMount(int routeNodeId, UrlRoute urlRoute) throws RouteConflictException {
+        public MethodSlotHandler onRouteMount(int routeNodeId, String urlPattern, UrlRoute urlRoute) throws RouteConflictException {
             String m = urlRoute.getMethod(), f = urlRoute.getFile(), u = urlRoute.getUrl();
             Assert.isTrue(StringUtils.isNotEmpty(u)
                             && StringUtils.isNotEmpty(urlRoute.getFile())

@@ -1,4 +1,4 @@
-import {HttpMethod} from "../../ploto-gateway/documents/service";
+import {HttpMethod} from "../documents/service";
 
 export declare const $req: {
     /**

@@ -18,7 +18,7 @@ public class RoutePathMatcherTest {
         }
 
         @Override
-        public Object onRouteMount(int routeNodeId, Object builder) throws RouteConflictException {
+        public Object onRouteMount(int routeNodeId, String fullPath, Object builder) throws RouteConflictException {
             Assert.assertTrue(set.add(routeNodeId));
             return builder;
         }
@@ -159,7 +159,7 @@ public class RoutePathMatcherTest {
             tester.test("/a/b", i1);
             tester.test("//", i2);
             tester.test("/", i2);
-            tester.test("/cc/dd/ee1/", i3, new HashMap<String, String>(){
+            tester.test("/cc/dd/ee1/", i3, new HashMap<String, String>() {
                 {
                     put("ee", "ee1");
                     put("tail", "");
@@ -175,7 +175,7 @@ public class RoutePathMatcherTest {
             Tester tester = new Tester();
             Map<String, Object> m = new HashMap<>();
             for (int i = 0; i < 100; i++) {
-                for(int j = 0; j < 100; j++) {
+                for (int j = 0; j < 100; j++) {
                     String pathPattern = "/a/" + i + "/b/" + j;
                     Object object = tester.addPath(pathPattern);
                     m.put(pathPattern, object);

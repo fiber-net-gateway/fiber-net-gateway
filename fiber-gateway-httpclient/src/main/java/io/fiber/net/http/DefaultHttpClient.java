@@ -9,7 +9,7 @@ import io.netty.channel.EventLoopGroup;
 import java.util.concurrent.CompletableFuture;
 
 public class DefaultHttpClient implements HttpClient, Initializable {
-    private final ConnectionPool connectionPool;
+    protected final ConnectionPool connectionPool;
 
     public DefaultHttpClient(EventLoopGroup group) {
         this(group, new PoolConfig());

@@ -101,6 +101,32 @@ public class CidrTest {
     }
 
     @Test
+    public void matchNonOctetPrefixIpv4() {
+        Cidr cidr = Cidr.parse("192.168.0.0/17");
+        assertNotNull(cidr);
+        assertTrue(cidr.match("192.168.127.254"));
+        assertFalse(cidr.match("192.168.128.1"));
+    }
+
+    @Test
+    public void containsNonOctetPrefixIpv4() {
+        Cidr cidr = Cidr.parse("192.168.0.0/17");
+        assertNotNull(cidr);
+        assertTrue(cidr.contains(Cidr.parse("192.168.1.1")));
+        assertFalse(cidr.contains(Cidr.parse("192.168.128.1")));
+        assertTrue(cidr.contains(Cidr.parse("192.168.0.0/18")));
+        assertFalse(cidr.contains(Cidr.parse("192.168.128.0/18")));
+    }
+
+    @Test
+    public void matchIpv6PrefixBoundary() {
+        Cidr cidr = Cidr.parse("2001:db8::/64");
+        assertNotNull(cidr);
+        assertTrue(cidr.match("2001:db8::1"));
+        assertFalse(cidr.match("2001:db9::1"));
+    }
+
+    @Test
     public void mat() {
 
         Cidr[] cidrs = Cidr.parseList(Arrays.asList("192.168.34.4/32", "192.167.34.3/24", "192.168.0.1/16", "192.168.34.3/24", "192.167.34.123/30"));

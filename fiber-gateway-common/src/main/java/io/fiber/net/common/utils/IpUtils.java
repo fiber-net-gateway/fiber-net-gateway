@@ -146,6 +146,7 @@ public class IpUtils {
             int value = 0;
             groupOffset = i;
             for (; i < limit; i++) {
+                c = input.charAt(i);
                 int hexDigit = decodeHexDigit(c);
                 if (hexDigit == -1) break;
                 value = (value << 4) + hexDigit;

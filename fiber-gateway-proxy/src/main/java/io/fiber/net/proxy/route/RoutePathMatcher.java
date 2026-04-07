@@ -4,6 +4,7 @@ import io.fiber.net.common.utils.CharArrUtil;
 import io.fiber.net.common.utils.Predictions;
 import io.fiber.net.common.utils.StringUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class RoutePathMatcher<H> {
@@ -346,7 +347,7 @@ public class RoutePathMatcher<H> {
                 node.handlerIdxStart = i;
                 node.handlerIdxEnd = i + entry.getValue().size();
                 for (B b : entry.getValue()) {
-                    ns[i++] = routeDefiner.onRouteMount(node.id, b);
+                    ns[i++] = routeDefiner.onRouteMount(node.id, node.fullPath, b);
                 }
             }
             assert i == handlerSize;
@@ -446,7 +447,7 @@ public class RoutePathMatcher<H> {
     public interface RouteVarDefiner<B, H> {
         void addPathVarDefiner(B builder, String varName, int idx);
 
-        H onRouteMount(int routeNodeId, B builder) throws RouteConflictException;
+        H onRouteMount(int routeNodeId, String fullPath, B builder) throws RouteConflictException;
     }
 
     private boolean exec(byte[] cs, int idx, Node n, MappingContext<H> context) {
@@ -534,7 +535,7 @@ public class RoutePathMatcher<H> {
     }
 
     public boolean matchPath(String path, MappingContext<H> context) {
-        byte[] cs = CharArrUtil.toReadOnlyAsciiCharArr(path);
+        byte[] cs = path.getBytes(StandardCharsets.UTF_8);
         return exec(cs, 0, root, context);
     }
 

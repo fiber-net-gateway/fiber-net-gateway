@@ -75,7 +75,7 @@ public class ConstPackage {
             byte c;
             if ((c = arr[j = i + off]) == '-') {
                 arr[j] = c = '_';
-            } else if (c > 'A' && c <= 'Z') {
+            } else if (c >= 'A' && c <= 'Z') {
                 arr[j] = c |= 0x20;
             }
             h = h * 31 + c;

@@ -34,15 +34,17 @@ public abstract class Cidr {
     public static class V4 extends Cidr {
         private final long ip;
         private final long mask;
+        private final int maskBits;
 
         V4(long ip, int mask) {
-            this.mask = (1L << mask) - 1;
+            this.maskBits = mask;
+            this.mask = prefixMask32(mask);
             this.ip = ip & this.mask;
         }
 
         @Override
         public int getMask() {
-            return Long.bitCount(mask);
+            return maskBits;
         }
 
         @Override
@@ -63,8 +65,7 @@ public abstract class Cidr {
         public boolean contains(Cidr sub) {
             if (sub instanceof V4) {
                 V4 v4 = (V4) sub;
-                long m;
-                return (m = mask) <= v4.mask && ip == (v4.ip & m);
+                return maskBits <= v4.maskBits && ip == (v4.ip & mask);
             }
             return false;
         }
@@ -87,19 +88,21 @@ public abstract class Cidr {
     public static class V6 extends Cidr {
         private final long hMask, high;
         private final long lMask, low;
+        private final int maskBits;
 
         // high 是 字符串 序列在前面的数字
         V6(long low, long high, int mask) {
-            this.hMask = (1L << Math.min(64L, mask)) - 1L;
+            this.maskBits = mask;
+            this.hMask = mask >= 64 ? -1L : prefixMask64(mask);
             this.high = high & hMask;
 
-            this.lMask = (1L << Math.max(0L, mask - 64)) - 1L;
+            this.lMask = mask <= 64 ? 0L : prefixMask64(mask - 64);
             this.low = low & lMask;
         }
 
         @Override
         public int getMask() {
-            return Long.bitCount(hMask) + Long.bitCount(lMask);
+            return maskBits;
         }
 
         @Override
@@ -122,11 +125,10 @@ public abstract class Cidr {
         public boolean contains(Cidr sub) {
             if (sub instanceof V6) {
                 V6 v6 = (V6) sub;
-                long hm = hMask, lm = lMask;
-                if (hm > v6.hMask || lm > v6.lMask) {
+                if (maskBits > v6.maskBits) {
                     return false;
                 }
-                return high == (hm & v6.high) && low == (lm & v6.low);
+                return high == (hMask & v6.high) && low == (lMask & v6.low);
             }
             return false;
         }
@@ -294,31 +296,45 @@ public abstract class Cidr {
     }
 
     private static long getV(byte[] bytes) {
-        return (bytes[0] & 0xffL)
-                | ((bytes[1] & 0xffL) << 8)
-                | ((bytes[2] & 0xffL) << 16)
-                | ((bytes[3] & 0xffL) << 24);
+        return ((bytes[0] & 0xffL) << 24)
+                | ((bytes[1] & 0xffL) << 16)
+                | ((bytes[2] & 0xffL) << 8)
+                | (bytes[3] & 0xffL);
     }
 
     private static long getLow(byte[] bytes) {
-        return (bytes[8] & 0xffL)
-                | ((bytes[9] & 0xffL) << 8)
-                | ((bytes[10] & 0xffL) << 16)
-                | ((bytes[11] & 0xffL) << 24)
-                | ((bytes[12] & 0xffL) << 32)
-                | ((bytes[13] & 0xffL) << 40)
-                | ((bytes[14] & 0xffL) << 48)
-                | ((bytes[15] & 0xffL) << 56);
+        return ((bytes[8] & 0xffL) << 56)
+                | ((bytes[9] & 0xffL) << 48)
+                | ((bytes[10] & 0xffL) << 40)
+                | ((bytes[11] & 0xffL) << 32)
+                | ((bytes[12] & 0xffL) << 24)
+                | ((bytes[13] & 0xffL) << 16)
+                | ((bytes[14] & 0xffL) << 8)
+                | (bytes[15] & 0xffL);
     }
 
     private static long getHigh(byte[] bytes) {
-        return (bytes[0] & 0xffL)
-                | ((bytes[1] & 0xffL) << 8)
-                | ((bytes[2] & 0xffL) << 16)
-                | ((bytes[3] & 0xffL) << 24)
-                | ((bytes[4] & 0xffL) << 32)
-                | ((bytes[5] & 0xffL) << 40)
-                | ((bytes[6] & 0xffL) << 48)
-                | ((bytes[7] & 0xffL) << 56);
+        return ((bytes[0] & 0xffL) << 56)
+                | ((bytes[1] & 0xffL) << 48)
+                | ((bytes[2] & 0xffL) << 40)
+                | ((bytes[3] & 0xffL) << 32)
+                | ((bytes[4] & 0xffL) << 24)
+                | ((bytes[5] & 0xffL) << 16)
+                | ((bytes[6] & 0xffL) << 8)
+                | (bytes[7] & 0xffL);
+    }
+
+    private static long prefixMask32(int bits) {
+        return (0xffff_ffffL << (32 - bits)) & 0xffff_ffffL;
+    }
+
+    private static long prefixMask64(int bits) {
+        if (bits <= 0) {
+            return 0L;
+        }
+        if (bits >= 64) {
+            return -1L;
+        }
+        return -1L << (64 - bits);
     }
 }

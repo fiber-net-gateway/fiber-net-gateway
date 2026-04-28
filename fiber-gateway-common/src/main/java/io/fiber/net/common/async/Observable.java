@@ -72,6 +72,10 @@ public interface Observable<T> {
         return new ObservableMap<>(this, mapper);
     }
 
+    default Observable<T> onErrorResume(Function<? super Throwable, Observable<? extends T>> resume) {
+        return new ErrorResumeObservable<>(resume, this);
+    }
+
     default Completable toCompletable(Consumer<? super T> consumer) {
         return new ObservableToCompletable<>(this, consumer);
     }

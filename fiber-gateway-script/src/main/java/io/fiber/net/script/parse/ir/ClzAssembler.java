@@ -62,6 +62,7 @@ public class ClzAssembler {
     private static final String CLZ_CONSTRUCTOR_SIGN = "(Lio/fiber/net/common/json/JsonNode;Ljava/lang/Object;Lio/fiber/net/common/async/Maybe$Emitter<Lio/fiber/net/common/json/JsonNode;>;)V";
     private static final String CLZ_GET_ARG_CNT_DESC = "()I";
     private static final String CLZ_GET_ARG_VAL_DESC = "(I)Lio/fiber/net/common/json/JsonNode;";
+    private static final String FUNC_CALL_DESC = "(Lio/fiber/net/script/ExecutionContext;Lio/fiber/net/script/Library$Arguments;)Lio/fiber/net/common/json/JsonNode;";
     private static final String CLZ_EXEC_DESC = "()Lio/fiber/net/common/async/Maybe;";
     private static final String CLZ_EXEC_SIGNATURE = "()Lio/fiber/net/common/async/Maybe<Lio/fiber/net/common/json/JsonNode;>;";
     private static final String CLZ_RESUME_DESC = "()V";
@@ -1192,10 +1193,11 @@ public class ClzAssembler {
                 FUNC_TYPE_DESC
         );
         visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
         visitor.visitMethodInsn(Opcodes.INVOKEINTERFACE,
                 FUNC_TYPE_NAME,
                 "call",
-                "(Lio/fiber/net/script/ExecutionContext;)Lio/fiber/net/common/json/JsonNode;",
+                FUNC_CALL_DESC,
                 true
         );
         if (fc.getDist() != ResDist.POP) {

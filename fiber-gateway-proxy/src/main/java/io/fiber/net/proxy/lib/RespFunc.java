@@ -6,6 +6,7 @@ import io.fiber.net.common.json.NullNode;
 import io.fiber.net.common.utils.Constant;
 import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.script.ExecutionContext;
+import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.server.HttpExchange;
 import io.netty.buffer.ByteBuf;
@@ -24,14 +25,14 @@ public class RespFunc {
     static class SetHeader implements SyncHttpFunc {
 
         @Override
-        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+        public JsonNode call(ExecutionContext context, Library.Arguments args) throws ScriptExecException {
             HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
-            if (context.getArgCnt() < 2) {
+            if (args.getArgCnt() < 2) {
                 throw new ScriptExecException("set header require key value");
             }
 
-            String name = context.getArgVal(0).textValue();
-            String value = context.getArgVal(1).asText();
+            String name = args.getArgVal(0).textValue();
+            String value = args.getArgVal(1).asText();
             if (StringUtils.isEmpty(name) || StringUtils.isEmpty(value)) {
                 throw new ScriptExecException("set header require string key value");
             }
@@ -43,14 +44,14 @@ public class RespFunc {
     static class AddHeader implements SyncHttpFunc {
 
         @Override
-        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+        public JsonNode call(ExecutionContext context, Library.Arguments args) throws ScriptExecException {
             HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
-            if (context.getArgCnt() < 2) {
+            if (args.getArgCnt() < 2) {
                 throw new ScriptExecException("add header require key value");
             }
 
-            String name = context.getArgVal(0).textValue();
-            String value = context.getArgVal(1).asText();
+            String name = args.getArgVal(0).textValue();
+            String value = args.getArgVal(1).asText();
             if (StringUtils.isEmpty(name) || StringUtils.isEmpty(value)) {
                 throw new ScriptExecException("add header require string key value");
             }
@@ -62,13 +63,13 @@ public class RespFunc {
     static class SendJson implements SyncHttpFunc {
 
         @Override
-        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+        public JsonNode call(ExecutionContext context, Library.Arguments args) throws ScriptExecException {
             HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
-            if (context.getArgCnt() < 2) {
+            if (args.getArgCnt() < 2) {
                 throw new ScriptExecException("send json require status and body");
             }
             try {
-                exchange.writeJson(context.getArgVal(0).asInt(200), context.getArgVal(1));
+                exchange.writeJson(args.getArgVal(0).asInt(200), args.getArgVal(1));
             } catch (Exception e) {
                 throw new ScriptExecException("error send json", e);
             }
@@ -78,19 +79,19 @@ public class RespFunc {
 
     static class Send implements SyncHttpFunc {
         @Override
-        public JsonNode call(ExecutionContext context) throws ScriptExecException {
+        public JsonNode call(ExecutionContext context, Library.Arguments args) throws ScriptExecException {
             HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
-            if (context.noArgs()) {
+            if (args.noArgs()) {
                 throw new ScriptExecException("send require status");
             }
-            int status = context.getArgVal(0).asInt(200);
+            int status = args.getArgVal(0).asInt(200);
 
-            if (context.getArgCnt() == 1) {
+            if (args.getArgCnt() == 1) {
                 exchange.writeRawBytes(status, Unpooled.EMPTY_BUFFER);
                 return NullNode.getInstance();
             }
 
-            JsonNode body = context.getArgVal(1);
+            JsonNode body = args.getArgVal(1);
             if (body.isBinary()) {
                 try {
                     exchange.writeRawBytes(status, Unpooled.wrappedBuffer(body.binaryValue()));
@@ -121,12 +122,12 @@ public class RespFunc {
     private static class AddCookie implements SyncHttpFunc {
 
         @Override
-        public JsonNode call(ExecutionContext context) {
-            if (context.noArgs()) {
+        public JsonNode call(ExecutionContext context, Library.Arguments args) {
+            if (args.noArgs()) {
                 return BooleanNode.FALSE;
             }
 
-            JsonNode node = context.getArgVal(0);
+            JsonNode node = args.getArgVal(0);
             if (!node.isObject()) {
                 return BooleanNode.FALSE;
             }

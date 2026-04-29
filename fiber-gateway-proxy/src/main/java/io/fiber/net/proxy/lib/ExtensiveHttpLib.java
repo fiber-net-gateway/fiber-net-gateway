@@ -3,7 +3,11 @@ package io.fiber.net.proxy.lib;
 import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.utils.ArrayUtils;
 import io.fiber.net.proxy.HttpLibConfigure;
+import io.fiber.net.script.FunctionCallArgs;
+import io.fiber.net.script.FunctionParam;
+import io.fiber.net.script.FunctionSignature;
 import io.fiber.net.script.Library;
+import io.fiber.net.script.ResolvedFunc;
 import io.fiber.net.script.ast.Literal;
 import io.fiber.net.script.std.StdLibrary;
 
@@ -69,24 +73,52 @@ public class ExtensiveHttpLib extends StdLibrary {
     }
 
     @Override
-    public Object findFunc(String name) {
-        Object func = super.findFunc(name);
+    public ResolvedFunc resolveFunc(String name, FunctionCallArgs args) {
+        ResolvedFunc func = super.resolveFunc(name, args);
         if (func != null) {
             return func;
         }
         if (ArrayUtils.isNotEmpty(configures)) {
             for (HttpLibConfigure configure : configures) {
                 Library.Function c = configure.findFunction(name);
-                if (c != null) {
-                    return c;
+                ResolvedFunc resolved = resolveSync(name, args, c);
+                if (resolved != null) {
+                    return resolved;
                 }
 
                 Library.AsyncFunction ac = configure.findAsyncFunction(name);
-                if (ac != null) {
-                    return ac;
+                resolved = resolveAsync(name, args, ac);
+                if (resolved != null) {
+                    return resolved;
                 }
             }
         }
         return null;
+    }
+
+    private static ResolvedFunc resolveSync(String name, FunctionCallArgs args, Library.Function function) {
+        if (function == null) {
+            return null;
+        }
+        FunctionSignature signature = function.signature();
+        if (signature == null) {
+            signature = new FunctionSignature(name, function.isConstExpr(), FunctionParam.variadic("args"));
+        } else if (!signature.matches(args)) {
+            return null;
+        }
+        return ResolvedFunc.sync(signature, function);
+    }
+
+    private static ResolvedFunc resolveAsync(String name, FunctionCallArgs args, Library.AsyncFunction function) {
+        if (function == null) {
+            return null;
+        }
+        FunctionSignature signature = function.signature();
+        if (signature == null) {
+            signature = new FunctionSignature(name, false, FunctionParam.variadic("args"));
+        } else if (!signature.matches(args)) {
+            return null;
+        }
+        return ResolvedFunc.async(signature, function);
     }
 }

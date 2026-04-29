@@ -8,16 +8,4 @@ public interface ExecutionContext {
 
     Object attach();
 
-    void returnVal(JsonNode value);
-
-    void throwErr(ScriptExecException error);
-
-    JsonNode getArgVal(int idx);
-
-    int getArgCnt();
-
-    default boolean noArgs() {
-        return getArgCnt() == 0;
-    }
-
 }

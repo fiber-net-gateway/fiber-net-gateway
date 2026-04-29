@@ -6,11 +6,13 @@ import io.fiber.net.common.utils.CollectionUtils;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
+import io.fiber.net.script.lib.DirectReflectInvoker;
 import io.fiber.net.script.parse.Compiled;
 import io.fiber.net.script.run.*;
 import org.objectweb.asm.*;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
@@ -34,6 +36,7 @@ public class ClzAssembler {
     private static final String FUNC_TYPE_DESC = Type.getDescriptor(Library.Function.class);
     private static final String ASYNC_FUNC_TYPE_NAME = Type.getInternalName(Library.AsyncFunction.class);
     private static final String ASYNC_FUNC_TYPE_DESC = Type.getDescriptor(Library.AsyncFunction.class);
+    private static final String DIRECT_REFLECT_INVOKER_NAME = Type.getInternalName(DirectReflectInvoker.class);
     private static final String SCRIPT_EXEC_EXCEPTION_NAME = Type.getInternalName(ScriptExecException.class);
     private static final String SCRIPT_EXEC_DESC = Type.getDescriptor(ScriptExecException.class);
     private static final String BINARIES_TYPE_NAME = Type.getInternalName(Binaries.class);
@@ -52,6 +55,10 @@ public class ClzAssembler {
     private static final CacheVarName ASYNC_FUNC_NAME_CACHE = new CacheVarName("_ASYNC_FUNC_", 16);
     private static final CacheVarName CONST_NAME_CACHE = new CacheVarName("_CONST_", 16);
     private static final CacheVarName ASYNC_CONST_NAME_CACHE = new CacheVarName("_ASYNC_CONST_", 16);
+    private static final CacheVarName FUNC_OWNER_NAME_CACHE = new CacheVarName("_FUNC_OWNER_", 16);
+    private static final CacheVarName ASYNC_FUNC_OWNER_NAME_CACHE = new CacheVarName("_ASYNC_FUNC_OWNER_", 16);
+    private static final CacheVarName CONST_OWNER_NAME_CACHE = new CacheVarName("_CONST_OWNER_", 16);
+    private static final CacheVarName ASYNC_CONST_OWNER_NAME_CACHE = new CacheVarName("_ASYNC_CONST_OWNER_", 16);
     private static final CacheVarName LOCAL_VAR_NAME_CACHE = new CacheVarName("_local_", 16);
 
     private static final AtomicLong ID = new AtomicLong();
@@ -338,6 +345,14 @@ public class ClzAssembler {
                         null,
                         null
                 );
+                if (hasDirectOwner(key.getKey())) {
+                    writer.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC,
+                            getConstOwnerName(key),
+                            "Ljava/lang/Object;",
+                            null,
+                            null
+                    );
+                }
             }
         }
 
@@ -349,6 +364,14 @@ public class ClzAssembler {
                         ASYNC_CONST_FIELD_TYPE_DESC,
                         null
                 );
+                if (hasDirectOwner(key.getKey())) {
+                    writer.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC,
+                            getAsyncConstOwnerName(key),
+                            "Ljava/lang/Object;",
+                            null,
+                            null
+                    );
+                }
             }
         }
         if (functionExtOperand != null) {
@@ -359,6 +382,14 @@ public class ClzAssembler {
                         null,
                         null
                 );
+                if (hasDirectOwner(key.getKey())) {
+                    writer.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC,
+                            getSyncFuncOwnerName(key),
+                            "Ljava/lang/Object;",
+                            null,
+                            null
+                    );
+                }
             }
         }
         if (asyncFunctionExtOperand != null) {
@@ -369,6 +400,14 @@ public class ClzAssembler {
                         null,
                         null
                 );
+                if (hasDirectOwner(key.getKey())) {
+                    writer.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC,
+                            getAsyncFuncOwnerName(key),
+                            "Ljava/lang/Object;",
+                            null,
+                            null
+                    );
+                }
             }
         }
 
@@ -534,21 +573,26 @@ public class ClzAssembler {
         }
         if (constantExtOperand != null) {
             for (ExtOperand.OperandKey<Library.Constant> key : constantExtOperand.getKeyList()) {
+                int operandIdx = initClzLocals++;
                 methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
-                constBiPush(methodVisitor, initClzLocals++);
+                constBiPush(methodVisitor, operandIdx);
                 methodVisitor.visitInsn(Opcodes.AALOAD);
                 methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, CONSTANT_FIELD_TYPE_NAME);
                 methodVisitor.visitFieldInsn(Opcodes.PUTSTATIC,
                         internalClzName,
                         CONST_NAME_CACHE.getNameById(key.getId()),
                         CONSTANT_FIELD_TYPE_DESC);
+                if (hasDirectOwner(key.getKey())) {
+                    putDirectOwner(methodVisitor, operandIdx, getConstOwnerName(key));
+                }
             }
         }
 
         if (asyncConstantExtOperand != null) {
             for (ExtOperand.OperandKey<Library.AsyncConstant> key : asyncConstantExtOperand.getKeyList()) {
+                int operandIdx = initClzLocals++;
                 methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
-                constBiPush(methodVisitor, initClzLocals++);
+                constBiPush(methodVisitor, operandIdx);
                 methodVisitor.visitInsn(Opcodes.AALOAD);
                 methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, ASYNC_CONST_FIELD_TYPE_NAME);
                 methodVisitor.visitFieldInsn(Opcodes.PUTSTATIC,
@@ -556,12 +600,16 @@ public class ClzAssembler {
                         ASYNC_CONST_NAME_CACHE.getNameById(key.getId()),
                         ASYNC_CONST_FIELD_TYPE_DESC
                 );
+                if (hasDirectOwner(key.getKey())) {
+                    putDirectOwner(methodVisitor, operandIdx, getAsyncConstOwnerName(key));
+                }
             }
         }
         if (functionExtOperand != null) {
             for (ExtOperand.OperandKey<Library.Function> key : functionExtOperand.getKeyList()) {
+                int operandIdx = initClzLocals++;
                 methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
-                constBiPush(methodVisitor, initClzLocals++);
+                constBiPush(methodVisitor, operandIdx);
                 methodVisitor.visitInsn(Opcodes.AALOAD);
                 methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, FUNC_TYPE_NAME);
                 methodVisitor.visitFieldInsn(Opcodes.PUTSTATIC,
@@ -569,12 +617,16 @@ public class ClzAssembler {
                         getSyncFuncName(key),
                         FUNC_TYPE_DESC
                 );
+                if (hasDirectOwner(key.getKey())) {
+                    putDirectOwner(methodVisitor, operandIdx, getSyncFuncOwnerName(key));
+                }
             }
         }
         if (asyncFunctionExtOperand != null) {
             for (ExtOperand.OperandKey<Library.AsyncFunction> key : asyncFunctionExtOperand.getKeyList()) {
+                int operandIdx = initClzLocals++;
                 methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
-                constBiPush(methodVisitor, initClzLocals++);
+                constBiPush(methodVisitor, operandIdx);
                 methodVisitor.visitInsn(Opcodes.AALOAD);
                 methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, ASYNC_FUNC_TYPE_NAME);
                 methodVisitor.visitFieldInsn(Opcodes.PUTSTATIC,
@@ -582,6 +634,9 @@ public class ClzAssembler {
                         getAsyncFuncName(key),
                         ASYNC_FUNC_TYPE_DESC
                 );
+                if (hasDirectOwner(key.getKey())) {
+                    putDirectOwner(methodVisitor, operandIdx, getAsyncFuncOwnerName(key));
+                }
             }
         }
         methodVisitor.visitInsn(Opcodes.RETURN);
@@ -592,6 +647,49 @@ public class ClzAssembler {
 
     private static String getAsyncFuncName(ExtOperand.OperandKey<Library.AsyncFunction> key) {
         return ASYNC_FUNC_NAME_CACHE.getNameById(key.getId());
+    }
+
+    private static String getSyncFuncOwnerName(ExtOperand.OperandKey<Library.Function> key) {
+        return FUNC_OWNER_NAME_CACHE.getNameById(key.getId());
+    }
+
+    private static String getAsyncFuncOwnerName(ExtOperand.OperandKey<Library.AsyncFunction> key) {
+        return ASYNC_FUNC_OWNER_NAME_CACHE.getNameById(key.getId());
+    }
+
+    private static String getConstOwnerName(ExtOperand.OperandKey<Library.Constant> key) {
+        return CONST_OWNER_NAME_CACHE.getNameById(key.getId());
+    }
+
+    private static String getAsyncConstOwnerName(ExtOperand.OperandKey<Library.AsyncConstant> key) {
+        return ASYNC_CONST_OWNER_NAME_CACHE.getNameById(key.getId());
+    }
+
+    private static DirectReflectInvoker directReflect(Object invoker) {
+        return invoker instanceof DirectReflectInvoker ? (DirectReflectInvoker) invoker : null;
+    }
+
+    private static boolean hasDirectOwner(Object invoker) {
+        DirectReflectInvoker direct = directReflect(invoker);
+        return direct != null && direct.directOwner() != null;
+    }
+
+    private void putDirectOwner(MethodVisitor methodVisitor, int operandIdx, String ownerFieldName) {
+        methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
+        constBiPush(methodVisitor, operandIdx);
+        methodVisitor.visitInsn(Opcodes.AALOAD);
+        methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, DIRECT_REFLECT_INVOKER_NAME);
+        methodVisitor.visitMethodInsn(Opcodes.INVOKEINTERFACE,
+                DIRECT_REFLECT_INVOKER_NAME,
+                "directOwner",
+                "()Ljava/lang/Object;",
+                true
+        );
+        methodVisitor.visitFieldInsn(Opcodes.PUTSTATIC,
+                internalClzName,
+                ownerFieldName,
+                "Ljava/lang/Object;"
+        );
     }
 
     private static String getLiteralVarName(ExtOperand.OperandKey<JsonNode> key) {
@@ -1068,10 +1166,17 @@ public class ClzAssembler {
     void asyncFuncCall(FunctionCall fc) {
         prepareFuncCall(fc.getRestoreStackSize(), fc.isSpread() ? -1 : fc.getArgCount());
 
+        ExtOperand.OperandKey<Library.AsyncFunction> key = asyncFunctionExtOperand.getKeyList().get(fc.getFuncId());
+        DirectReflectInvoker direct = directReflect(key.getKey());
+        if (direct != null) {
+            emitDirectAsyncCall(direct, hasDirectOwner(key.getKey()) ? getAsyncFuncOwnerName(key) : null);
+            checkAsyncStateAndRestoreStack(fc.getRestoreStackSize(), fc.getAsyncPoint(), fc.getDist());
+            return;
+        }
         visitor.visitVarInsn(Opcodes.ALOAD, 0);
         visitor.visitFieldInsn(Opcodes.GETSTATIC,
                 internalClzName,
-                getAsyncFuncName(asyncFunctionExtOperand.getKeyList().get(fc.getFuncId())),
+                getAsyncFuncName(key),
                 ASYNC_FUNC_TYPE_DESC
         );
         visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
@@ -1185,11 +1290,177 @@ public class ClzAssembler {
         }
     }
 
+    private void emitDirectSyncCall(DirectReflectInvoker direct, String ownerFieldName, ResDist dist) {
+        Label tryBegin = new Label();
+        Label tryEnd = new Label();
+        Label catchLabel = new Label();
+        Label success = new Label();
+        visitor.visitLabel(tryBegin);
+        emitDirectInvocation(direct, ownerFieldName);
+        visitor.visitLabel(tryEnd);
+        if (dist != ResDist.POP) {
+            visitor.visitMethodInsn(
+                    Opcodes.INVOKESTATIC,
+                    internalClzName,
+                    "nullNode",
+                    "(Lio/fiber/net/common/json/JsonNode;)Lio/fiber/net/common/json/JsonNode;",
+                    false
+            );
+        } else {
+            pop();
+        }
+        visitor.visitJumpInsn(Opcodes.GOTO, success);
+        visitor.visitLabel(catchLabel);
+        visitor.visitMethodInsn(Opcodes.INVOKESTATIC,
+                SCRIPT_EXEC_EXCEPTION_NAME,
+                "fromThrowable",
+                "(Ljava/lang/Throwable;)" + SCRIPT_EXEC_DESC,
+                false
+        );
+        visitor.visitInsn(Opcodes.ATHROW);
+        visitor.visitTryCatchBlock(tryBegin, tryEnd, catchLabel, "java/lang/Throwable");
+        visitor.visitLabel(success);
+    }
+
+    private void emitDirectAsyncCall(DirectReflectInvoker direct, String ownerFieldName) {
+        Label running = new Label();
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitFieldInsn(Opcodes.GETFIELD, internalClzName, "state", "I");
+        constBiPush(visitor, AbstractVm.STAT_RUNNING);
+        visitor.visitJumpInsn(Opcodes.IF_ICMPEQ, running);
+        visitor.visitTypeInsn(Opcodes.NEW, "java/lang/IllegalStateException");
+        visitor.visitInsn(Opcodes.DUP);
+        visitor.visitLdcInsn("vm not running??");
+        visitor.visitMethodInsn(Opcodes.INVOKESPECIAL,
+                "java/lang/IllegalStateException",
+                "<init>",
+                "(Ljava/lang/String;)V",
+                false
+        );
+        visitor.visitInsn(Opcodes.ATHROW);
+
+        visitor.visitLabel(running);
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        constBiPush(visitor, AbstractVm.STAT_INVOKING);
+        visitor.visitFieldInsn(Opcodes.PUTFIELD, internalClzName, "state", "I");
+
+        Label tryBegin = new Label();
+        Label tryEnd = new Label();
+        Label catchLabel = new Label();
+        Label afterInvoke = new Label();
+        visitor.visitLabel(tryBegin);
+        emitDirectInvocation(direct, ownerFieldName);
+        visitor.visitLabel(tryEnd);
+        visitor.visitJumpInsn(Opcodes.GOTO, afterInvoke);
+        visitor.visitLabel(catchLabel);
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitInsn(Opcodes.SWAP);
+        visitor.visitMethodInsn(Opcodes.INVOKESTATIC,
+                SCRIPT_EXEC_EXCEPTION_NAME,
+                "fromThrowable",
+                "(Ljava/lang/Throwable;)" + SCRIPT_EXEC_DESC,
+                false
+        );
+        visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                SUPER_NAME,
+                "throwErr",
+                "(" + SCRIPT_EXEC_DESC + ")V",
+                false
+        );
+        visitor.visitTryCatchBlock(tryBegin, tryEnd, catchLabel, "java/lang/Throwable");
+        visitor.visitLabel(afterInvoke);
+
+        Label stillInvoking = new Label();
+        Label end = new Label();
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitFieldInsn(Opcodes.GETFIELD, internalClzName, "state", "I");
+        constBiPush(visitor, AbstractVm.STAT_INVOKING);
+        visitor.visitJumpInsn(Opcodes.IF_ICMPEQ, stillInvoking);
+        visitor.visitInsn(Opcodes.ICONST_0);
+        visitor.visitJumpInsn(Opcodes.GOTO, end);
+
+        visitor.visitLabel(stillInvoking);
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        constBiPush(visitor, AbstractVm.STAT_ASYNC);
+        visitor.visitFieldInsn(Opcodes.PUTFIELD, internalClzName, "state", "I");
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitInsn(Opcodes.ACONST_NULL);
+        visitor.visitFieldInsn(Opcodes.PUTFIELD, internalClzName, "rtValue", JSON_FIELD_TYPE_DESC);
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitInsn(Opcodes.ACONST_NULL);
+        visitor.visitFieldInsn(Opcodes.PUTFIELD, internalClzName, "rtError", SCRIPT_EXEC_DESC);
+        visitor.visitInsn(Opcodes.ICONST_1);
+        visitor.visitLabel(end);
+    }
+
+    private void emitDirectInvocation(DirectReflectInvoker direct, String ownerFieldName) {
+        Method method = direct.directMethod();
+        boolean isStatic = Modifier.isStatic(method.getModifiers());
+        Class<?> declaring = method.getDeclaringClass();
+        if (!isStatic) {
+            visitor.visitFieldInsn(Opcodes.GETSTATIC,
+                    internalClzName,
+                    ownerFieldName,
+                    "Ljava/lang/Object;"
+            );
+            visitor.visitTypeInsn(Opcodes.CHECKCAST, Type.getInternalName(declaring));
+        }
+        emitDirectArgs(direct.directArgPlan());
+        int opcode = isStatic ? Opcodes.INVOKESTATIC : (declaring.isInterface() ? Opcodes.INVOKEINTERFACE : Opcodes.INVOKEVIRTUAL);
+        visitor.visitMethodInsn(opcode,
+                Type.getInternalName(declaring),
+                method.getName(),
+                Type.getMethodDescriptor(method),
+                declaring.isInterface()
+        );
+    }
+
+    private void emitDirectArgs(int[] plan) {
+        int argIndex = 0;
+        for (int i = 0; i < plan.length; i++) {
+            switch (plan[i]) {
+                case DirectReflectInvoker.CTX:
+                case DirectReflectInvoker.HANDLE:
+                case DirectReflectInvoker.ARGS:
+                    visitor.visitVarInsn(Opcodes.ALOAD, 0);
+                    break;
+                case DirectReflectInvoker.ARG:
+                    visitor.visitVarInsn(Opcodes.ALOAD, 0);
+                    constBiPush(visitor, argIndex++);
+                    visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                            internalClzName,
+                            "getArgVal",
+                            CLZ_GET_ARG_VAL_DESC,
+                            false
+                    );
+                    break;
+                case DirectReflectInvoker.REST:
+                    visitor.visitVarInsn(Opcodes.ALOAD, 0);
+                    constBiPush(visitor, argIndex);
+                    visitor.visitMethodInsn(Opcodes.INVOKESTATIC,
+                            DIRECT_REFLECT_INVOKER_NAME,
+                            "restArgs",
+                            "(Lio/fiber/net/script/Library$Arguments;I)[Lio/fiber/net/common/json/JsonNode;",
+                            true
+                    );
+                    break;
+                default:
+                    throw new IllegalStateException("unknown argument plan");
+            }
+        }
+    }
+
     void syncFuncCall(FunctionCall fc) {
         prepareFuncCall(0, fc.isSpread() ? -1 : fc.getArgCount());
+        ExtOperand.OperandKey<Library.Function> key = functionExtOperand.getKeyList().get(fc.getFuncId());
+        DirectReflectInvoker direct = directReflect(key.getKey());
+        if (direct != null) {
+            emitDirectSyncCall(direct, hasDirectOwner(key.getKey()) ? getSyncFuncOwnerName(key) : null, fc.getDist());
+            return;
+        }
         visitor.visitFieldInsn(Opcodes.GETSTATIC,
                 internalClzName,
-                getSyncFuncName(functionExtOperand.getKeyList().get(fc.getFuncId())),
+                getSyncFuncName(key),
                 FUNC_TYPE_DESC
         );
         visitor.visitVarInsn(Opcodes.ALOAD, 0);
@@ -1215,10 +1486,17 @@ public class ClzAssembler {
 
 
     void asyncConstCall(ConstCall constCall) {
+        ExtOperand.OperandKey<Library.AsyncConstant> key = asyncConstantExtOperand.getKeyList().get(constCall.getConstId());
+        DirectReflectInvoker direct = directReflect(key.getKey());
+        if (direct != null) {
+            emitDirectAsyncCall(direct, hasDirectOwner(key.getKey()) ? getAsyncConstOwnerName(key) : null);
+            checkAsyncStateAndRestoreStack(constCall.getPrevStackSize(), constCall.getAsyncPoint(), constCall.getDist());
+            return;
+        }
         visitor.visitVarInsn(Opcodes.ALOAD, 0);
         visitor.visitFieldInsn(Opcodes.GETSTATIC,
                 internalClzName,
-                getAsyncConstName(asyncConstantExtOperand.getKeyList().get(constCall.getConstId())),
+                getAsyncConstName(key),
                 ASYNC_CONST_FIELD_TYPE_DESC
         );
         visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
@@ -1235,9 +1513,15 @@ public class ClzAssembler {
     }
 
     void constCall(ConstCall cc) {
+        ExtOperand.OperandKey<Library.Constant> key = constantExtOperand.getKeyList().get(cc.getConstId());
+        DirectReflectInvoker direct = directReflect(key.getKey());
+        if (direct != null) {
+            emitDirectSyncCall(direct, hasDirectOwner(key.getKey()) ? getConstOwnerName(key) : null, cc.getDist());
+            return;
+        }
         visitor.visitFieldInsn(Opcodes.GETSTATIC,
                 internalClzName,
-                CONST_NAME_CACHE.getNameById(constantExtOperand.getKeyList().get(cc.getConstId()).getId()),
+                CONST_NAME_CACHE.getNameById(key.getId()),
                 CONSTANT_FIELD_TYPE_DESC
         );
         visitor.visitVarInsn(Opcodes.ALOAD, 0);

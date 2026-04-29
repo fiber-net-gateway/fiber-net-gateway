@@ -11,7 +11,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 
-abstract class ReflectInvoker {
+abstract class ReflectInvoker implements DirectReflectInvoker {
     static final int CTX = 1;
     static final int HANDLE = 2;
     static final int ARGS = 3;
@@ -19,14 +19,31 @@ abstract class ReflectInvoker {
     static final int REST = 5;
 
     final Method method;
+    final Object owner;
     final MethodHandle handle;
     final int[] argPlan;
 
     ReflectInvoker(Method method, Object owner, int[] argPlan) {
         checkBase(method, owner);
         this.method = method;
+        this.owner = owner;
         this.argPlan = argPlan;
         this.handle = unreflect(method, owner);
+    }
+
+    @Override
+    public final Method directMethod() {
+        return method;
+    }
+
+    @Override
+    public final Object directOwner() {
+        return owner;
+    }
+
+    @Override
+    public final int[] directArgPlan() {
+        return argPlan.clone();
     }
 
     Object invoke(Object[] args) throws Throwable {

@@ -7,7 +7,11 @@ import io.fiber.net.common.utils.CharArrUtil;
 import io.fiber.net.common.utils.CollectionUtils;
 import io.fiber.net.proxy.lib.HttpDynamicFunc;
 import io.fiber.net.script.ExecutionContext;
+import io.fiber.net.script.FunctionCallArgs;
+import io.fiber.net.script.FunctionParam;
+import io.fiber.net.script.FunctionSignature;
 import io.fiber.net.script.Library;
+import io.fiber.net.script.ResolvedFunc;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.ast.Literal;
 import io.fiber.net.script.parse.ParseException;
@@ -82,25 +86,25 @@ public class RateLimiterFunc implements Library.DirectiveDef {
         }
 
         @Override
-        public void call(ExecutionContext context) {
+        public void call(ExecutionContext context, Library.Arguments args, Library.AsyncHandle handle) {
             long ms = 0L;
-            if (!context.noArgs()) {
-                ms = context.getArgVal(0).asLong(ms);
+            if (!args.noArgs()) {
+                ms = args.getArgVal(0).asLong(ms);
             }
             if (ms == 0L) {
                 if (rateLimiter.acquirePermission()) {
-                    context.returnVal(BooleanNode.TRUE);
+                    handle.returnVal(BooleanNode.TRUE);
                 } else {
-                    context.returnVal(BooleanNode.FALSE);
+                    handle.returnVal(BooleanNode.FALSE);
                 }
             } else {
                 long l = rateLimiter.blockAcquirePermission(Duration.ofMillis(ms));
                 if (l == -1) {
-                    context.returnVal(BooleanNode.FALSE);
+                    handle.returnVal(BooleanNode.FALSE);
                 } else if (l == 0) {
-                    context.returnVal(BooleanNode.TRUE);
+                    handle.returnVal(BooleanNode.TRUE);
                 } else {
-                    Scheduler.current().scheduleInNano(() -> context.returnVal(BooleanNode.TRUE), l);
+                    Scheduler.current().scheduleInNano(() -> handle.returnVal(BooleanNode.TRUE), l);
                 }
             }
         }
@@ -114,48 +118,52 @@ public class RateLimiterFunc implements Library.DirectiveDef {
         }
 
         @Override
-        public void call(ExecutionContext context) {
+        public void call(ExecutionContext context, Library.Arguments args, Library.AsyncHandle handle) {
             long ms = 0L;
-            if (!context.noArgs()) {
-                ms = context.getArgVal(0).asLong(ms);
+            if (!args.noArgs()) {
+                ms = args.getArgVal(0).asLong(ms);
             }
             if (ms == 0L) {
                 if (rateLimiter.acquirePermission()) {
-                    context.returnVal(BooleanNode.TRUE);
+                    handle.returnVal(BooleanNode.TRUE);
                 } else {
-                    context.throwErr(new ScriptExecException("rate-limiter blocked", 500, "RATE_LIMITER_BLOCK"));
+                    handle.throwErr(new ScriptExecException("rate-limiter blocked", 500, "RATE_LIMITER_BLOCK"));
                 }
             } else {
                 long l = rateLimiter.blockAcquirePermission(Duration.ofMillis(ms));
                 if (l == -1) {
-                    context.throwErr(new ScriptExecException("rate-limiter blocked", 500, "RATE_LIMITER_BLOCK"));
+                    handle.throwErr(new ScriptExecException("rate-limiter blocked", 500, "RATE_LIMITER_BLOCK"));
                 } else if (l == 0) {
-                    context.returnVal(BooleanNode.TRUE);
+                    handle.returnVal(BooleanNode.TRUE);
                 } else {
-                    Scheduler.current().scheduleInNano(() -> context.returnVal(BooleanNode.TRUE), l);
+                    Scheduler.current().scheduleInNano(() -> handle.returnVal(BooleanNode.TRUE), l);
                 }
             }
         }
     }
 
     @Override
-    public Library.Function findFunc(String directive, String function) {
-        return null;
-    }
-
-    @Override
-    public Library.AsyncFunction findAsyncFunc(String directive, String function) {
+    public ResolvedFunc resolveFunc(String directive, String function, FunctionCallArgs args) {
+        Library.AsyncFunction asyncFunction;
         if ("acquire".equals(function)) {
             if (aFunction == null) {
                 aFunction = new AcquireFunction(rateLimiter);
             }
-            return aFunction;
+            asyncFunction = aFunction;
         } else if ("mustAcquire".equals(function)) {
             if (maFunction == null) {
                 maFunction = new MustAcquireFunction(rateLimiter);
             }
-            return maFunction;
+            asyncFunction = maFunction;
+        } else {
+            return null;
         }
-        return null;
+        FunctionSignature signature = asyncFunction.signature();
+        if (signature == null) {
+            signature = new FunctionSignature(directive + "." + function, false, FunctionParam.variadic("args"));
+        } else if (!signature.matches(args)) {
+            return null;
+        }
+        return ResolvedFunc.async(signature, asyncFunction);
     }
 }

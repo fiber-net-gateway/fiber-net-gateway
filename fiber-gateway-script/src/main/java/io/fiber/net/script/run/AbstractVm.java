@@ -7,7 +7,7 @@ import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
 
-public abstract class AbstractVm implements ExecutionContext {
+public abstract class AbstractVm implements ExecutionContext, Library.Arguments, Library.AsyncHandle {
 
     public static final int STAT_INIT = 0;
 
@@ -52,7 +52,7 @@ public abstract class AbstractVm implements ExecutionContext {
             throw new IllegalStateException("vm not running??");
         }
         state = STAT_INVOKING;
-        function.call(this);
+        function.call(this, this, this);
         if (state != STAT_INVOKING) {
             return false;
         }
@@ -67,7 +67,7 @@ public abstract class AbstractVm implements ExecutionContext {
             throw new IllegalStateException("vm not running??");
         }
         state = STAT_INVOKING;
-        cn.get(this);
+        cn.get(this, this);
         if (state != STAT_INVOKING) {
             return false;
         }

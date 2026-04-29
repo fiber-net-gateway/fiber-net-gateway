@@ -63,17 +63,17 @@ public class MyGeneratedVm extends AbstractVm {
                 this.funcParamSP = 0;
                 this.funcArgc = 1;
                 this.spread = false;
-                _FUNC_0.call(this);
+                _FUNC_0.call(this, this);
                 this._stack_0 = _LITERAL_0;
                 this.funcParamSP = 0;
                 this.funcArgc = 1;
                 this.spread = false;
-                _FUNC_0.call(this);
+                _FUNC_0.call(this, this);
                 this._stack_0 = _LITERAL_0;
                 this.funcParamSP = 0;
                 this.funcArgc = 1;
                 this.spread = false;
-                _FUNC_0.call(this);
+                _FUNC_0.call(this, this);
                 this._stack_0 = _LITERAL_0;
                 this.funcParamSP = 0;
                 this.funcArgc = 1;
@@ -91,12 +91,12 @@ public class MyGeneratedVm extends AbstractVm {
                 this.funcParamSP = 0;
                 this.funcArgc = 1;
                 this.spread = false;
-                _FUNC_0.call(this);
+                _FUNC_0.call(this, this);
                 this._stack_0 = _LITERAL_0;
                 this.funcParamSP = 0;
                 this.funcArgc = 1;
                 this.spread = false;
-                _FUNC_0.call(this);
+                _FUNC_0.call(this, this);
 
                 this._stack_0 = _LITERAL_0;
                 this.funcParamSP = 0;

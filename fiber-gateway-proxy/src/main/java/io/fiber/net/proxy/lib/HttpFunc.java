@@ -10,7 +10,11 @@ import io.fiber.net.http.ClientResponse;
 import io.fiber.net.http.HttpClient;
 import io.fiber.net.http.HttpHost;
 import io.fiber.net.script.ExecutionContext;
+import io.fiber.net.script.FunctionCallArgs;
+import io.fiber.net.script.FunctionParam;
+import io.fiber.net.script.FunctionSignature;
 import io.fiber.net.script.Library;
+import io.fiber.net.script.ResolvedFunc;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.run.Compares;
 import io.fiber.net.server.HttpExchange;
@@ -40,19 +44,24 @@ public class HttpFunc implements Library.DirectiveDef {
     }
 
     @Override
-    public Library.Function findFunc(String directive, String function) {
-        return null;
-    }
-
-    @Override
-    public Library.AsyncFunction findAsyncFunc(String directive, String function) {
-        return fc.get(function);
+    public ResolvedFunc resolveFunc(String directive, String function, FunctionCallArgs args) {
+        Library.AsyncFunction asyncFunction = fc.get(function);
+        if (asyncFunction == null) {
+            return null;
+        }
+        FunctionSignature signature = asyncFunction.signature();
+        if (signature == null) {
+            signature = new FunctionSignature(directive + "." + function, false, FunctionParam.variadic("args"));
+        } else if (!signature.matches(args)) {
+            return null;
+        }
+        return ResolvedFunc.async(signature, asyncFunction);
     }
 
     private class SendFunc implements HttpDynamicFunc {
         @Override
-        public void call(ExecutionContext context) {
-            JsonNode param = context.getArgCnt() > 0 ? context.getArgVal(0) : NullNode.getInstance();
+        public void call(ExecutionContext context, Library.Arguments args, Library.AsyncHandle handle) {
+            JsonNode param = args.getArgCnt() > 0 ? args.getArgVal(0) : NullNode.getInstance();
             ClientExchange exchange = httpClient.refer(httpHost);
             setMethod(param, HttpMethod.GET, exchange);
             setUri(param, "/", null, exchange);
@@ -62,7 +71,7 @@ public class HttpFunc implements Library.DirectiveDef {
             boolean includeHeaders = param.path("includeHeaders").asBoolean();
             exchange.sendForResp().subscribe((response, e) -> {
                 if (e != null) {
-                    context.throwErr(ScriptExecException.fromThrowable(e));
+                    handle.throwErr(ScriptExecException.fromThrowable(e));
                     return;
                 }
                 ObjectNode nodes = JsonUtil.createObjectNode();
@@ -73,7 +82,7 @@ public class HttpFunc implements Library.DirectiveDef {
 
                 response.readFullRespBody().subscribe((buf, e2) -> {
                     if (e2 != null) {
-                        context.throwErr(ScriptExecException.fromThrowable(e2));
+                        handle.throwErr(ScriptExecException.fromThrowable(e2));
                         return;
                     }
                     if (buf != null) {
@@ -83,7 +92,7 @@ public class HttpFunc implements Library.DirectiveDef {
                     } else {
                         nodes.set("body", BinaryNode.getEmpty());
                     }
-                    context.returnVal(nodes);
+                    handle.returnVal(nodes);
                 });
             });
         }
@@ -265,9 +274,9 @@ public class HttpFunc implements Library.DirectiveDef {
     private class ProxyFunc implements HttpDynamicFunc {
 
         @Override
-        public void call(ExecutionContext context) {
+        public void call(ExecutionContext context, Library.Arguments args, Library.AsyncHandle handle) {
             HttpExchange httpExchange = HttpDynamicFunc.httpExchange(context);
-            JsonNode param = context.getArgCnt() > 0 ? context.getArgVal(0) : NullNode.getInstance();
+            JsonNode param = args.getArgCnt() > 0 ? args.getArgVal(0) : NullNode.getInstance();
             ClientExchange exchange = httpClient.refer(httpHost);
             setMethod(param, httpExchange.getRequestMethod(), exchange);
             setUri(param, httpExchange.getPath(), httpExchange.getQuery(), exchange);
@@ -309,10 +318,10 @@ public class HttpFunc implements Library.DirectiveDef {
             boolean flush = param.path("flush").asBoolean(false);
             exchange.sendForResp().subscribe((response, e) -> {
                 if (e != null) {
-                    context.throwErr(new ScriptExecException(e.getMessage(), e));
+                    handle.throwErr(new ScriptExecException(e.getMessage(), e));
                 } else {
                     int status = copyResponse(response, httpExchange, node, upgradeTimeout, flush);
-                    context.returnVal(IntNode.valueOf(status));
+                    handle.returnVal(IntNode.valueOf(status));
                 }
             });
         }

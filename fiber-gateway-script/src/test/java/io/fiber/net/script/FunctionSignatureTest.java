@@ -71,19 +71,19 @@ public class FunctionSignatureTest {
                         FunctionParam.required("a"),
                         FunctionParam.required("b"),
                         FunctionParam.variadic("args")),
-                context -> IntNode.valueOf(context.getArgCnt()));
+                (context, args) -> IntNode.valueOf(args.getArgCnt()));
         library.putFunc("def",
                 new FunctionSignature("def", true,
                         FunctionParam.required("a"),
                         FunctionParam.optional("b", IntNode.valueOf(7)),
                         FunctionParam.optional("c", TextNode.valueOf("x"))),
-                context -> IntNode.valueOf(context.getArgVal(1).asInt()));
+                (context, args) -> IntNode.valueOf(args.getArgVal(1).asInt()));
         library.putFunc("argcDef",
                 new FunctionSignature("argcDef", true,
                         FunctionParam.required("a"),
                         FunctionParam.optional("b", IntNode.valueOf(7)),
                         FunctionParam.optional("c", TextNode.valueOf("x"))),
-                context -> IntNode.valueOf(context.getArgCnt()));
+                (context, args) -> IntNode.valueOf(args.getArgCnt()));
         return library;
     }
 }

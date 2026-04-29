@@ -10,24 +10,24 @@ import io.fiber.net.script.std.StdLibrary;
 
 public class MyLib extends StdLibrary {
     public MyLib() {
-        putAsyncFunc("sleep", context -> {
-                    int ms = context.noArgs() ? 0 : context.getArgVal(0).asInt(3000);
+        putAsyncFunc("sleep", (context, args, handle) -> {
+                    int ms = args.noArgs() ? 0 : args.getArgVal(0).asInt(3000);
                     if (ms == 0) {
-                        context.returnVal(IntNode.valueOf(ms));
+                        handle.returnVal(IntNode.valueOf(ms));
                         return;
                     }
                     if (ms < 0) {
-                        context.throwErr(new ScriptExecException("ms must be >= 0"));
+                        handle.throwErr(new ScriptExecException("ms must be >= 0"));
                         return;
                     }
 
                     if (ms >= 10000) {
-                        Scheduler.current().schedule(() -> context.throwErr(new ScriptExecException("ms < 10000")), 3000);
+                        Scheduler.current().schedule(() -> handle.throwErr(new ScriptExecException("ms < 10000")), 3000);
                         return;
                     }
 
                     Scheduler.current().schedule(
-                            () -> context.returnVal(IntNode.valueOf(ms)),
+                            () -> handle.returnVal(IntNode.valueOf(ms)),
                             ms);
                 }
         );
@@ -38,10 +38,10 @@ public class MyLib extends StdLibrary {
             }
 
             @Override
-            public JsonNode call(ExecutionContext context) {
-                int len = context.getArgCnt();
+            public JsonNode call(ExecutionContext context, Arguments args) {
+                int len = args.getArgCnt();
                 for (int j = 0; j < len; j++) {
-                    System.out.println("print: " + context.getArgVal(j));
+                    System.out.println("print: " + args.getArgVal(j));
 
                 }
                 return IntNode.valueOf(len);
@@ -54,8 +54,8 @@ public class MyLib extends StdLibrary {
             }
 
             @Override
-            public JsonNode call(ExecutionContext context) {
-                throw new IllegalStateException("panic: " + context.getArgVal(0).asText("---"));
+            public JsonNode call(ExecutionContext context, Arguments args) {
+                throw new IllegalStateException("panic: " + args.getArgVal(0).asText("---"));
             }
         });
     }

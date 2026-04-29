@@ -74,9 +74,9 @@ public class Main {
 
         @Override
         public void onInit(ExtensiveHttpLib lib) {
-            lib.putAsyncFunc("sleep", context -> {
-                int ms = context.noArgs() ? 0 : context.getArgVal(0).asInt(3000);
-                Scheduler.current().schedule(() -> context.returnVal(IntNode.valueOf(ms)), ms);
+            lib.putAsyncFunc("sleep", (context, args, handle) -> {
+                int ms = args.noArgs() ? 0 : args.getArgVal(0).asInt(3000);
+                Scheduler.current().schedule(() -> handle.returnVal(IntNode.valueOf(ms)), ms);
             });
             lib.putConstant("$req", "uri",
                     new Library.Constant() {

@@ -91,12 +91,12 @@ public class ReqFunc {
     private static class GetHeader implements SyncHttpFunc {
 
         @Override
-        public JsonNode call(ExecutionContext context) {
+        public JsonNode call(ExecutionContext context, Library.Arguments args) {
             Ctx ctx = getOrCreateCtx(context);
-            if (context.noArgs()) {
+            if (args.noArgs()) {
                 return ctx.getHeaders();
             } else {
-                String texted = context.getArgVal(0).textValue();
+                String texted = args.getArgVal(0).textValue();
                 if (StringUtils.isEmpty(texted)) {
                     return NullNode.getInstance();
                 }
@@ -112,12 +112,12 @@ public class ReqFunc {
     private static class GetQuery implements SyncHttpFunc {
 
         @Override
-        public JsonNode call(ExecutionContext context) {
+        public JsonNode call(ExecutionContext context, Library.Arguments args) {
             Ctx ctx = getOrCreateCtx(context);
-            if (context.noArgs()) {
+            if (args.noArgs()) {
                 return ctx.getQuery();
             } else {
-                String texted = context.getArgVal(0).textValue();
+                String texted = args.getArgVal(0).textValue();
                 if (StringUtils.isEmpty(texted)) {
                     return null;
                 }
@@ -128,24 +128,24 @@ public class ReqFunc {
 
     private static class ReadJsonBody implements HttpDynamicFunc {
         @Override
-        public void call(ExecutionContext context) {
+        public void call(ExecutionContext context, Library.Arguments args, Library.AsyncHandle handle) {
             HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
             exchange.readFullBody().subscribe((buf, throwable) -> {
                 if (throwable != null) {
-                    context.throwErr(new ScriptExecException(throwable.getMessage(), throwable, 400,
+                    handle.throwErr(new ScriptExecException(throwable.getMessage(), throwable, 400,
                             ScriptExecException.ERROR_NAME));
                     return;
                 }
 
                 if (buf == null) {
-                    context.throwErr(new ScriptExecException("client did not sent body", 400,
+                    handle.throwErr(new ScriptExecException("client did not sent body", 400,
                             ScriptExecException.ERROR_NAME));
                     return;
                 }
 
                 if (buf.readableBytes() == 0) {
                     buf.release();
-                    context.throwErr(new ScriptExecException("client did not sent body", 400,
+                    handle.throwErr(new ScriptExecException("client did not sent body", 400,
                             ScriptExecException.ERROR_NAME));
                     return;
                 }
@@ -154,35 +154,35 @@ public class ReqFunc {
                 try {
                     node = JsonUtil.readTree(new ByteBufInputStream(buf));
                 } catch (IOException e) {
-                    context.throwErr(new ScriptExecException(e.getMessage(), e, 400,
+                    handle.throwErr(new ScriptExecException(e.getMessage(), e, 400,
                             ScriptExecException.ERROR_NAME));
                     return;
                 } finally {
                     buf.release();
                 }
-                context.returnVal(node);
+                handle.returnVal(node);
             });
         }
     }
 
     private static class ReadBinaryBody implements HttpDynamicFunc {
         @Override
-        public void call(ExecutionContext context) {
+        public void call(ExecutionContext context, Library.Arguments args, Library.AsyncHandle handle) {
             HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
             exchange.readFullBody().subscribe((buf, throwable) -> {
                 if (throwable != null) {
-                    context.throwErr(new ScriptExecException(throwable.getMessage(), throwable, 400,
+                    handle.throwErr(new ScriptExecException(throwable.getMessage(), throwable, 400,
                             ScriptExecException.ERROR_NAME));
                     return;
                 }
                 if (buf == null) {
-                    context.returnVal(BinaryNode.valueOf(Constant.EMPTY_BYTE_ARR));
+                    handle.returnVal(BinaryNode.valueOf(Constant.EMPTY_BYTE_ARR));
                     return;
                 }
 
                 if (buf.readableBytes() == 0) {
                     buf.release();
-                    context.returnVal(BinaryNode.valueOf(Constant.EMPTY_BYTE_ARR));
+                    handle.returnVal(BinaryNode.valueOf(Constant.EMPTY_BYTE_ARR));
                     return;
                 }
 
@@ -192,14 +192,14 @@ public class ReqFunc {
                 } finally {
                     buf.release();
                 }
-                context.returnVal(node);
+                handle.returnVal(node);
             });
         }
     }
 
     private static class DiscardBody implements SyncHttpFunc {
         @Override
-        public JsonNode call(ExecutionContext context) {
+        public JsonNode call(ExecutionContext context, Library.Arguments args) {
             HttpDynamicFunc.httpExchange(context).discardReqBody();
             return NullNode.getInstance();
         }
@@ -207,21 +207,21 @@ public class ReqFunc {
 
     private static class GetUri implements SyncHttpFunc {
         @Override
-        public JsonNode call(ExecutionContext context) {
+        public JsonNode call(ExecutionContext context, Library.Arguments args) {
             return TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getUri());
         }
     }
 
     private static class GetPath implements SyncHttpFunc {
         @Override
-        public JsonNode call(ExecutionContext context) {
+        public JsonNode call(ExecutionContext context, Library.Arguments args) {
             return TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getPath());
         }
     }
 
     private static class GetQueryText implements SyncHttpFunc {
         @Override
-        public JsonNode call(ExecutionContext context) {
+        public JsonNode call(ExecutionContext context, Library.Arguments args) {
             return TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getQuery());
         }
     }
@@ -230,7 +230,7 @@ public class ReqFunc {
         private static final TextNode[] MTD = Constant.METHOD_TEXTS;
 
         @Override
-        public JsonNode call(ExecutionContext context) {
+        public JsonNode call(ExecutionContext context, Library.Arguments args) {
             return MTD[HttpDynamicFunc.httpExchange(context).getRequestMethod().ordinal()];
         }
     }
@@ -238,12 +238,12 @@ public class ReqFunc {
     private static class GetCookie implements SyncHttpFunc {
 
         @Override
-        public JsonNode call(ExecutionContext context) {
+        public JsonNode call(ExecutionContext context, Library.Arguments args) {
             ObjectNode nodes = getOrCreateCtx(context).getCookies();
-            if (context.noArgs()) {
+            if (args.noArgs()) {
                 return nodes;
             }
-            return nodes.path(context.getArgVal(0).asText());
+            return nodes.path(args.getArgVal(0).asText());
         }
     }
 

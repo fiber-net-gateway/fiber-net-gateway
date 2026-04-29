@@ -13,6 +13,7 @@ import io.fiber.net.http.HttpHost;
 import io.fiber.net.http.ConnectionFactory;
 import io.fiber.net.common.utils.IpUtils;
 import io.fiber.net.script.ExecutionContext;
+import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.server.HttpExchange;
 import io.netty.channel.Channel;
@@ -33,7 +34,7 @@ public class TunnelProxy implements HttpDynamicFunc {
     }
 
     @Override
-    public void call(ExecutionContext context) {
+    public void call(ExecutionContext context, Library.Arguments args, Library.AsyncHandle handle) {
         HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
 
         String host;
@@ -49,7 +50,7 @@ public class TunnelProxy implements HttpDynamicFunc {
                 port = "https".equals(uri.getScheme()) ? 443 : 80;
             }
         } catch (RuntimeException e) {
-            context.throwErr(new ScriptExecException("tunnel proxy uri must be CONNECT <ip:port> : " + exchange.getUri()));
+            handle.throwErr(new ScriptExecException("tunnel proxy uri must be CONNECT <ip:port> : " + exchange.getUri()));
             return;
         }
         if (!exchange.getUri().startsWith("http://")) {
@@ -67,13 +68,13 @@ public class TunnelProxy implements HttpDynamicFunc {
         }
 
         if (port <= 0 || port >= 65535 || StringUtils.isEmpty(host)) {
-            context.throwErr(new ScriptExecException("tunnel proxy uri must be CONNECT <ip:port> : " + exchange.getUri()));
+            handle.throwErr(new ScriptExecException("tunnel proxy uri must be CONNECT <ip:port> : " + exchange.getUri()));
             return;
         }
         int timeout = 30000;
 
         if (HttpMethod.CONNECT == exchange.getRequestMethod()) {
-            tunnelProxy(context, host, port, timeout, exchange);
+            tunnelProxy(args, handle, host, port, timeout, exchange);
         } else {
             if (StringUtils.isEmpty(schema)) {
                 schema = HttpHost.DEFAULT_SCHEME_NAME;
@@ -81,12 +82,13 @@ public class TunnelProxy implements HttpDynamicFunc {
             HttpHost httpHost = new HttpHost(host, port, schema);
             ClientExchange clientExchange = httpClient.refer(httpHost);
             clientExchange.setRequestTimeout(timeout);
-            httpProxy(uri, exchange, clientExchange, context);
+            httpProxy(uri, exchange, clientExchange, handle);
         }
 
     }
 
-    private void tunnelProxy(ExecutionContext context, String host, int port, int timeout, HttpExchange exchange) {
+    private void tunnelProxy(Library.Arguments args, Library.AsyncHandle handle, String host, int port, int timeout,
+                             HttpExchange exchange) {
         SocketAddress sa;
         InetAddress address = IpUtils.tryToInetAddress(host);
         if (address == null) {
@@ -94,26 +96,26 @@ public class TunnelProxy implements HttpDynamicFunc {
         } else {
             sa = new InetSocketAddress(address, port);
         }
-        if (!context.noArgs()) {
-            int a = context.getArgVal(0).asInt(-1);
+        if (!args.noArgs()) {
+            int a = args.getArgVal(0).asInt(-1);
             if (a > 0) {
                 timeout = a;
             }
         }
         EventLoop eventLoop = Scheduler.current().eventLoop();
         if (eventLoop == null) {
-            context.throwErr(new ScriptExecException("tunnel proxy uri must be IO Thread"));
+            handle.throwErr(new ScriptExecException("tunnel proxy uri must be IO Thread"));
             return;
         }
 
         connectionFactory.connect(sa,
                 3000,
                 eventLoop,
-                new Cb(context, timeout, exchange)
+                new Cb(handle, timeout, exchange)
         );
     }
 
-    private void httpProxy(URI uri, HttpExchange exchange, ClientExchange clientExchange, ExecutionContext context) {
+    private void httpProxy(URI uri, HttpExchange exchange, ClientExchange clientExchange, Library.AsyncHandle handle) {
         String rawPath = uri.getRawPath();
         if (StringUtils.isEmpty(rawPath)) {
             rawPath = "/";
@@ -139,21 +141,21 @@ public class TunnelProxy implements HttpDynamicFunc {
         clientExchange.sendForResp()
                 .subscribe((r, e) -> {
                     if (e != null) {
-                        context.throwErr(new ScriptExecException(e.getMessage(), e));
+                        handle.throwErr(new ScriptExecException(e.getMessage(), e));
                     } else {
                         HttpFunc.copyResponse(r, exchange, null, 60000, true);
-                        context.returnVal(IntNode.valueOf(r.status()));
+                        handle.returnVal(IntNode.valueOf(r.status()));
                     }
                 });
     }
 
     private static class Cb implements ConnectionFactory.ConnCallback {
-        private final ExecutionContext context;
+        private final Library.AsyncHandle handle;
         private final int timeout;
         private final HttpExchange exchange;
 
-        private Cb(ExecutionContext context, int timeout, HttpExchange exchange) {
-            this.context = context;
+        private Cb(Library.AsyncHandle handle, int timeout, HttpExchange exchange) {
+            this.handle = handle;
             this.timeout = timeout;
             this.exchange = exchange;
         }
@@ -169,12 +171,12 @@ public class TunnelProxy implements HttpDynamicFunc {
             UpgradedConnection downstream = exchange.upgrade(200, null, timeout);
             downstream.writeAndClose(connection.readDataUnsafe(), true);
             connection.writeAndClose(downstream.readDataUnsafe(), true);
-            context.returnVal(NullNode.getInstance());
+            handle.returnVal(NullNode.getInstance());
         }
 
         @Override
         public void onConnectError(Throwable e) {
-            context.throwErr(ScriptExecException.fromThrowable(e));
+            handle.throwErr(ScriptExecException.fromThrowable(e));
         }
     }
 }

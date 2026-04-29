@@ -7,6 +7,22 @@ import java.util.List;
 
 public interface Library {
 
+    interface Arguments {
+        JsonNode getArgVal(int idx);
+
+        int getArgCnt();
+
+        default boolean noArgs() {
+            return getArgCnt() == 0;
+        }
+    }
+
+    interface AsyncHandle {
+        void returnVal(JsonNode value);
+
+        void throwErr(ScriptExecException error);
+    }
+
     interface Constant {
         default boolean isConstExpr() {
             return true;
@@ -26,11 +42,11 @@ public interface Library {
             return signature == null || signature.isConstExpr();
         }
 
-        JsonNode call(ExecutionContext context) throws ScriptExecException;
+        JsonNode call(ExecutionContext context, Arguments args) throws ScriptExecException;
     }
 
     interface AsyncConstant {
-        void get(ExecutionContext context);
+        void get(ExecutionContext context, AsyncHandle handle);
     }
 
     interface AsyncFunction {
@@ -38,7 +54,7 @@ public interface Library {
             return null;
         }
 
-        void call(ExecutionContext context);
+        void call(ExecutionContext context, Arguments args, AsyncHandle handle);
     }
 
 

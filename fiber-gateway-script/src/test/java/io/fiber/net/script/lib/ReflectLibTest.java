@@ -50,6 +50,29 @@ public class ReflectLibTest {
     }
 
     @Test
+    public void shouldWrapDirectAotRuntimeExceptions() throws Throwable {
+        StdLibrary library = new StdLibrary();
+        ReflectLib.register(library, new Exports(""));
+
+        try {
+            Script.aotCompileWithoutOptimization("return boom();", library, true)
+                    .execForSync(NullNode.getInstance(), null);
+            Assert.fail("expected sync script error");
+        } catch (ScriptExecException expected) {
+            Assert.assertTrue(expected.getMessage().contains("sync boom"));
+        }
+
+        TestObserver observer = new TestObserver();
+        Script.aotCompileWithoutOptimization("return asyncBoom();", library, true)
+                .exec(NullNode.getInstance(), null)
+                .subscribe(observer);
+
+        Assert.assertNull(observer.value);
+        Assert.assertTrue(observer.error instanceof ScriptExecException);
+        Assert.assertTrue(observer.error.getMessage().contains("async boom"));
+    }
+
+    @Test
     public void shouldRejectInvalidThrows() throws Exception {
         try {
             new ReflectFunction(BadExports.class.getMethod("badSync"));
@@ -113,6 +136,16 @@ public class ReflectLibTest {
                              @ScriptParam("a") JsonNode a,
                              @ScriptParam("b") JsonNode b) {
             handle.returnVal(IntNode.valueOf(a.asInt() + b.asInt()));
+        }
+
+        @ScriptFunction(name = "boom")
+        public JsonNode boom() {
+            throw new IllegalStateException("sync boom");
+        }
+
+        @ScriptFunction(name = "asyncBoom")
+        public void asyncBoom(Library.AsyncHandle handle) {
+            throw new IllegalStateException("async boom");
         }
 
         @ScriptConstant(key = "answer")

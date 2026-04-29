@@ -1,60 +1,57 @@
 package io.fiber.net.script.std;
 
-import io.fiber.net.script.Library;
+import io.fiber.net.script.*;
 import io.fiber.net.script.ast.Literal;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 public class StdLibrary implements Library {
-    private static final Map<String, Library.Function> DEF_FUNC_MAP = new HashMap<>();
-
-    static {
-        DEF_FUNC_MAP.put("length", LengthFunc.INSTANCE);
-        DEF_FUNC_MAP.put("includes", new IncludesFunc());
-        DEF_FUNC_MAP.putAll(ArrayFuncs.FUNC);
-        DEF_FUNC_MAP.putAll(ObjectsFuncs.FUNC);
-        DEF_FUNC_MAP.putAll(StringsFuncs.FUNC);
-        DEF_FUNC_MAP.putAll(JsonFunc.FUNC);
-        DEF_FUNC_MAP.putAll(MathFuncs.FUNC);
-        DEF_FUNC_MAP.putAll(BinaryFunc.FUNC);
-        DEF_FUNC_MAP.putAll(HashFuncs.FUNC);
-        DEF_FUNC_MAP.putAll(RandFuncs.FUNC);
-        DEF_FUNC_MAP.putAll(TimeFuncs.FUNC);
-        DEF_FUNC_MAP.putAll(UrlFunc.FUNC);
-    }
-
-    protected static Map<String, Library.Function> getDefFuncMap() {
-        return DEF_FUNC_MAP;
-    }
-
-    private final static StdLibrary DEF_INSTANCE = new StdLibrary();
+    private static final StdLibrary DEF_INSTANCE = new StdLibrary();
 
     public static StdLibrary getDefInstance() {
         return DEF_INSTANCE;
     }
 
-    protected final Map<String, Object> functionMap = new HashMap<>();
+    protected final Map<String, List<ResolvedFunc>> functionMap = new HashMap<>();
     protected final Map<String, Object> constantMap = new HashMap<>();
 
     public StdLibrary() {
-        functionMap.putAll(DEF_FUNC_MAP);
+    }
+
+    public void putFunc(Function function) {
+        FunctionSignature signature = Objects.requireNonNull(function.signature(), "function signature");
+        register(ResolvedFunc.sync(signature, function));
     }
 
     public void putFunc(String name, Function function) {
-        Object old = functionMap.put(name, Objects.requireNonNull(function));
-        if (old != null) {
-            throw new IllegalStateException("function " + name + " exists");
+        FunctionSignature signature = function.signature();
+        if (signature == null) {
+            signature = new FunctionSignature(name, function.isConstExpr(), FunctionParam.variadic("args"));
         }
+        putFunc(name, signature, function);
+    }
+
+    public void putFunc(String name, FunctionSignature signature, Function function) {
+        checkName(name, signature);
+        register(ResolvedFunc.sync(signature, Objects.requireNonNull(function)));
+    }
+
+    public void putAsyncFunc(AsyncFunction function) {
+        FunctionSignature signature = Objects.requireNonNull(function.signature(), "async function signature");
+        register(ResolvedFunc.async(signature, function));
     }
 
     public void putAsyncFunc(String name, AsyncFunction function) {
-        Object old = functionMap.put(name, Objects.requireNonNull(function));
-        if (old != null) {
-            throw new IllegalStateException("function " + name + " exists");
+        FunctionSignature signature = function.signature();
+        if (signature == null) {
+            signature = new FunctionSignature(name, false, FunctionParam.variadic("args"));
         }
+        putAsyncFunc(name, signature, function);
+    }
+
+    public void putAsyncFunc(String name, FunctionSignature signature, AsyncFunction function) {
+        checkName(name, signature);
+        register(ResolvedFunc.async(signature, Objects.requireNonNull(function)));
     }
 
     public void putConstant(String namespace, String key, Constant constant) {
@@ -69,7 +66,26 @@ public class StdLibrary implements Library {
         String name = constantName(namespace, key);
         Object old = constantMap.put(name, Objects.requireNonNull(constant));
         if (old != null) {
-            throw new IllegalStateException("function " + name + " exists");
+            throw new IllegalStateException("constant " + name + " exists");
+        }
+    }
+
+    private void register(ResolvedFunc func) {
+        FunctionSignature signature = func.getSignature();
+        List<ResolvedFunc> funcs = functionMap.computeIfAbsent(signature.getName(), k -> new ArrayList<>());
+        for (ResolvedFunc old : funcs) {
+            if (old.getSignature().overlaps(signature)) {
+                throw new IllegalStateException("function signature conflicts: "
+                        + old.getSignature().display() + " / " + signature.display());
+            }
+        }
+        funcs.add(func);
+    }
+
+    private static void checkName(String name, FunctionSignature signature) {
+        Objects.requireNonNull(signature, "function signature");
+        if (!Objects.equals(name, signature.getName())) {
+            throw new IllegalArgumentException("function name mismatch: " + name + " / " + signature.getName());
         }
     }
 
@@ -78,8 +94,21 @@ public class StdLibrary implements Library {
     }
 
     @Override
-    public Object findFunc(String name) {
-        return functionMap.get(name);
+    public ResolvedFunc resolveFunc(String name, FunctionCallArgs args) {
+        List<ResolvedFunc> funcs = functionMap.get(name);
+        if (funcs == null) {
+            return null;
+        }
+        ResolvedFunc matched = null;
+        for (ResolvedFunc func : funcs) {
+            if (func.getSignature().matches(args)) {
+                if (matched != null) {
+                    throw new IllegalStateException("ambiguous function call: " + name);
+                }
+                matched = func;
+            }
+        }
+        return matched;
     }
 
     @Override

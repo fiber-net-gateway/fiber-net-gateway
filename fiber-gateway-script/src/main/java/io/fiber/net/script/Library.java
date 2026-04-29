@@ -17,8 +17,13 @@ public interface Library {
 
 
     interface Function {
+        default FunctionSignature signature() {
+            return null;
+        }
+
         default boolean isConstExpr() {
-            return true;
+            FunctionSignature signature = signature();
+            return signature == null || signature.isConstExpr();
         }
 
         JsonNode call(ExecutionContext context) throws ScriptExecException;
@@ -29,17 +34,20 @@ public interface Library {
     }
 
     interface AsyncFunction {
+        default FunctionSignature signature() {
+            return null;
+        }
+
         void call(ExecutionContext context);
     }
 
 
     interface DirectiveDef {
-        Function findFunc(String directive, String function);
+        ResolvedFunc resolveFunc(String directive, String function, FunctionCallArgs args);
 
-        AsyncFunction findAsyncFunc(String directive, String function);
     }
 
-    Object findFunc(String name);
+    ResolvedFunc resolveFunc(String name, FunctionCallArgs args);
 
 
     default void markRootProp(String propName) {

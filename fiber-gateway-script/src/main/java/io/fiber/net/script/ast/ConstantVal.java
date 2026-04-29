@@ -14,7 +14,7 @@ public class ConstantVal extends ExpressionNode {
     }
 
     public boolean isAsync() {
-        return constant instanceof Library.AsyncFunction;
+        return constant instanceof Library.AsyncConstant;
     }
 
     public Library.Constant getConstant() {

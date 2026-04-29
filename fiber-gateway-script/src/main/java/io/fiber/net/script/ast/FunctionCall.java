@@ -17,15 +17,16 @@
 package io.fiber.net.script.ast;
 
 import io.fiber.net.script.Library;
+import io.fiber.net.script.ResolvedFunc;
 import io.fiber.net.script.parse.NodeVisitor;
 
 public class FunctionCall extends ExpressionNode {
 
     private final String name;
-    private final Object func;
+    private final ResolvedFunc func;
     private final ExpressionNode[] args;
 
-    public FunctionCall(Object func, String functionName, int pos, ExpressionNode... arguments) {
+    public FunctionCall(ResolvedFunc func, String functionName, int pos, ExpressionNode... arguments) {
         super(pos);
         this.func = func;
         name = functionName;
@@ -37,15 +38,19 @@ public class FunctionCall extends ExpressionNode {
     }
 
     public Library.Function getFunc() {
-        return (Library.Function) func;
+        return func.getFunction();
+    }
+
+    public ResolvedFunc getResolvedFunc() {
+        return func;
     }
 
     public boolean isAsync() {
-        return func instanceof Library.AsyncFunction;
+        return func.isAsync();
     }
 
     public Library.AsyncFunction getAsyncFunc() {
-        return (Library.AsyncFunction) func;
+        return func.getAsyncFunction();
     }
 
     public String getName() {
@@ -76,6 +81,6 @@ public class FunctionCall extends ExpressionNode {
                 return false;
             }
         }
-        return !isAsync() && getFunc().isConstExpr();
+        return !isAsync() && func.getSignature().isConstExpr();
     }
 }

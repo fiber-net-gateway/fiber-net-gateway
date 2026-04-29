@@ -18,7 +18,9 @@ package io.fiber.net.script.parse;
 
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.utils.*;
+import io.fiber.net.script.FunctionCallArgs;
 import io.fiber.net.script.Library;
+import io.fiber.net.script.ResolvedFunc;
 import io.fiber.net.script.ast.*;
 
 import java.util.*;
@@ -530,20 +532,20 @@ public class Parser {
                     ExpressionNode[] args = maybeEatMethodArgs();
                     if (args != null) {
                         String funcName = sb.toString();
-                        Object func = library.findFunc(funcName);
+                        FunctionCallArgs callArgs = toCallArgs(args);
+                        ResolvedFunc func = library.resolveFunc(funcName, callArgs);
 
                         if (func == null && dotSize == 1 && directiveMap.containsKey(prefix.getName())) {
                             DirectiveStatement directiveStatement = directiveMap.get(prefix.getName());
                             Library.DirectiveDef directiveDef = directiveStatement.getDirectiveDef();
-                            func = Optional
-                                    .<Object>ofNullable(directiveDef.findFunc(prefix.getName(), token.data))
-                                    .orElse(directiveDef.findAsyncFunc(prefix.getName(), token.data));
+                            func = directiveDef.resolveFunc(prefix.getName(), token.data, callArgs);
                         }
 
                         if (func == null) {
                             raiseInternalException(prefix.getStartPosition(), SpelMessage.FUNCTION_NOT_DEFINED, funcName);
                         }
-                        return new FunctionCall(func, funcName, toPos(prefix.getStartPosition(), args.length > 0 ? args[args.length - 1].getEndPosition() + 1 : prefix.getStartPosition() + funcName.length() + 2), args);
+                        int pos = toPos(prefix.getStartPosition(), args.length > 0 ? args[args.length - 1].getEndPosition() + 1 : prefix.getStartPosition() + funcName.length() + 2);
+                        return new FunctionCall(func, funcName, pos, fillDefaultArgs(func, args, pos));
                     }
                 }
             } else {
@@ -653,12 +655,13 @@ public class Parser {
         Token t = eatToken(TokenKind.IDENTIFIER);
         ExpressionNode[] args = maybeEatMethodArgs();
         if (args != null) {
-            Object func = library.findFunc(t.data);
+            ResolvedFunc func = library.resolveFunc(t.data, toCallArgs(args));
             if (func == null) {
                 raiseInternalException(t.startpos, SpelMessage.FUNCTION_NOT_DEFINED, t.data);
             }
-            return new FunctionCall(func, t.data, toPos(t.startpos, args.length > 0 ? args[args.length - 1].getEndPosition() + 1
-                    : t.endpos + 2), args);
+            int pos = toPos(t.startpos, args.length > 0 ? args[args.length - 1].getEndPosition() + 1
+                    : t.endpos + 2);
+            return new FunctionCall(func, t.data, pos, fillDefaultArgs(func, args, pos));
 
         }
         if (t.data.charAt(0) == '$') {
@@ -679,6 +682,45 @@ public class Parser {
         consumeArguments(args);
         eatToken(TokenKind.RPAREN);
         return args.toArray(new ExpressionNode[args.size()]);
+    }
+
+    private static FunctionCallArgs toCallArgs(ExpressionNode[] args) {
+        int firstSpread = -1;
+        for (int i = 0; i < args.length; i++) {
+            if (args[i] instanceof ExpandArrArg) {
+                firstSpread = i;
+                break;
+            }
+        }
+        return firstSpread < 0 ? FunctionCallArgs.of(args.length) : FunctionCallArgs.of(args.length, firstSpread);
+    }
+
+    private static ExpressionNode[] fillDefaultArgs(ResolvedFunc func, ExpressionNode[] args, int pos) {
+        if (containsSpread(args)) {
+            return args;
+        }
+        int fixedCount = func.getSignature().getFixedCount();
+        if (args.length >= fixedCount) {
+            return args;
+        }
+        ExpressionNode[] filled = Arrays.copyOf(args, fixedCount);
+        for (int i = args.length; i < fixedCount; i++) {
+            JsonNode defaultValue = func.getSignature().getDefaultValue(i);
+            if (defaultValue == null) {
+                throw new ParseException("missing required argument: " + func.getSignature().display());
+            }
+            filled[i] = new Literal("<default>", pos, defaultValue);
+        }
+        return filled;
+    }
+
+    private static boolean containsSpread(ExpressionNode[] args) {
+        for (ExpressionNode arg : args) {
+            if (arg instanceof ExpandArrArg) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -278,7 +278,7 @@ public class AotClassGenerator {
                     break;
                 }
                 case Code.CALL_ASYNC_FUNC_SPREAD: {
-                    ep.asyncFunction(clzAssembler.addAsyncFunction(code >>> 16), clzAssembler.addAsyncPoint(), (code >>> 8) & 0xFF, true);
+                    ep.asyncFunction(clzAssembler.addAsyncFunction(code >>> 8), clzAssembler.addAsyncPoint(), 1, true);
                     break;
                 }
                 case Code.CALL_CONST:

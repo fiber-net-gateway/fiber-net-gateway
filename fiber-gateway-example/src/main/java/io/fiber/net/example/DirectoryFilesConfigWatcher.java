@@ -116,6 +116,7 @@ public class DirectoryFilesConfigWatcher implements ConfigWatcher, Destroyable {
             byte[] bytes = Files.readAllBytes(listFile.toPath());
             SimpleScriptHandler project = UrlHandlerManager.createScriptHandler(server.getInjector(),
                     name,
+                    listFile.getName(),
                     new String(bytes, StandardCharsets.UTF_8));
             int varLength = project.getVarConfigSource().getVarLength(VarType.PATH);
             if (varLength > 0) {

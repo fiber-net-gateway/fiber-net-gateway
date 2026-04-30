@@ -33,10 +33,14 @@ public class UrlHandlerManager extends RefResourcePool<UrlHandlerManager.ScriptR
     }
 
     public static SimpleScriptHandler createScriptHandler(Injector injector, String projectName, String code) throws Exception {
+        return createScriptHandler(injector, projectName, projectName + ".js", code);
+    }
+
+    public static SimpleScriptHandler createScriptHandler(Injector injector, String projectName, String fileName, String code) throws Exception {
         Assert.isTrue(StringUtils.isNotEmpty(code));
         Injector projectInjector = LibProxyMainModule.createProjectInjector(injector);
         try {
-            Script compiled = compileScript(code, projectInjector);
+            Script compiled = compileScript(fileName, code, projectInjector);
             SimpleConstLibConfigure configure = projectInjector.getInstance(SimpleConstLibConfigure.class);
             VarConfigSource varConfigSource = configure.buildConfigSource();
             return new SimpleScriptHandler(projectInjector, projectName, compiled, varConfigSource);
@@ -46,9 +50,9 @@ public class UrlHandlerManager extends RefResourcePool<UrlHandlerManager.ScriptR
         }
     }
 
-    static Script compileScript(String code, Injector injector) throws Exception {
+    static Script compileScript(String fileName, String code, Injector injector) throws Exception {
         ExtensiveHttpLib library = new ExtensiveHttpLib(injector);
-        return Script.aotCompile(code, library);
+        return Script.aotCompile(fileName, code, library, true);
     }
 
     public static class ScriptRef extends RefResourcePool.Ref {

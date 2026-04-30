@@ -3,6 +3,7 @@ package io.fiber.net.script.parse;
 import io.fiber.net.common.utils.Assert;
 import io.fiber.net.script.run.Code;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -15,6 +16,8 @@ public class Compiled {
     Object[] operands;
     int[] exceptionTable;
     int[] expIns;
+    String fileName;
+    int[] lineStartOffsets;
 
     public Compiled(int stackSize,
                     int varTableSize,
@@ -105,6 +108,57 @@ public class Compiled {
 
     public int[] getExpIns() {
         return expIns;
+    }
+
+    public String getFileName() {
+        return fileName;
+    }
+
+    public void setSourceInfo(String fileName, int[] lineStartOffsets) {
+        this.fileName = fileName;
+        this.lineStartOffsets = lineStartOffsets;
+    }
+
+    public int getLineByOffset(int offset) {
+        int[] offsets = lineStartOffsets;
+        if (offsets == null || offsets.length == 0) {
+            return -1;
+        }
+        int idx = Arrays.binarySearch(offsets, offset);
+        if (idx < 0) {
+            idx = -idx - 2;
+        }
+        return idx < 0 ? 1 : idx + 1;
+    }
+
+    public static int[] computeLineStartOffsets(String script) {
+        int max = script.length();
+        int[] offsets = new int[16];
+        int len = 1;
+        offsets[0] = 0;
+        for (int i = 0; i < max; i++) {
+            char ch = script.charAt(i);
+            int next;
+            if (ch == '\n' || ch == '\u2028' || ch == '\u2029') {
+                next = i + 1;
+            } else if (ch == '\r') {
+                if (i + 1 < max && script.charAt(i + 1) == '\n') {
+                    next = i + 2;
+                    i++;
+                } else {
+                    next = i + 1;
+                }
+            } else {
+                continue;
+            }
+            if (next < max) {
+                if (offsets.length <= len) {
+                    offsets = Arrays.copyOf(offsets, offsets.length << 1);
+                }
+                offsets[len++] = next;
+            }
+        }
+        return Arrays.copyOf(offsets, len);
     }
 
     public boolean containsAsyncIS() {

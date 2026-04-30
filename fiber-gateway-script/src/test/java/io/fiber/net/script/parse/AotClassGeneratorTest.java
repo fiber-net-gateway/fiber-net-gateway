@@ -8,6 +8,7 @@ import io.fiber.net.script.Script;
 import io.fiber.net.script.parse.ir.AotClassGenerator;
 import io.fiber.net.test.TestInIOThreadParent;
 import lua.test.MyLib;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.File;
@@ -100,6 +101,38 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
     @Test
     public void b21() throws Throwable {
         testScript("/vv.js");
+    }
+
+    @Test
+    public void shouldEmitAotSourceFileAndLineNumber() throws Throwable {
+        String script = "let a = 1;\n"
+                + "let b = 2;\n"
+                + "let c = 3;\n"
+                + "return panic('x');\n";
+        final Throwable[] error = new Throwable[1];
+        Script.aotCompileWithoutOptimization("line-info.js", script, new MyLib(), true)
+                .exec(NullNode.getInstance(), null)
+                .subscribe((jsonNode, throwable) -> error[0] = throwable);
+        Assert.assertNotNull(error[0]);
+
+        StackTraceElement runFrame = null;
+        for (StackTraceElement element : error[0].getStackTrace()) {
+            if (element.getClassName().contains("GeneratedVm_") && "run".equals(element.getMethodName())) {
+                runFrame = element;
+                break;
+            }
+        }
+        Assert.assertNotNull(stackTrace(error[0]), runFrame);
+        Assert.assertEquals("line-info.js", runFrame.getFileName());
+        Assert.assertEquals(4, runFrame.getLineNumber());
+    }
+
+    private static String stackTrace(Throwable throwable) {
+        StringBuilder builder = new StringBuilder();
+        for (StackTraceElement element : throwable.getStackTrace()) {
+            builder.append(element).append('\n');
+        }
+        return builder.toString();
     }
 
     private void testScript(String file) throws Throwable {

@@ -22,25 +22,44 @@ public class AotCompiledScript implements Script {
     private static final Logger log = LoggerFactory.getLogger(AotCompiledScript.class);
     private static final MethodType METHOD_TYPE = MethodType.methodType(void.class, JsonNode.class, Object.class, Maybe.Emitter.class);
     private static final String ERROR_PATH = SystemPropertyUtil.get("fiber.aotErrorClzDumpPath", "/tmp/fiber_err_clz");
+    private static final String DEFAULT_SOURCE_FILE = "script.js";
 
     public static AotCompiledScript create(String script, Library library) throws ParseException {
+        return create(DEFAULT_SOURCE_FILE, script, library);
+    }
+
+    public static AotCompiledScript create(String fileName, String script, Library library) throws ParseException {
         Parser parser = new Parser(library, true);
         Block block = parser.parseScript(script);
-        return create(block);
+        return create(fileName, script, block);
     }
 
     public static AotCompiledScript createNonOptimise(String script, Library library) throws ParseException {
+        return createNonOptimise(DEFAULT_SOURCE_FILE, script, library);
+    }
+
+    public static AotCompiledScript createNonOptimise(String fileName, String script, Library library) throws ParseException {
         Parser parser = new Parser(library, true);
         Block block = parser.parseScript(script);
-        return createNonOptimise(block);
+        return createNonOptimise(fileName, script, block);
     }
 
     public static AotCompiledScript create(Node ast) throws ParseException {
         return createNonOptimise(OptimiserNodeVisitor.optimiseAst(ast));
     }
 
+    public static AotCompiledScript create(String fileName, String script, Node ast) throws ParseException {
+        return createNonOptimise(fileName, script, OptimiserNodeVisitor.optimiseAst(ast));
+    }
+
     public static AotCompiledScript createNonOptimise(Node ast) throws ParseException {
         Compiled cpd = CompilerNodeVisitor.compile(ast);
+        return of(cpd);
+    }
+
+    public static AotCompiledScript createNonOptimise(String fileName, String script, Node ast) throws ParseException {
+        Compiled cpd = CompilerNodeVisitor.compile(ast);
+        cpd.setSourceInfo(fileName, Compiled.computeLineStartOffsets(script));
         return of(cpd);
     }
 

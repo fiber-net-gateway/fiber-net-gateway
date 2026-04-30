@@ -4,7 +4,6 @@ import io.fiber.net.common.ioc.Injector;
 import io.fiber.net.common.utils.ArrayUtils;
 import io.fiber.net.proxy.HttpLibConfigure;
 import io.fiber.net.script.FunctionCallArgs;
-import io.fiber.net.script.FunctionParam;
 import io.fiber.net.script.FunctionSignature;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ResolvedFunc;
@@ -102,8 +101,9 @@ public class ExtensiveHttpLib extends StdLibrary {
         }
         FunctionSignature signature = function.signature();
         if (signature == null) {
-            signature = new FunctionSignature(name, function.isConstExpr(), FunctionParam.variadic("args"));
-        } else if (!signature.matches(args)) {
+            return null;
+        }
+        if (!signature.matches(args)) {
             return null;
         }
         return ResolvedFunc.sync(signature, function);
@@ -115,8 +115,9 @@ public class ExtensiveHttpLib extends StdLibrary {
         }
         FunctionSignature signature = function.signature();
         if (signature == null) {
-            signature = new FunctionSignature(name, false, FunctionParam.variadic("args"));
-        } else if (!signature.matches(args)) {
+            return null;
+        }
+        if (!signature.matches(args)) {
             return null;
         }
         return ResolvedFunc.async(signature, function);

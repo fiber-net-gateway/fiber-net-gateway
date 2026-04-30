@@ -5,15 +5,13 @@ import io.fiber.net.common.json.BooleanNode;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.utils.CharArrUtil;
 import io.fiber.net.common.utils.CollectionUtils;
-import io.fiber.net.proxy.lib.HttpDynamicFunc;
-import io.fiber.net.script.ExecutionContext;
-import io.fiber.net.script.FunctionCallArgs;
-import io.fiber.net.script.FunctionParam;
-import io.fiber.net.script.FunctionSignature;
 import io.fiber.net.script.Library;
-import io.fiber.net.script.ResolvedFunc;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.ast.Literal;
+import io.fiber.net.script.lib.ReflectDirective;
+import io.fiber.net.script.lib.ScriptDirective;
+import io.fiber.net.script.lib.ScriptFunction;
+import io.fiber.net.script.lib.ScriptParam;
 import io.fiber.net.script.parse.ParseException;
 import io.fiber.net.support.RateLimiter;
 
@@ -21,16 +19,15 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
-public class RateLimiterFunc implements Library.DirectiveDef {
+@ScriptDirective("rate_limiter")
+public class RateLimiterFunc {
     private final RateLimiter rateLimiter;
-    private AcquireFunction aFunction;
-    private MustAcquireFunction maFunction;
 
     public RateLimiterFunc(String name, int count, Duration duration) {
         rateLimiter = RateLimiter.of(name, duration, count);
     }
 
-    static RateLimiterFunc getRateLimiterFunc(String name, List<Literal> literals) {
+    static Library.DirectiveDef getRateLimiterFunc(String name, List<Literal> literals) {
         if (CollectionUtils.isEmpty(literals)) {
             throw new ParseException("rate_limiter require arg");
         }
@@ -43,7 +40,7 @@ public class RateLimiterFunc implements Library.DirectiveDef {
         if (i > 0) {
             int count = Integer.parseInt(string.substring(0, i));
             Duration duration = of(string.substring(i + 1));
-            return new RateLimiterFunc(name, count, duration);
+            return ReflectDirective.of(new RateLimiterFunc(name, count, duration));
         } else {
             throw new ParseException("rate_limiter require string arg. like \"10/3s\"");
         }
@@ -78,92 +75,42 @@ public class RateLimiterFunc implements Library.DirectiveDef {
         return Duration.of(value, unit);
     }
 
-    private static class AcquireFunction implements HttpDynamicFunc {
-        private final RateLimiter rateLimiter;
-
-        private AcquireFunction(RateLimiter rateLimiter) {
-            this.rateLimiter = rateLimiter;
-        }
-
-        @Override
-        public void call(ExecutionContext context, Library.Arguments args, Library.AsyncHandle handle) {
-            long ms = 0L;
-            if (!args.noArgs()) {
-                ms = args.getArgVal(0).asLong(ms);
-            }
-            if (ms == 0L) {
-                if (rateLimiter.acquirePermission()) {
-                    handle.returnVal(BooleanNode.TRUE);
-                } else {
-                    handle.returnVal(BooleanNode.FALSE);
-                }
-            } else {
-                long l = rateLimiter.blockAcquirePermission(Duration.ofMillis(ms));
-                if (l == -1) {
-                    handle.returnVal(BooleanNode.FALSE);
-                } else if (l == 0) {
-                    handle.returnVal(BooleanNode.TRUE);
-                } else {
-                    Scheduler.current().scheduleInNano(() -> handle.returnVal(BooleanNode.TRUE), l);
-                }
-            }
-        }
+    @ScriptFunction(name = "acquire", constExpr = false, params = {
+            @ScriptParam(value = "timeoutMs", optional = true, defaultValue = "0")
+    })
+    public void acquire(Library.AsyncHandle handle, JsonNode timeoutMs) {
+        acquire(timeoutMs.asLong(0L), handle, false);
     }
 
-    private static class MustAcquireFunction implements HttpDynamicFunc {
-        private final RateLimiter rateLimiter;
-
-        private MustAcquireFunction(RateLimiter rateLimiter) {
-            this.rateLimiter = rateLimiter;
-        }
-
-        @Override
-        public void call(ExecutionContext context, Library.Arguments args, Library.AsyncHandle handle) {
-            long ms = 0L;
-            if (!args.noArgs()) {
-                ms = args.getArgVal(0).asLong(ms);
-            }
-            if (ms == 0L) {
-                if (rateLimiter.acquirePermission()) {
-                    handle.returnVal(BooleanNode.TRUE);
-                } else {
-                    handle.throwErr(new ScriptExecException("rate-limiter blocked", 500, "RATE_LIMITER_BLOCK"));
-                }
-            } else {
-                long l = rateLimiter.blockAcquirePermission(Duration.ofMillis(ms));
-                if (l == -1) {
-                    handle.throwErr(new ScriptExecException("rate-limiter blocked", 500, "RATE_LIMITER_BLOCK"));
-                } else if (l == 0) {
-                    handle.returnVal(BooleanNode.TRUE);
-                } else {
-                    Scheduler.current().scheduleInNano(() -> handle.returnVal(BooleanNode.TRUE), l);
-                }
-            }
-        }
+    @ScriptFunction(name = "mustAcquire", constExpr = false, params = {
+            @ScriptParam(value = "timeoutMs", optional = true, defaultValue = "0")
+    })
+    public void mustAcquire(Library.AsyncHandle handle, JsonNode timeoutMs) {
+        acquire(timeoutMs.asLong(0L), handle, true);
     }
 
-    @Override
-    public ResolvedFunc resolveFunc(String directive, String function, FunctionCallArgs args) {
-        Library.AsyncFunction asyncFunction;
-        if ("acquire".equals(function)) {
-            if (aFunction == null) {
-                aFunction = new AcquireFunction(rateLimiter);
+    private void acquire(long ms, Library.AsyncHandle handle, boolean must) {
+        if (ms == 0L) {
+            if (rateLimiter.acquirePermission()) {
+                handle.returnVal(BooleanNode.TRUE);
+            } else if (must) {
+                handle.throwErr(new ScriptExecException("rate-limiter blocked", 500, "RATE_LIMITER_BLOCK"));
+            } else {
+                handle.returnVal(BooleanNode.FALSE);
             }
-            asyncFunction = aFunction;
-        } else if ("mustAcquire".equals(function)) {
-            if (maFunction == null) {
-                maFunction = new MustAcquireFunction(rateLimiter);
-            }
-            asyncFunction = maFunction;
         } else {
-            return null;
+            long l = rateLimiter.blockAcquirePermission(Duration.ofMillis(ms));
+            if (l == -1) {
+                if (must) {
+                    handle.throwErr(new ScriptExecException("rate-limiter blocked", 500, "RATE_LIMITER_BLOCK"));
+                } else {
+                    handle.returnVal(BooleanNode.FALSE);
+                }
+            } else if (l == 0) {
+                handle.returnVal(BooleanNode.TRUE);
+            } else {
+                Scheduler.current().scheduleInNano(() -> handle.returnVal(BooleanNode.TRUE), l);
+            }
         }
-        FunctionSignature signature = asyncFunction.signature();
-        if (signature == null) {
-            signature = new FunctionSignature(directive + "." + function, false, FunctionParam.variadic("args"));
-        } else if (!signature.matches(args)) {
-            return null;
-        }
-        return ResolvedFunc.async(signature, asyncFunction);
     }
 }

@@ -13,6 +13,8 @@ import io.fiber.net.http.HttpHost;
 import io.fiber.net.http.ConnectionFactory;
 import io.fiber.net.common.utils.IpUtils;
 import io.fiber.net.script.ExecutionContext;
+import io.fiber.net.script.FunctionParam;
+import io.fiber.net.script.FunctionSignature;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.server.HttpExchange;
@@ -25,12 +27,20 @@ import java.net.SocketAddress;
 import java.net.URI;
 
 public class TunnelProxy implements HttpDynamicFunc {
+    private static final FunctionSignature SIGNATURE = FunctionSignature.fixed("req.tunnelProxy", false,
+            FunctionParam.optional("timeoutMs", IntNode.valueOf(0)));
+
     private final ConnectionFactory connectionFactory;
     private final HttpClient httpClient;
 
     public TunnelProxy(ConnectionFactory connectionFactory, HttpClient httpClient) {
         this.connectionFactory = connectionFactory;
         this.httpClient = httpClient;
+    }
+
+    @Override
+    public FunctionSignature signature() {
+        return SIGNATURE;
     }
 
     @Override

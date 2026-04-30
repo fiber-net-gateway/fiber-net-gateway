@@ -45,6 +45,7 @@ public class Parser {
 
     // Current location in the token stream when processing tokens
     private int tokenStreamPointer;
+    private String expressionString;
 
     private final Map<String, DirectiveStatement> directiveMap = new HashMap<>();
 
@@ -94,6 +95,7 @@ public class Parser {
         this.tokenStream = tokens;
         this.tokenStreamLength = tokens.size();
         this.tokenStreamPointer = 0;
+        this.expressionString = originScript;
         Block block;
         try {
             block = eatBlock(false, Block.Type.SCRIPT);
@@ -117,6 +119,7 @@ public class Parser {
         this.tokenStream = tokens;
         this.tokenStreamLength = tokens.size();
         this.tokenStreamPointer = 0;
+        this.expressionString = originExp;
         ExpressionNode expressionNode;
         try {
             expressionNode = eatExpression();
@@ -768,12 +771,271 @@ public class Parser {
         ExpressionNode node;
         if ((node = maybeEatLiteral()) != null) {
             return node;
+        } else if ((node = maybeEatTemplateString()) != null) {
+            return node;
         } else if ((node = maybeEatInlineList()) != null || (node = maybeEatInlineObject()) != null) {
             return node;
         } else if ((node = maybeEatParenExpression()) != null || (node = maybeEatNullReference()) != null) {
             return node;
         }
         return maybeEatFunctionOrVar();
+    }
+
+    private TemplateString maybeEatTemplateString() {
+        Token t = peekToken();
+        if (t == null || t.kind != TokenKind.LITERAL_TEMPLATE) {
+            return null;
+        }
+        nextToken();
+        String raw = t.data;
+        List<String> strings = new ArrayList<>();
+        List<ExpressionNode> expressions = new ArrayList<>();
+        int segmentStart = 1;
+        int end = raw.length() - 1;
+        for (int i = 1; i < end; ) {
+            char chr = raw.charAt(i);
+            if (chr == '\\') {
+                i += 2;
+                continue;
+            }
+            if (chr == '$' && i + 1 < end && raw.charAt(i + 1) == '{') {
+                strings.add(cookTemplateString(raw, segmentStart, i, t.startpos));
+                int exprStart = i + 2;
+                int exprEnd = findTemplateExpressionEnd(raw, exprStart, end, t.startpos);
+                expressions.add(parseTemplateExpression(raw.substring(exprStart, exprEnd), t.startpos + exprStart));
+                i = exprEnd + 1;
+                segmentStart = i;
+                continue;
+            }
+            i++;
+        }
+        strings.add(cookTemplateString(raw, segmentStart, end, t.startpos));
+        return new TemplateString(toPos(t), strings.toArray(EMPTY_STR_ARR),
+                expressions.toArray(new ExpressionNode[expressions.size()]));
+    }
+
+    private ExpressionNode parseTemplateExpression(String exp, int offset) {
+        Tokenizer tokenizer = new Tokenizer(exp);
+        try {
+            tokenizer.process();
+        } catch (ParseException e) {
+            if (expressionString != null && e.position >= 0) {
+                throw new ParseException(expressionString, e.position + offset, e.getMessage());
+            }
+            throw e;
+        }
+        List<Token> tokens = tokenizer.getTokens();
+        for (Token token : tokens) {
+            token.startpos += offset;
+            token.endpos += offset;
+        }
+
+        List<Token> oldTokenStream = this.tokenStream;
+        int oldTokenStreamLength = this.tokenStreamLength;
+        int oldTokenStreamPointer = this.tokenStreamPointer;
+        this.tokenStream = tokens;
+        this.tokenStreamLength = tokens.size();
+        this.tokenStreamPointer = 0;
+        try {
+            ExpressionNode expressionNode = eatExpression();
+            if (moreTokens()) {
+                throw new ParseException(expressionString, peekToken().startpos, SpelMessage.MORE_INPUT, toString(nextToken()));
+            }
+            return expressionNode;
+        } finally {
+            this.tokenStream = oldTokenStream;
+            this.tokenStreamLength = oldTokenStreamLength;
+            this.tokenStreamPointer = oldTokenStreamPointer;
+        }
+    }
+
+    private int findTemplateExpressionEnd(String raw, int start, int limit, int offset) {
+        int depth = 0;
+        for (int i = start; i < limit; ) {
+            char chr = raw.charAt(i);
+            if (chr == '\'' || chr == '"') {
+                i = skipTemplateQuoted(raw, i, chr, limit, offset);
+                continue;
+            }
+            if (chr == '`') {
+                i = skipTemplateLiteral(raw, i, limit, offset);
+                continue;
+            }
+            if (chr == '/' && i + 1 < limit) {
+                char next = raw.charAt(i + 1);
+                if (next == '/') {
+                    i += 2;
+                    while (i < limit && !Tokenizer.isJSEOL(raw.charAt(i))) {
+                        i++;
+                    }
+                    continue;
+                }
+                if (next == '*') {
+                    i += 2;
+                    while (i + 1 < limit && !(raw.charAt(i) == '*' && raw.charAt(i + 1) == '/')) {
+                        i++;
+                    }
+                    if (i + 1 >= limit) {
+                        throw new ParseException(expressionString, offset + i, SpelMessage.MISSING_CHARACTER, "*/");
+                    }
+                    i += 2;
+                    continue;
+                }
+            }
+            if (chr == '{') {
+                depth++;
+                i++;
+                continue;
+            }
+            if (chr == '}') {
+                if (depth == 0) {
+                    return i;
+                }
+                depth--;
+                i++;
+                continue;
+            }
+            i++;
+        }
+        throw new ParseException(expressionString, offset + start - 2, SpelMessage.MISSING_CHARACTER, "}");
+    }
+
+    private int skipTemplateQuoted(String raw, int start, char quote, int limit, int offset) {
+        int i = start + 1;
+        while (i < limit) {
+            char chr = raw.charAt(i);
+            if (chr == '\\') {
+                i += 2;
+                continue;
+            }
+            if (chr == quote) {
+                return i + 1;
+            }
+            i++;
+        }
+        throw new ParseException(expressionString, offset + start, quote == '"' ?
+                SpelMessage.NON_TERMINATING_DOUBLE_QUOTED_STRING : SpelMessage.NON_TERMINATING_QUOTED_STRING);
+    }
+
+    private int skipTemplateLiteral(String raw, int start, int limit, int offset) {
+        int i = start + 1;
+        while (i < limit) {
+            char chr = raw.charAt(i);
+            if (chr == '\\') {
+                i += 2;
+                continue;
+            }
+            if (chr == '`') {
+                return i + 1;
+            }
+            if (chr == '$' && i + 1 < limit && raw.charAt(i + 1) == '{') {
+                i = findTemplateExpressionEnd(raw, i + 2, limit, offset) + 1;
+                continue;
+            }
+            i++;
+        }
+        throw new ParseException(expressionString, offset + start, SpelMessage.MISSING_CHARACTER, "`");
+    }
+
+    private String cookTemplateString(String raw, int start, int end, int offset) {
+        StringBuilder sb = new StringBuilder(end - start);
+        for (int i = start; i < end; ) {
+            char chr = raw.charAt(i++);
+            if (chr != '\\') {
+                sb.append(chr);
+                continue;
+            }
+            if (i >= end) {
+                throw new ParseException(expressionString, offset + i - 1, SpelMessage.UNEXPECTED_ESCAPE_CHAR);
+            }
+            char escaped = raw.charAt(i++);
+            switch (escaped) {
+                case 'a':
+                    sb.append('a');
+                    break;
+                case 'b':
+                    sb.append('\b');
+                    break;
+                case 'f':
+                    sb.append('\f');
+                    break;
+                case 'n':
+                    sb.append('\n');
+                    break;
+                case 'r':
+                    sb.append('\r');
+                    break;
+                case 't':
+                    sb.append('\t');
+                    break;
+                case 'v':
+                    sb.append('\u000B');
+                    break;
+                case '\\':
+                    sb.append('\\');
+                    break;
+                case '"':
+                    sb.append('"');
+                    break;
+                case '\'':
+                    sb.append('\'');
+                    break;
+                case '`':
+                    sb.append('`');
+                    break;
+                case '$':
+                    sb.append('$');
+                    break;
+                case '\n':
+                case '\u2028':
+                case '\u2029':
+                    break;
+                case '\r':
+                    if (i < end && raw.charAt(i) == '\n') {
+                        i++;
+                    }
+                    break;
+                case 'x':
+                    sb.append((char) parseTemplateEscapedInt(raw, i, 2, 16, offset));
+                    i += 2;
+                    break;
+                case 'u':
+                    sb.append((char) parseTemplateEscapedInt(raw, i, 4, 16, offset));
+                    i += 4;
+                    break;
+                default:
+                    if (escaped >= '0' && escaped <= '7') {
+                        sb.append((char) parseTemplateOctal(raw, i - 1, offset));
+                        i += 2;
+                    } else {
+                        throw new ParseException(expressionString, offset + i - 2, SpelMessage.UNEXPECTED_ESCAPE_CHAR);
+                    }
+            }
+        }
+        return sb.toString();
+    }
+
+    private int parseTemplateOctal(String raw, int start, int offset) {
+        int end = start + 3;
+        if (end > raw.length()) {
+            throw new ParseException(expressionString, offset + start, SpelMessage.UNEXPECTED_ESCAPE_CHAR);
+        }
+        return parseTemplateEscapedInt(raw, start, 3, 8, offset);
+    }
+
+    private int parseTemplateEscapedInt(String raw, int start, int length, int base, int offset) {
+        if (start + length > raw.length()) {
+            throw new ParseException(expressionString, offset + start, SpelMessage.UNEXPECTED_ESCAPE_CHAR);
+        }
+        int value = 0;
+        for (int i = 0; i < length; i++) {
+            int digit = Character.digit(raw.charAt(start + i), base);
+            if (digit < 0) {
+                throw new ParseException(expressionString, offset + start + i, SpelMessage.UNEXPECTED_ESCAPE_CHAR);
+            }
+            value = value * base + digit;
+        }
+        return value;
     }
 
     private InlineObject maybeEatInlineObject() {

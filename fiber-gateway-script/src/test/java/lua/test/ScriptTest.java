@@ -6,6 +6,7 @@ import io.fiber.net.common.json.IntNode;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.NullNode;
 import io.fiber.net.common.json.NumericNode;
+import io.fiber.net.common.json.TextNode;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Script;
@@ -78,6 +79,40 @@ public class ScriptTest {
 
         latch.await();
         executors.shutdownGracefully().awaitUninterruptibly();
+    }
+
+    @Test
+    public void shouldRenderTemplateStringInInterpreter() throws Throwable {
+        String script = "let n = 1;let m = 2;return `sum = ${m} + ${n}; equals ${m + n}`;";
+        JsonNode result = Script.compile(script).execForSync(NullNode.getInstance(), null);
+        Assert.assertEquals(TextNode.valueOf("sum = 2 + 1; equals 3"), result);
+    }
+
+    @Test
+    public void shouldRenderTemplateStringInAot() throws Throwable {
+        String script = "let n = 1;let m = 2;return `sum = ${m} + ${n}; equals ${m + n}`;";
+        JsonNode result = Script.aotCompile(script).execForSync(NullNode.getInstance(), null);
+        Assert.assertEquals(TextNode.valueOf("sum = 2 + 1; equals 3"), result);
+    }
+
+    @Test
+    public void shouldKeepTemplateStringAsStringConcatenation() throws Throwable {
+        JsonNode result = Script.compile("return `${1}${2}`;").execForSync(NullNode.getInstance(), null);
+        Assert.assertEquals(TextNode.valueOf("12"), result);
+    }
+
+    @Test
+    public void shouldSupportTemplateEscapesAndMultilineText() throws Throwable {
+        String script = "let m = 2;return `a\\`\\${m}\n${m}`;";
+        JsonNode result = Script.compile(script).execForSync(NullNode.getInstance(), null);
+        Assert.assertEquals(TextNode.valueOf("a`${m}\n2"), result);
+    }
+
+    @Test
+    public void shouldParseNestedTemplateExpressionBody() throws Throwable {
+        String script = "return `value: ${{a:\"}\"}.a}`;";
+        JsonNode result = Script.compile(script).execForSync(NullNode.getInstance(), null);
+        Assert.assertEquals(TextNode.valueOf("value: }"), result);
     }
 
 

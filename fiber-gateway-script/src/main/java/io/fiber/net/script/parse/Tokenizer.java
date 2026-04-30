@@ -209,6 +209,9 @@ public class Tokenizer {
                     case '"':
                         scanString();
                         break;
+                    case '`':
+                        scanTemplate();
+                        break;
                     case '\\':
                         throw new ParseException(expressionString, pos, SpelMessage.UNEXPECTED_ESCAPE_CHAR.formatMessagePos(pos));
                     default:
@@ -365,6 +368,116 @@ public class Tokenizer {
         }
         pos++;
         tokens.add(new Token(TokenKind.LITERAL_STRING, subarray(start, pos), start, pos));
+    }
+
+    private void scanTemplate() {
+        int start = pos++;
+        while (pos < max) {
+            char chr = toProcess.charAt(pos);
+            if (chr == '\\') {
+                pos += 2;
+                continue;
+            }
+            if (chr == '`') {
+                pos++;
+                tokens.add(new Token(TokenKind.LITERAL_TEMPLATE, subarray(start, pos), start, pos));
+                return;
+            }
+            if (chr == '$' && pos + 1 < max && toProcess.charAt(pos + 1) == '{') {
+                pos = scanTemplateExpression(pos + 2);
+                continue;
+            }
+            pos++;
+        }
+        throw new ParseException(expressionString, start, SpelMessage.MISSING_CHARACTER, "`");
+    }
+
+    private int scanTemplateExpression(int p) {
+        int depth = 0;
+        while (p < max) {
+            char chr = toProcess.charAt(p);
+            if (chr == '\'' || chr == '"') {
+                p = skipQuotedString(p, chr);
+                continue;
+            }
+            if (chr == '`') {
+                p = skipTemplateString(p);
+                continue;
+            }
+            if (chr == '/' && p + 1 < max) {
+                char next = toProcess.charAt(p + 1);
+                if (next == '/') {
+                    p += 2;
+                    while (p < max && !isJSEOL(toProcess.charAt(p))) {
+                        p++;
+                    }
+                    continue;
+                }
+                if (next == '*') {
+                    p += 2;
+                    while (p + 1 < max && !(toProcess.charAt(p) == '*' && toProcess.charAt(p + 1) == '/')) {
+                        p++;
+                    }
+                    if (p + 1 >= max) {
+                        throw new ParseException(expressionString, p, SpelMessage.MISSING_CHARACTER, "*/");
+                    }
+                    p += 2;
+                    continue;
+                }
+            }
+            if (chr == '{') {
+                depth++;
+                p++;
+                continue;
+            }
+            if (chr == '}') {
+                if (depth == 0) {
+                    return p + 1;
+                }
+                depth--;
+                p++;
+                continue;
+            }
+            p++;
+        }
+        throw new ParseException(expressionString, p, SpelMessage.MISSING_CHARACTER, "}");
+    }
+
+    private int skipQuotedString(int p, char quote) {
+        p++;
+        while (p < max) {
+            char chr = toProcess.charAt(p);
+            if (chr == '\\') {
+                p += 2;
+                continue;
+            }
+            if (chr == quote) {
+                return p + 1;
+            }
+            p++;
+        }
+        throw new ParseException(expressionString, p, quote == '"' ?
+                SpelMessage.NON_TERMINATING_DOUBLE_QUOTED_STRING : SpelMessage.NON_TERMINATING_QUOTED_STRING);
+    }
+
+    private int skipTemplateString(int p) {
+        p++;
+        while (p < max) {
+            char chr = toProcess.charAt(p);
+            if (chr == '\\') {
+                p += 2;
+                continue;
+            }
+            if (chr == '`') {
+                return p + 1;
+            }
+            if (chr == '$' && p + 1 < max && toProcess.charAt(p + 1) == '{') {
+                p = scanTemplateExpression(p + 2);
+                continue;
+            }
+            p++;
+        }
+        throw new ParseException(expressionString, p, SpelMessage.MISSING_CHARACTER, "`");
     }
 
 //	REAL_LITERAL :

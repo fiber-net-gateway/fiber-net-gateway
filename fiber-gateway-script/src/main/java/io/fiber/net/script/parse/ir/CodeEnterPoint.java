@@ -388,16 +388,22 @@ public class CodeEnterPoint {
 
         if (in instanceof FunctionCall) {
             in.setDist(ResDist.POP);
-            addCode(Pop.of(false));
+            Pop pop = Pop.of(false);
+            markUse(in, pop, UseKind.POP_VALUE);
+            addCode(pop);
             return;
         }
 
         if (in instanceof ConstCall) {
             in.setDist(ResDist.POP);
-            addCode(Pop.of(false));
+            Pop pop = Pop.of(false);
+            markUse(in, pop, UseKind.POP_VALUE);
+            addCode(pop);
             return;
         }
-        addCode(Pop.of(true));
+        Pop pop = Pop.of(true);
+        markUse(in, pop, UseKind.POP_VALUE);
+        addCode(pop);
     }
 
     public void loadVar(int varIdx) {
@@ -407,7 +413,9 @@ public class CodeEnterPoint {
     }
 
     public void storeVar(int varIdx) {
-        StoreVar var = StoreVar.of(varIdx, ins[--sp]);
+        Exp in = ins[--sp];
+        StoreVar var = StoreVar.of(varIdx, in);
+        markUse(in, var, UseKind.STORE_VALUE);
         ins[sp] = null;
         addCode(var);
     }
@@ -508,12 +516,16 @@ public class CodeEnterPoint {
             Assert.isTrue(argCount == 1);
             Assert.isTrue(sp >= 1);
             FunctionCall fc = FunctionCall.spread(funcId, ins[sp - 1], asyncPoint);
+            markUse(ins[sp - 1], fc, UseKind.CALL_SPREAD_ARG);
             addCode(ins[sp - 1] = fc);
             return fc;
         } else {
             sp -= argCount;
             Assert.isTrue(sp >= 0);
             FunctionCall fc = FunctionCall.of(funcId, Arrays.copyOfRange(ins, sp, sp + argCount), asyncPoint);
+            for (int i = 0; i < argCount; i++) {
+                markUse(ins[sp + i], fc, UseKind.CALL_ARG);
+            }
             addCode(ins[sp] = fc);
             this.sp = sp + 1;
             return fc;
@@ -575,6 +587,7 @@ public class CodeEnterPoint {
     public void conditionalJump(boolean trueJump, CodeEnterPoint target) {
         Exp in = ins[--sp];
         ConditionalJump instrument = ConditionalJump.of(in, target, trueJump);
+        markUse(in, instrument, UseKind.CONDITION_VALUE);
         if (optimizeConditionJump(in)) {
             instrument.setOptimiseIf();
         }
@@ -598,7 +611,10 @@ public class CodeEnterPoint {
     }
 
     public void throwExp() {
-        addCode(Throw.of(ins[--sp]));
+        Exp in = ins[--sp];
+        Throw instrument = Throw.of(in);
+        markUse(in, instrument, UseKind.THROW_VALUE);
+        addCode(instrument);
     }
 
     public void intoCatch(int expIdx) {
@@ -607,7 +623,10 @@ public class CodeEnterPoint {
 
     public void ret() {
         if (sp > 0) {
-            addCode(Return.of(ins[--sp]));
+            Exp in = ins[--sp];
+            Return instrument = Return.of(in);
+            markUse(in, instrument, UseKind.RETURN_VALUE);
+            addCode(instrument);
         } else {
             vRet();
         }
@@ -621,6 +640,22 @@ public class CodeEnterPoint {
         return codes;
     }
 
+    void planDirectCalls(ClzAssembler clzAssembler) {
+        for (Instrument code : codes) {
+            if (!(code instanceof FunctionCall)) {
+                continue;
+            }
+            FunctionCall fc = (FunctionCall) code;
+            if (!clzAssembler.canDirectPlannedCall(fc)) {
+                continue;
+            }
+            Exp[] args = fc.getArgs();
+            for (Exp arg : args) {
+                markInlineTree(arg, fc);
+            }
+        }
+    }
+
     void asmCodes(ClzAssembler clzAssembler) {
         clzAssembler.visitLabel(getStartLabel());
 
@@ -630,6 +665,10 @@ public class CodeEnterPoint {
 
         int sp = getInitStackSize();
         for (Instrument code : getCodes()) {
+            if (code instanceof Exp && ((Exp) code).isInlineEmitted()) {
+                sp += stackChange(code);
+                continue;
+            }
             sp += code.assemble(clzAssembler);
         }
         clzAssembler.visitLabel(getEndLabel());
@@ -648,6 +687,83 @@ public class CodeEnterPoint {
 
     Label getStartLabel() {
         return startLabel;
+    }
+
+    private static void markUse(Exp exp, Instrument owner, UseKind useKind) {
+        exp.setEmitOwner(owner);
+        exp.setUseKind(useKind);
+    }
+
+    private static void markInlineTree(Exp exp, Instrument owner) {
+        exp.setEmitOwner(owner);
+        exp.setStorageKind(StorageKind.JVM_STACK);
+        exp.setInlineEmitted(true);
+        if (exp instanceof Binary) {
+            Binary binary = (Binary) exp;
+            markInlineTree(binary.getLeft(), exp);
+            markInlineTree(binary.getRight(), exp);
+        } else if (exp instanceof Unary) {
+            markInlineTree(((Unary) exp).getExp(), exp);
+        } else if (exp instanceof PropGet) {
+            markInlineTree(((PropGet) exp).getParent(), exp);
+        } else if (exp instanceof IndexGet) {
+            IndexGet indexGet = (IndexGet) exp;
+            markInlineTree(indexGet.getParent(), exp);
+            markInlineTree(indexGet.getKey(), exp);
+        } else if (exp instanceof IndexSet) {
+            IndexSet indexSet = (IndexSet) exp;
+            markInlineTree(indexSet.getParent(), exp);
+            markInlineTree(indexSet.getKey(), exp);
+            markInlineTree(indexSet.getAlien(), exp);
+        } else if (exp instanceof IndexSet1) {
+            IndexSet1 indexSet = (IndexSet1) exp;
+            markInlineTree(indexSet.getParent(), exp);
+            markInlineTree(indexSet.getKey(), exp);
+            markInlineTree(indexSet.getAlien(), exp);
+        } else if (exp instanceof PropSet) {
+            PropSet propSet = (PropSet) exp;
+            markInlineTree(propSet.getParent(), exp);
+            markInlineTree(propSet.getAlien(), exp);
+        } else if (exp instanceof PropSet_1) {
+            PropSet_1 propSet = (PropSet_1) exp;
+            markInlineTree(propSet.getParent(), exp);
+            markInlineTree(propSet.getAlien(), exp);
+        } else if (exp instanceof PushArray) {
+            markInlineTree(((PushArray) exp).getAddition(), exp);
+        } else if (exp instanceof ExpObjArray) {
+            markInlineTree(((ExpObjArray) exp).getAddition(), exp);
+        } else if (exp instanceof FunctionCall) {
+            FunctionCall fc = (FunctionCall) exp;
+            if (fc.isSpread()) {
+                markInlineTree(fc.getSpreadArgs(), exp);
+            } else {
+                for (Exp arg : fc.getArgs()) {
+                    markInlineTree(arg, exp);
+                }
+            }
+        }
+    }
+
+    private static int stackChange(Instrument code) {
+        if (code instanceof LoadConst || code instanceof LoadRoot || code instanceof LoadVar
+                || code instanceof NewObjArray || code instanceof ConstCall || code instanceof IterateNext) {
+            return 1;
+        }
+        if (code instanceof Binary || code instanceof IndexGet || code instanceof IndexSet
+                || code instanceof IndexSet1 || code instanceof PushArray || code instanceof ExpObjArray) {
+            return -1;
+        }
+        if (code instanceof PropSet || code instanceof PropSet_1) {
+            return -1;
+        }
+        if (code instanceof FunctionCall) {
+            FunctionCall fc = (FunctionCall) code;
+            return fc.isSpread() ? 0 : -fc.getArgCount() + 1;
+        }
+        if (code instanceof Unary || code instanceof PropGet) {
+            return 0;
+        }
+        throw new IllegalStateException("inline unsupported instrument: " + code.getClass());
     }
 
 

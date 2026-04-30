@@ -19,6 +19,14 @@ class FunctionCall extends Exp {
         return args.length;
     }
 
+    Exp[] getArgs() {
+        return args;
+    }
+
+    Exp getSpreadArgs() {
+        return spreadArgs;
+    }
+
     int getFuncId() {
         return funcId;
     }
@@ -61,6 +69,10 @@ class FunctionCall extends Exp {
 
     @Override
     int assemble(ClzAssembler assembler) {
+        if (assembler.canDirectPlannedCall(this)) {
+            assembler.directPlannedFuncCall(this);
+            return isSpread() ? 0 : -args.length + 1;
+        }
         for (int i = getStashStackSize() - 1; i >= 0; i--) {
             assembler.stashStack(i);
         }

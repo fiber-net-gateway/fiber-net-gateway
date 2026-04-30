@@ -674,6 +674,111 @@ public class ClzAssembler {
         return direct != null && direct.directOwner() != null;
     }
 
+    boolean canDirectPlannedCall(FunctionCall fc) {
+        if (fc.isSpread()) {
+            return false;
+        }
+        DirectReflectInvoker direct = getDirectReflect(fc);
+        if (direct == null || !canPlanDirectArgs(direct, fc.getArgCount())) {
+            return false;
+        }
+        for (Exp arg : fc.getArgs()) {
+            if (!isInlineSafe(arg)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private DirectReflectInvoker getDirectReflect(FunctionCall fc) {
+        if (fc.isAsync()) {
+            ExtOperand.OperandKey<Library.AsyncFunction> key = asyncFunctionExtOperand.getKeyList().get(fc.getFuncId());
+            return directReflect(key.getKey());
+        }
+        ExtOperand.OperandKey<Library.Function> key = functionExtOperand.getKeyList().get(fc.getFuncId());
+        return directReflect(key.getKey());
+    }
+
+    private boolean canPlanDirectArgs(DirectReflectInvoker direct, int argCount) {
+        int argc = 0;
+        int[] plan = direct.directArgPlan();
+        for (int item : plan) {
+            switch (item) {
+                case DirectReflectInvoker.ARG:
+                    argc++;
+                    break;
+                case DirectReflectInvoker.CTX:
+                case DirectReflectInvoker.HANDLE:
+                    break;
+                case DirectReflectInvoker.ARGS:
+                case DirectReflectInvoker.REST:
+                    return false;
+                default:
+                    throw new IllegalStateException("unknown argument plan");
+            }
+        }
+        return argc == argCount;
+    }
+
+    private boolean isInlineSafe(Exp exp) {
+        if (exp instanceof StackRef || exp instanceof Dump || exp instanceof PushArray || exp instanceof ExpObjArray
+                || exp instanceof IterateNext) {
+            return false;
+        }
+        if (exp instanceof ConstCall) {
+            return !((ConstCall) exp).isAsync();
+        }
+        if (exp instanceof FunctionCall) {
+            FunctionCall fc = (FunctionCall) exp;
+            if (fc.isAsync() || fc.isSpread()) {
+                return false;
+            }
+            DirectReflectInvoker direct = getDirectReflect(fc);
+            if (direct == null || !canPlanDirectArgs(direct, fc.getArgCount())) {
+                return false;
+            }
+            for (Exp arg : fc.getArgs()) {
+                if (!isInlineSafe(arg)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (exp instanceof Binary) {
+            Binary binary = (Binary) exp;
+            return isInlineSafe(binary.getLeft()) && isInlineSafe(binary.getRight());
+        }
+        if (exp instanceof Unary) {
+            return isInlineSafe(((Unary) exp).getExp());
+        }
+        if (exp instanceof PropGet) {
+            return isInlineSafe(((PropGet) exp).getParent());
+        }
+        if (exp instanceof IndexGet) {
+            IndexGet indexGet = (IndexGet) exp;
+            return isInlineSafe(indexGet.getParent()) && isInlineSafe(indexGet.getKey());
+        }
+        if (exp instanceof IndexSet) {
+            IndexSet indexSet = (IndexSet) exp;
+            return isInlineSafe(indexSet.getParent()) && isInlineSafe(indexSet.getKey())
+                    && isInlineSafe(indexSet.getAlien());
+        }
+        if (exp instanceof IndexSet1) {
+            IndexSet1 indexSet = (IndexSet1) exp;
+            return isInlineSafe(indexSet.getParent()) && isInlineSafe(indexSet.getKey())
+                    && isInlineSafe(indexSet.getAlien());
+        }
+        if (exp instanceof PropSet) {
+            PropSet propSet = (PropSet) exp;
+            return isInlineSafe(propSet.getParent()) && isInlineSafe(propSet.getAlien());
+        }
+        if (exp instanceof PropSet_1) {
+            PropSet_1 propSet = (PropSet_1) exp;
+            return isInlineSafe(propSet.getParent()) && isInlineSafe(propSet.getAlien());
+        }
+        return exp instanceof LoadConst || exp instanceof LoadRoot || exp instanceof LoadVar || exp instanceof NewObjArray;
+    }
+
     private void putDirectOwner(MethodVisitor methodVisitor, int operandIdx, String ownerFieldName) {
         methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
         constBiPush(methodVisitor, operandIdx);
@@ -1188,6 +1293,27 @@ public class ClzAssembler {
         checkAsyncStateAndRestoreStack(fc.getRestoreStackSize(), fc.getAsyncPoint(), fc.getDist());
     }
 
+    void directPlannedFuncCall(FunctionCall fc) {
+        if (fc.isAsync()) {
+            for (int i = fc.getRestoreStackSize() - 1; i >= 0; i--) {
+                stashStack(i);
+            }
+            ExtOperand.OperandKey<Library.AsyncFunction> key = asyncFunctionExtOperand.getKeyList().get(fc.getFuncId());
+            emitDirectAsyncCall(directReflect(key.getKey()),
+                    hasDirectOwner(key.getKey()) ? getAsyncFuncOwnerName(key) : null,
+                    fc
+            );
+            checkAsyncStateAndRestoreStack(fc.getRestoreStackSize(), fc.getAsyncPoint(), fc.getDist());
+            return;
+        }
+        ExtOperand.OperandKey<Library.Function> key = functionExtOperand.getKeyList().get(fc.getFuncId());
+        emitDirectSyncCall(directReflect(key.getKey()),
+                hasDirectOwner(key.getKey()) ? getSyncFuncOwnerName(key) : null,
+                fc.getDist(),
+                fc
+        );
+    }
+
     private void checkAsyncStateAndRestoreStack(int restoreStackSize, int asyncPointId, ResDist dist) {
         Label returnLabel = new Label();
         visitor.visitJumpInsn(Opcodes.IFEQ, returnLabel);
@@ -1322,6 +1448,38 @@ public class ClzAssembler {
         visitor.visitLabel(success);
     }
 
+    private void emitDirectSyncCall(DirectReflectInvoker direct, String ownerFieldName, ResDist dist, FunctionCall fc) {
+        Label tryBegin = new Label();
+        Label tryEnd = new Label();
+        Label catchLabel = new Label();
+        Label success = new Label();
+        visitor.visitLabel(tryBegin);
+        emitDirectInvocation(direct, ownerFieldName, fc);
+        visitor.visitLabel(tryEnd);
+        if (dist != ResDist.POP) {
+            visitor.visitMethodInsn(
+                    Opcodes.INVOKESTATIC,
+                    internalClzName,
+                    "nullNode",
+                    "(Lio/fiber/net/common/json/JsonNode;)Lio/fiber/net/common/json/JsonNode;",
+                    false
+            );
+        } else {
+            pop();
+        }
+        visitor.visitJumpInsn(Opcodes.GOTO, success);
+        visitor.visitLabel(catchLabel);
+        visitor.visitMethodInsn(Opcodes.INVOKESTATIC,
+                SCRIPT_EXEC_EXCEPTION_NAME,
+                "fromThrowable",
+                "(Ljava/lang/Throwable;)" + SCRIPT_EXEC_DESC,
+                false
+        );
+        visitor.visitInsn(Opcodes.ATHROW);
+        visitor.visitTryCatchBlock(tryBegin, tryEnd, catchLabel, "java/lang/Throwable");
+        visitor.visitLabel(success);
+    }
+
     private void emitDirectAsyncCall(DirectReflectInvoker direct, String ownerFieldName) {
         Label running = new Label();
         visitor.visitVarInsn(Opcodes.ALOAD, 0);
@@ -1393,6 +1551,77 @@ public class ClzAssembler {
         visitor.visitLabel(end);
     }
 
+    private void emitDirectAsyncCall(DirectReflectInvoker direct, String ownerFieldName, FunctionCall fc) {
+        Label running = new Label();
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitFieldInsn(Opcodes.GETFIELD, internalClzName, "state", "I");
+        constBiPush(visitor, AbstractVm.STAT_RUNNING);
+        visitor.visitJumpInsn(Opcodes.IF_ICMPEQ, running);
+        visitor.visitTypeInsn(Opcodes.NEW, "java/lang/IllegalStateException");
+        visitor.visitInsn(Opcodes.DUP);
+        visitor.visitLdcInsn("vm not running??");
+        visitor.visitMethodInsn(Opcodes.INVOKESPECIAL,
+                "java/lang/IllegalStateException",
+                "<init>",
+                "(Ljava/lang/String;)V",
+                false
+        );
+        visitor.visitInsn(Opcodes.ATHROW);
+
+        visitor.visitLabel(running);
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        constBiPush(visitor, AbstractVm.STAT_INVOKING);
+        visitor.visitFieldInsn(Opcodes.PUTFIELD, internalClzName, "state", "I");
+
+        Label tryBegin = new Label();
+        Label tryEnd = new Label();
+        Label catchLabel = new Label();
+        Label afterInvoke = new Label();
+        visitor.visitLabel(tryBegin);
+        emitDirectInvocation(direct, ownerFieldName, fc);
+        visitor.visitLabel(tryEnd);
+        visitor.visitJumpInsn(Opcodes.GOTO, afterInvoke);
+        visitor.visitLabel(catchLabel);
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitInsn(Opcodes.SWAP);
+        visitor.visitMethodInsn(Opcodes.INVOKESTATIC,
+                SCRIPT_EXEC_EXCEPTION_NAME,
+                "fromThrowable",
+                "(Ljava/lang/Throwable;)" + SCRIPT_EXEC_DESC,
+                false
+        );
+        visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                SUPER_NAME,
+                "throwErr",
+                "(" + SCRIPT_EXEC_DESC + ")V",
+                false
+        );
+        visitor.visitTryCatchBlock(tryBegin, tryEnd, catchLabel, "java/lang/Throwable");
+        visitor.visitLabel(afterInvoke);
+
+        Label stillInvoking = new Label();
+        Label end = new Label();
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitFieldInsn(Opcodes.GETFIELD, internalClzName, "state", "I");
+        constBiPush(visitor, AbstractVm.STAT_INVOKING);
+        visitor.visitJumpInsn(Opcodes.IF_ICMPEQ, stillInvoking);
+        visitor.visitInsn(Opcodes.ICONST_0);
+        visitor.visitJumpInsn(Opcodes.GOTO, end);
+
+        visitor.visitLabel(stillInvoking);
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        constBiPush(visitor, AbstractVm.STAT_ASYNC);
+        visitor.visitFieldInsn(Opcodes.PUTFIELD, internalClzName, "state", "I");
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitInsn(Opcodes.ACONST_NULL);
+        visitor.visitFieldInsn(Opcodes.PUTFIELD, internalClzName, "rtValue", JSON_FIELD_TYPE_DESC);
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitInsn(Opcodes.ACONST_NULL);
+        visitor.visitFieldInsn(Opcodes.PUTFIELD, internalClzName, "rtError", SCRIPT_EXEC_DESC);
+        visitor.visitInsn(Opcodes.ICONST_1);
+        visitor.visitLabel(end);
+    }
+
     private void emitDirectInvocation(DirectReflectInvoker direct, String ownerFieldName) {
         Method method = direct.directMethod();
         boolean isStatic = Modifier.isStatic(method.getModifiers());
@@ -1406,6 +1635,28 @@ public class ClzAssembler {
             visitor.visitTypeInsn(Opcodes.CHECKCAST, Type.getInternalName(declaring));
         }
         emitDirectArgs(direct.directArgPlan());
+        int opcode = isStatic ? Opcodes.INVOKESTATIC : (declaring.isInterface() ? Opcodes.INVOKEINTERFACE : Opcodes.INVOKEVIRTUAL);
+        visitor.visitMethodInsn(opcode,
+                Type.getInternalName(declaring),
+                method.getName(),
+                Type.getMethodDescriptor(method),
+                declaring.isInterface()
+        );
+    }
+
+    private void emitDirectInvocation(DirectReflectInvoker direct, String ownerFieldName, FunctionCall fc) {
+        Method method = direct.directMethod();
+        boolean isStatic = Modifier.isStatic(method.getModifiers());
+        Class<?> declaring = method.getDeclaringClass();
+        if (!isStatic) {
+            visitor.visitFieldInsn(Opcodes.GETSTATIC,
+                    internalClzName,
+                    ownerFieldName,
+                    "Ljava/lang/Object;"
+            );
+            visitor.visitTypeInsn(Opcodes.CHECKCAST, Type.getInternalName(declaring));
+        }
+        emitDirectPlannedArgs(direct.directArgPlan(), fc.getArgs());
         int opcode = isStatic ? Opcodes.INVOKESTATIC : (declaring.isInterface() ? Opcodes.INVOKEINTERFACE : Opcodes.INVOKEVIRTUAL);
         visitor.visitMethodInsn(opcode,
                 Type.getInternalName(declaring),
@@ -1447,6 +1698,98 @@ public class ClzAssembler {
                 default:
                     throw new IllegalStateException("unknown argument plan");
             }
+        }
+    }
+
+    private void emitDirectPlannedArgs(int[] plan, Exp[] args) {
+        int argIndex = 0;
+        for (int item : plan) {
+            switch (item) {
+                case DirectReflectInvoker.CTX:
+                case DirectReflectInvoker.HANDLE:
+                    visitor.visitVarInsn(Opcodes.ALOAD, 0);
+                    break;
+                case DirectReflectInvoker.ARG:
+                    emitExp(args[argIndex++]);
+                    break;
+                default:
+                    throw new IllegalStateException("unsupported planned argument");
+            }
+        }
+    }
+
+    private void emitExp(Exp exp) {
+        if (exp instanceof LoadConst) {
+            loadConst(((LoadConst) exp).getConstValIdx());
+        } else if (exp instanceof LoadRoot) {
+            loadRoot();
+        } else if (exp instanceof LoadVar) {
+            loadVar(((LoadVar) exp).getLoadVar());
+        } else if (exp instanceof NewObjArray) {
+            if (((NewObjArray) exp).isObj()) {
+                newObj();
+            } else {
+                newArray();
+            }
+        } else if (exp instanceof ConstCall) {
+            ConstCall constCall = (ConstCall) exp;
+            if (constCall.isAsync()) {
+                throw new IllegalStateException("async const cannot be inlined");
+            }
+            constCall(constCall);
+        } else if (exp instanceof FunctionCall) {
+            FunctionCall fc = (FunctionCall) exp;
+            if (fc.isSpread() || fc.isAsync()) {
+                throw new IllegalStateException("spread/async function cannot be inlined");
+            }
+            if (!canDirectPlannedCall(fc)) {
+                for (Exp arg : fc.getArgs()) {
+                    emitExp(arg);
+                }
+            }
+            fc.assemble(this);
+        } else if (exp instanceof Binary) {
+            Binary binary = (Binary) exp;
+            emitExp(binary.getLeft());
+            emitExp(binary.getRight());
+            binary(binary.getType(), binary.isOptimiseIf());
+        } else if (exp instanceof Unary) {
+            Unary unary = (Unary) exp;
+            emitExp(unary.getExp());
+            unary(unary.getType(), unary.isOptimiseIf());
+        } else if (exp instanceof PropGet) {
+            PropGet propGet = (PropGet) exp;
+            emitExp(propGet.getParent());
+            propGet(propGet.getKeyId());
+        } else if (exp instanceof IndexGet) {
+            IndexGet indexGet = (IndexGet) exp;
+            emitExp(indexGet.getParent());
+            emitExp(indexGet.getKey());
+            indexGet();
+        } else if (exp instanceof IndexSet) {
+            IndexSet indexSet = (IndexSet) exp;
+            emitExp(indexSet.getParent());
+            emitExp(indexSet.getKey());
+            emitExp(indexSet.getAlien());
+            indexSet();
+        } else if (exp instanceof IndexSet1) {
+            IndexSet1 indexSet = (IndexSet1) exp;
+            emitExp(indexSet.getParent());
+            emitExp(indexSet.getKey());
+            emitExp(indexSet.getAlien());
+            indexSet1();
+        } else if (exp instanceof PropSet) {
+            PropSet propSet = (PropSet) exp;
+            emitExp(propSet.getParent());
+            emitExp(propSet.getAlien());
+            propSet(propSet.getKeyId());
+        } else if (exp instanceof PropSet_1) {
+            PropSet_1 propSet = (PropSet_1) exp;
+            emitExp(propSet.getParent());
+            emitExp(propSet.getAlien());
+            propSet1(propSet.getKeyId());
+        } else {
+            throw new IllegalStateException("unsupported inline exp: " + exp.getClass());
         }
     }
 

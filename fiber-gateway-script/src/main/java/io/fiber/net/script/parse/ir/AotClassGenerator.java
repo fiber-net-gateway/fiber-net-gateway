@@ -378,6 +378,9 @@ public class AotClassGenerator {
             maxStashStack = Integer.max(enterPoint.getStackStashSize(), maxStashStack);
         }
         clzAssembler.setMaxStashStack(maxStashStack);
+        for (Map.Entry<Integer, CodeEnterPoint> entry : jumpPc.entrySet()) {
+            entry.getValue().planDirectCalls(clzAssembler);
+        }
 
         if (compiled.getVarTableSize() == 0) {
             return;

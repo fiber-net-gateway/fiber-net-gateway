@@ -10,12 +10,11 @@ import io.fiber.net.http.ClientResponse;
 import io.fiber.net.http.HttpClient;
 import io.fiber.net.http.HttpHost;
 import io.fiber.net.script.ExecutionContext;
-import io.fiber.net.script.FunctionCallArgs;
-import io.fiber.net.script.FunctionParam;
-import io.fiber.net.script.FunctionSignature;
 import io.fiber.net.script.Library;
-import io.fiber.net.script.ResolvedFunc;
 import io.fiber.net.script.ScriptExecException;
+import io.fiber.net.script.lib.ScriptDirective;
+import io.fiber.net.script.lib.ScriptFunction;
+import io.fiber.net.script.lib.ScriptParam;
 import io.fiber.net.script.run.Compares;
 import io.fiber.net.server.HttpExchange;
 import io.netty.buffer.ByteBuf;
@@ -26,76 +25,57 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpUtil;
 
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
-public class HttpFunc implements Library.DirectiveDef {
+@ScriptDirective("http")
+public class HttpFunc {
 
     private final HttpHost httpHost;
     private final HttpClient httpClient;
-    private final Map<String, HttpDynamicFunc> fc = new HashMap<>();
 
     public HttpFunc(HttpHost httpHost, HttpClient httpClient) {
         this.httpHost = httpHost;
         this.httpClient = httpClient;
-        fc.put("request", new SendFunc());
-        fc.put("proxyPass", new ProxyFunc());
     }
 
-    @Override
-    public ResolvedFunc resolveFunc(String directive, String function, FunctionCallArgs args) {
-        Library.AsyncFunction asyncFunction = fc.get(function);
-        if (asyncFunction == null) {
-            return null;
-        }
-        FunctionSignature signature = asyncFunction.signature();
-        if (signature == null) {
-            signature = new FunctionSignature(directive + "." + function, false, FunctionParam.variadic("args"));
-        } else if (!signature.matches(args)) {
-            return null;
-        }
-        return ResolvedFunc.async(signature, asyncFunction);
-    }
+    @ScriptFunction(name = "request", constExpr = false, params = {
+            @ScriptParam(value = "options", optional = true, defaultValue = "null")
+    })
+    public void request(ExecutionContext context, Library.AsyncHandle handle, JsonNode param) {
+        ClientExchange exchange = httpClient.refer(httpHost);
+        setMethod(param, HttpMethod.GET, exchange);
+        setUri(param, "/", null, exchange);
+        addHeader(exchange, param);
+        setTimeout(param, exchange);
+        addBody(param, exchange);
+        boolean includeHeaders = param.path("includeHeaders").asBoolean();
+        exchange.sendForResp().subscribe((response, e) -> {
+            if (e != null) {
+                handle.throwErr(ScriptExecException.fromThrowable(e));
+                return;
+            }
+            ObjectNode nodes = JsonUtil.createObjectNode();
+            nodes.put("status", response.status());
+            if (includeHeaders) {
+                nodes.set("headers", readHeaders(response));
+            }
 
-    private class SendFunc implements HttpDynamicFunc {
-        @Override
-        public void call(ExecutionContext context, Library.Arguments args, Library.AsyncHandle handle) {
-            JsonNode param = args.getArgCnt() > 0 ? args.getArgVal(0) : NullNode.getInstance();
-            ClientExchange exchange = httpClient.refer(httpHost);
-            setMethod(param, HttpMethod.GET, exchange);
-            setUri(param, "/", null, exchange);
-            addHeader(exchange, param);
-            setTimeout(param, exchange);
-            addBody(param, exchange);
-            boolean includeHeaders = param.path("includeHeaders").asBoolean();
-            exchange.sendForResp().subscribe((response, e) -> {
-                if (e != null) {
-                    handle.throwErr(ScriptExecException.fromThrowable(e));
+            response.readFullRespBody().subscribe((buf, e2) -> {
+                if (e2 != null) {
+                    handle.throwErr(ScriptExecException.fromThrowable(e2));
                     return;
                 }
-                ObjectNode nodes = JsonUtil.createObjectNode();
-                nodes.put("status", response.status());
-                if (includeHeaders) {
-                    nodes.set("headers", readHeaders(response));
+                if (buf != null) {
+                    byte[] bytes = ByteBufUtil.getBytes(buf);
+                    buf.release();
+                    nodes.put("body", bytes);
+                } else {
+                    nodes.set("body", BinaryNode.getEmpty());
                 }
-
-                response.readFullRespBody().subscribe((buf, e2) -> {
-                    if (e2 != null) {
-                        handle.throwErr(ScriptExecException.fromThrowable(e2));
-                        return;
-                    }
-                    if (buf != null) {
-                        byte[] bytes = ByteBufUtil.getBytes(buf);
-                        buf.release();
-                        nodes.put("body", bytes);
-                    } else {
-                        nodes.set("body", BinaryNode.getEmpty());
-                    }
-                    handle.returnVal(nodes);
-                });
+                handle.returnVal(nodes);
             });
-        }
+        });
     }
 
     private static void addBody(JsonNode param, ClientExchange exchange) {
@@ -270,61 +250,58 @@ public class HttpFunc implements Library.DirectiveDef {
         exchange.setUri(uri);
     }
 
-
-    private class ProxyFunc implements HttpDynamicFunc {
-
-        @Override
-        public void call(ExecutionContext context, Library.Arguments args, Library.AsyncHandle handle) {
-            HttpExchange httpExchange = HttpDynamicFunc.httpExchange(context);
-            JsonNode param = args.getArgCnt() > 0 ? args.getArgVal(0) : NullNode.getInstance();
-            ClientExchange exchange = httpClient.refer(httpHost);
-            setMethod(param, httpExchange.getRequestMethod(), exchange);
-            setUri(param, httpExchange.getPath(), httpExchange.getQuery(), exchange);
-            setTimeout(param, exchange);
-            Iterator<Map.Entry<CharSequence, CharSequence>> iterator = httpExchange.getRequestHeaderIterator();
-            while (iterator.hasNext()) {
-                Map.Entry<CharSequence, CharSequence> entry = iterator.next();
-                CharSequence key;
-                if (Headers.getHopHeaders(key = entry.getKey()) == null) {
-                    exchange.addHeaderUnsafe(key, entry.getValue());
-                }
+    @ScriptFunction(name = "proxyPass", constExpr = false, params = {
+            @ScriptParam(value = "options", optional = true, defaultValue = "null")
+    })
+    public void proxyPass(ExecutionContext context, Library.AsyncHandle handle, JsonNode param) {
+        HttpExchange httpExchange = HttpDynamicFunc.httpExchange(context);
+        ClientExchange exchange = httpClient.refer(httpHost);
+        setMethod(param, httpExchange.getRequestMethod(), exchange);
+        setUri(param, httpExchange.getPath(), httpExchange.getQuery(), exchange);
+        setTimeout(param, exchange);
+        Iterator<Map.Entry<CharSequence, CharSequence>> iterator = httpExchange.getRequestHeaderIterator();
+        while (iterator.hasNext()) {
+            Map.Entry<CharSequence, CharSequence> entry = iterator.next();
+            CharSequence key;
+            if (Headers.getHopHeaders(key = entry.getKey()) == null) {
+                exchange.addHeaderUnsafe(key, entry.getValue());
             }
-            addHeader(exchange, param);
-            exchange.setReqBodyFunc(ec -> httpExchange.readBodyUnsafe(), false);
+        }
+        addHeader(exchange, param);
+        exchange.setReqBodyFunc(ec -> httpExchange.readBodyUnsafe(), false);
 
-            String connection = httpExchange.getRequestHeader("Connection");
-            String upgrade = httpExchange.getRequestHeader("Upgrade");
+        String connection = httpExchange.getRequestHeader("Connection");
+        String upgrade = httpExchange.getRequestHeader("Upgrade");
 
-            int upgradeTimeout;
-            JsonNode jsonNode = param.get("websocket");
-            if (Compares.logic(jsonNode) &&
-                    "upgrade".equalsIgnoreCase(connection)
-                    && "websocket".equalsIgnoreCase(upgrade)) {
-                exchange.setUpgradeAllowed(true);
-                int nodeInt = jsonNode.asInt(-1);
-                if (nodeInt > 0) {
-                    exchange.setUpgradeConnTimeout(nodeInt);
-                    upgradeTimeout = nodeInt;
-                } else {
-                    upgradeTimeout = 60000;
-                }
-                exchange.setHeaderUnsafe("Connection", connection);
-                exchange.setHeaderUnsafe("Upgrade", upgrade);
+        int upgradeTimeout;
+        JsonNode jsonNode = param.get("websocket");
+        if (Compares.logic(jsonNode) &&
+                "upgrade".equalsIgnoreCase(connection)
+                && "websocket".equalsIgnoreCase(upgrade)) {
+            exchange.setUpgradeAllowed(true);
+            int nodeInt = jsonNode.asInt(-1);
+            if (nodeInt > 0) {
+                exchange.setUpgradeConnTimeout(nodeInt);
+                upgradeTimeout = nodeInt;
             } else {
                 upgradeTimeout = 60000;
             }
-
-            JsonNode node = param.get("responseHeaders");
-            boolean flush = param.path("flush").asBoolean(false);
-            exchange.sendForResp().subscribe((response, e) -> {
-                if (e != null) {
-                    handle.throwErr(new ScriptExecException(e.getMessage(), e));
-                } else {
-                    int status = copyResponse(response, httpExchange, node, upgradeTimeout, flush);
-                    handle.returnVal(IntNode.valueOf(status));
-                }
-            });
+            exchange.setHeaderUnsafe("Connection", connection);
+            exchange.setHeaderUnsafe("Upgrade", upgrade);
+        } else {
+            upgradeTimeout = 60000;
         }
+
+        JsonNode node = param.get("responseHeaders");
+        boolean flush = param.path("flush").asBoolean(false);
+        exchange.sendForResp().subscribe((response, e) -> {
+            if (e != null) {
+                handle.throwErr(new ScriptExecException(e.getMessage(), e));
+            } else {
+                int status = copyResponse(response, httpExchange, node, upgradeTimeout, flush);
+                handle.returnVal(IntNode.valueOf(status));
+            }
+        });
     }
 
     static int copyResponse(ClientResponse response, HttpExchange httpExchange, JsonNode node, int upgradeTimeout, boolean flush) {

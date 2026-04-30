@@ -15,6 +15,7 @@ import io.fiber.net.proxy.gov.GovLibConfigure;
 import io.fiber.net.proxy.lib.*;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ast.Literal;
+import io.fiber.net.script.lib.ReflectDirective;
 import io.fiber.net.server.HttpServer;
 import io.fiber.net.server.HttpServerModule;
 import io.netty.channel.EventLoopGroup;
@@ -92,7 +93,7 @@ public class LibProxyMainModule implements Module {
         public Library.DirectiveDef findDirectiveDef(String type, String name, List<Literal> literals) {
             if ("http".equals(type)) {
                 HttpHost httpHost = HttpHost.create(literals.get(0).getLiteralValue().textValue());
-                return new HttpFunc(httpHost, injector.getInstance(HttpClient.class));
+                return ReflectDirective.of(new HttpFunc(httpHost, injector.getInstance(HttpClient.class)));
             }
             return null;
         }

@@ -5,16 +5,18 @@ import io.fiber.net.common.utils.*;
 import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
+import io.fiber.net.script.lib.ScriptFunction;
+import io.fiber.net.script.lib.ScriptLib;
+import io.fiber.net.script.lib.ScriptParam;
 import io.fiber.net.server.HttpExchange;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufUtil;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
+@ScriptLib(functionPrefix = "req")
 public class ReqFunc {
     private static final ObjectNode EMPTY = JsonUtil.createObjectNode();
 
@@ -88,178 +90,138 @@ public class ReqFunc {
     }
 
 
-    private static class GetHeader implements SyncHttpFunc {
-
-        @Override
-        public JsonNode call(ExecutionContext context, Library.Arguments args) {
-            Ctx ctx = getOrCreateCtx(context);
-            if (args.noArgs()) {
-                return ctx.getHeaders();
-            } else {
-                String texted = args.getArgVal(0).textValue();
-                if (StringUtils.isEmpty(texted)) {
-                    return NullNode.getInstance();
-                }
-                String header = HttpDynamicFunc.httpExchange(context).getRequestHeader(texted);
-                if (header == null) {
-                    return MissingNode.getInstance();
-                }
-                return TextNode.valueOf(header);
-            }
-        }
+    @ScriptFunction(name = "getHeader", constExpr = false)
+    public static JsonNode getHeader(ExecutionContext context) {
+        return getOrCreateCtx(context).getHeaders();
     }
 
-    private static class GetQuery implements SyncHttpFunc {
-
-        @Override
-        public JsonNode call(ExecutionContext context, Library.Arguments args) {
-            Ctx ctx = getOrCreateCtx(context);
-            if (args.noArgs()) {
-                return ctx.getQuery();
-            } else {
-                String texted = args.getArgVal(0).textValue();
-                if (StringUtils.isEmpty(texted)) {
-                    return null;
-                }
-                return ctx.getQuery().get(texted);
-            }
-        }
-    }
-
-    private static class ReadJsonBody implements HttpDynamicFunc {
-        @Override
-        public void call(ExecutionContext context, Library.Arguments args, Library.AsyncHandle handle) {
-            HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
-            exchange.readFullBody().subscribe((buf, throwable) -> {
-                if (throwable != null) {
-                    handle.throwErr(new ScriptExecException(throwable.getMessage(), throwable, 400,
-                            ScriptExecException.ERROR_NAME));
-                    return;
-                }
-
-                if (buf == null) {
-                    handle.throwErr(new ScriptExecException("client did not sent body", 400,
-                            ScriptExecException.ERROR_NAME));
-                    return;
-                }
-
-                if (buf.readableBytes() == 0) {
-                    buf.release();
-                    handle.throwErr(new ScriptExecException("client did not sent body", 400,
-                            ScriptExecException.ERROR_NAME));
-                    return;
-                }
-
-                JsonNode node;
-                try {
-                    node = JsonUtil.readTree(new ByteBufInputStream(buf));
-                } catch (IOException e) {
-                    handle.throwErr(new ScriptExecException(e.getMessage(), e, 400,
-                            ScriptExecException.ERROR_NAME));
-                    return;
-                } finally {
-                    buf.release();
-                }
-                handle.returnVal(node);
-            });
-        }
-    }
-
-    private static class ReadBinaryBody implements HttpDynamicFunc {
-        @Override
-        public void call(ExecutionContext context, Library.Arguments args, Library.AsyncHandle handle) {
-            HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
-            exchange.readFullBody().subscribe((buf, throwable) -> {
-                if (throwable != null) {
-                    handle.throwErr(new ScriptExecException(throwable.getMessage(), throwable, 400,
-                            ScriptExecException.ERROR_NAME));
-                    return;
-                }
-                if (buf == null) {
-                    handle.returnVal(BinaryNode.valueOf(Constant.EMPTY_BYTE_ARR));
-                    return;
-                }
-
-                if (buf.readableBytes() == 0) {
-                    buf.release();
-                    handle.returnVal(BinaryNode.valueOf(Constant.EMPTY_BYTE_ARR));
-                    return;
-                }
-
-                JsonNode node;
-                try {
-                    node = BinaryNode.valueOf(ByteBufUtil.getBytes(buf));
-                } finally {
-                    buf.release();
-                }
-                handle.returnVal(node);
-            });
-        }
-    }
-
-    private static class DiscardBody implements SyncHttpFunc {
-        @Override
-        public JsonNode call(ExecutionContext context, Library.Arguments args) {
-            HttpDynamicFunc.httpExchange(context).discardReqBody();
+    @ScriptFunction(name = "getHeader", constExpr = false)
+    public static JsonNode getHeader(ExecutionContext context, @ScriptParam("name") JsonNode name) {
+        String texted = name.textValue();
+        if (StringUtils.isEmpty(texted)) {
             return NullNode.getInstance();
         }
-    }
-
-    private static class GetUri implements SyncHttpFunc {
-        @Override
-        public JsonNode call(ExecutionContext context, Library.Arguments args) {
-            return TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getUri());
+        String header = HttpDynamicFunc.httpExchange(context).getRequestHeader(texted);
+        if (header == null) {
+            return MissingNode.getInstance();
         }
+        return TextNode.valueOf(header);
     }
 
-    private static class GetPath implements SyncHttpFunc {
-        @Override
-        public JsonNode call(ExecutionContext context, Library.Arguments args) {
-            return TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getPath());
+    @ScriptFunction(name = "getQuery", constExpr = false)
+    public static JsonNode getQuery(ExecutionContext context) {
+        return getOrCreateCtx(context).getQuery();
+    }
+
+    @ScriptFunction(name = "getQuery", constExpr = false)
+    public static JsonNode getQuery(ExecutionContext context, @ScriptParam("name") JsonNode name) {
+        String texted = name.textValue();
+        if (StringUtils.isEmpty(texted)) {
+            return null;
         }
+        return getOrCreateCtx(context).getQuery().get(texted);
     }
 
-    private static class GetQueryText implements SyncHttpFunc {
-        @Override
-        public JsonNode call(ExecutionContext context, Library.Arguments args) {
-            return TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getQuery());
-        }
-    }
-
-    private static class GetMethodText implements SyncHttpFunc {
-        private static final TextNode[] MTD = Constant.METHOD_TEXTS;
-
-        @Override
-        public JsonNode call(ExecutionContext context, Library.Arguments args) {
-            return MTD[HttpDynamicFunc.httpExchange(context).getRequestMethod().ordinal()];
-        }
-    }
-
-    private static class GetCookie implements SyncHttpFunc {
-
-        @Override
-        public JsonNode call(ExecutionContext context, Library.Arguments args) {
-            ObjectNode nodes = getOrCreateCtx(context).getCookies();
-            if (args.noArgs()) {
-                return nodes;
+    @ScriptFunction(name = "readJson", constExpr = false)
+    public static void readJson(ExecutionContext context, Library.AsyncHandle handle) {
+        HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
+        exchange.readFullBody().subscribe((buf, throwable) -> {
+            if (throwable != null) {
+                handle.throwErr(new ScriptExecException(throwable.getMessage(), throwable, 400,
+                        ScriptExecException.ERROR_NAME));
+                return;
             }
-            return nodes.path(args.getArgVal(0).asText());
-        }
+
+            if (buf == null) {
+                handle.throwErr(new ScriptExecException("client did not sent body", 400,
+                        ScriptExecException.ERROR_NAME));
+                return;
+            }
+
+            if (buf.readableBytes() == 0) {
+                buf.release();
+                handle.throwErr(new ScriptExecException("client did not sent body", 400,
+                        ScriptExecException.ERROR_NAME));
+                return;
+            }
+
+            JsonNode node;
+            try {
+                node = JsonUtil.readTree(new ByteBufInputStream(buf));
+            } catch (IOException e) {
+                handle.throwErr(new ScriptExecException(e.getMessage(), e, 400,
+                        ScriptExecException.ERROR_NAME));
+                return;
+            } finally {
+                buf.release();
+            }
+            handle.returnVal(node);
+        });
     }
 
-    static final Map<String, Library.AsyncFunction> ASYNC_FC_MAP = new HashMap<>();
-    static final Map<String, Library.Function> FC_MAP = new HashMap<>();
+    @ScriptFunction(name = "readBinary", constExpr = false)
+    public static void readBinary(ExecutionContext context, Library.AsyncHandle handle) {
+        HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
+        exchange.readFullBody().subscribe((buf, throwable) -> {
+            if (throwable != null) {
+                handle.throwErr(new ScriptExecException(throwable.getMessage(), throwable, 400,
+                        ScriptExecException.ERROR_NAME));
+                return;
+            }
+            if (buf == null) {
+                handle.returnVal(BinaryNode.valueOf(Constant.EMPTY_BYTE_ARR));
+                return;
+            }
 
-    static {
-        FC_MAP.put("req.getPath", new GetPath());
-        FC_MAP.put("req.getUri", new GetUri());
-        FC_MAP.put("req.getQueryStr", new GetQueryText());
-        FC_MAP.put("req.getMethod", new GetMethodText());
-        FC_MAP.put("req.getHeader", new GetHeader());
-        FC_MAP.put("req.getCookie", new GetCookie());
-        FC_MAP.put("req.getQuery", new GetQuery());
-        FC_MAP.put("req.discardBody", new DiscardBody());
-        ASYNC_FC_MAP.put("req.readJson", new ReadJsonBody());
-        ASYNC_FC_MAP.put("req.readBinary", new ReadBinaryBody());
+            if (buf.readableBytes() == 0) {
+                buf.release();
+                handle.returnVal(BinaryNode.valueOf(Constant.EMPTY_BYTE_ARR));
+                return;
+            }
+
+            JsonNode node;
+            try {
+                node = BinaryNode.valueOf(ByteBufUtil.getBytes(buf));
+            } finally {
+                buf.release();
+            }
+            handle.returnVal(node);
+        });
+    }
+
+    @ScriptFunction(name = "discardBody", constExpr = false)
+    public static JsonNode discardBody(ExecutionContext context) {
+        HttpDynamicFunc.httpExchange(context).discardReqBody();
+        return NullNode.getInstance();
+    }
+
+    @ScriptFunction(name = "getUri", constExpr = false)
+    public static JsonNode getUri(ExecutionContext context) {
+        return TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getUri());
+    }
+
+    @ScriptFunction(name = "getPath", constExpr = false)
+    public static JsonNode getPath(ExecutionContext context) {
+        return TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getPath());
+    }
+
+    @ScriptFunction(name = "getQueryStr", constExpr = false)
+    public static JsonNode getQueryStr(ExecutionContext context) {
+        return TextNode.valueOf(HttpDynamicFunc.httpExchange(context).getQuery());
+    }
+
+    @ScriptFunction(name = "getMethod", constExpr = false)
+    public static JsonNode getMethod(ExecutionContext context) {
+        return Constant.METHOD_TEXTS[HttpDynamicFunc.httpExchange(context).getRequestMethod().ordinal()];
+    }
+
+    @ScriptFunction(name = "getCookie", constExpr = false)
+    public static JsonNode getCookie(ExecutionContext context) {
+        return getOrCreateCtx(context).getCookies();
+    }
+
+    @ScriptFunction(name = "getCookie", constExpr = false)
+    public static JsonNode getCookie(ExecutionContext context, @ScriptParam("name") JsonNode name) {
+        return getOrCreateCtx(context).getCookies().path(name.asText());
     }
 }

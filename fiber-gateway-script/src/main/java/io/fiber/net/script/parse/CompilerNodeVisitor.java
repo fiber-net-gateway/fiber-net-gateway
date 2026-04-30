@@ -3,6 +3,7 @@ package io.fiber.net.script.parse;
 import io.fiber.net.common.json.ContainerNode;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.MissingNode;
+import io.fiber.net.common.json.TextNode;
 import io.fiber.net.common.json.ValueNode;
 import io.fiber.net.common.utils.Assert;
 import io.fiber.net.script.Library;
@@ -373,6 +374,28 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
     @Override
     public Void visit(Literal literal) {
         pushLoadConst(literal.getPos(), literal.getLiteralValue());
+        return null;
+    }
+
+    @Override
+    public Void visit(TemplateString templateString) {
+        String[] strings = templateString.getStrings();
+        ExpressionNode[] expressions = templateString.getExpressions();
+        if (expressions.length == 0) {
+            pushLoadConst(templateString.getPos(), TextNode.valueOf(strings[0]));
+            return null;
+        }
+
+        pushLoadConst(templateString.getPos(), TextNode.valueOf(strings[0]));
+        for (int i = 0; i < expressions.length; i++) {
+            expressions[i].accept(this);
+            push(Code.BOP_PLUS, expressions[i].getPos(), -1);
+            String string = strings[i + 1];
+            if (!string.isEmpty()) {
+                pushLoadConst(templateString.getPos(), TextNode.valueOf(string));
+                push(Code.BOP_PLUS, templateString.getPos(), -1);
+            }
+        }
         return null;
     }
 

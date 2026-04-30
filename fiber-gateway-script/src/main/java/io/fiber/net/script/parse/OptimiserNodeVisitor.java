@@ -213,6 +213,22 @@ public class OptimiserNodeVisitor implements NodeVisitor<Node> {
     }
 
     @Override
+    public ExpressionNode visit(TemplateString node) {
+        if (node.isConstant()) {
+            return optimise(node);
+        }
+
+        ExpressionNode[] expressions = node.getExpressions();
+        for (int i = 0; i < expressions.length; i++) {
+            expressions[i] = (ExpressionNode) expressions[i].accept(this);
+        }
+        if (node.isConstant()) {
+            return optimise(node);
+        }
+        return node;
+    }
+
+    @Override
     public ExpressionNode visit(ConstantVal node) {
         if (node.isConstant()) {
             return optimise(node);

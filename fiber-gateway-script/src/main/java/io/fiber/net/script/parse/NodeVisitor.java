@@ -15,6 +15,8 @@ public interface NodeVisitor<T> {
 
     T visit(Literal literal);
 
+    T visit(TemplateString templateString);
+
     T visit(ConstantVal constantVal);
 
     T visit(VariableReference variableReference);

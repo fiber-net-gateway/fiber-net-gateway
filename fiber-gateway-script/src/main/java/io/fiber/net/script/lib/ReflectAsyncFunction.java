@@ -16,12 +16,16 @@ public class ReflectAsyncFunction extends ReflectInvoker implements Library.Asyn
     }
 
     ReflectAsyncFunction(Method method, Object owner, ScriptFunction function) {
+        this(method, owner, function, function == null ? null : function.name());
+    }
+
+    ReflectAsyncFunction(Method method, Object owner, ScriptFunction function, String name) {
         super(method, owner, ReflectFunction.functionPlan(method));
         if (function == null) {
             throw invalid(method, "missing ScriptFunction");
         }
         ReflectFunction.checkFunction(method, true);
-        this.signature = ReflectFunction.functionSignature(method, function, false);
+        this.signature = ReflectFunction.functionSignature(method, function, false, name);
     }
 
     @Override

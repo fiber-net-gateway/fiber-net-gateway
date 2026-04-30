@@ -19,12 +19,16 @@ public class ReflectFunction extends ReflectInvoker implements Library.Function 
     }
 
     ReflectFunction(Method method, Object owner, ScriptFunction function) {
+        this(method, owner, function, function == null ? null : function.name());
+    }
+
+    ReflectFunction(Method method, Object owner, ScriptFunction function, String name) {
         super(method, owner, functionPlan(method));
         if (function == null) {
             throw invalid(method, "missing ScriptFunction");
         }
         checkFunction(method, false);
-        this.signature = functionSignature(method, function, function.constExpr());
+        this.signature = functionSignature(method, function, function.constExpr(), name);
         this.constExpr = function.constExpr();
     }
 
@@ -66,17 +70,21 @@ public class ReflectFunction extends ReflectInvoker implements Library.Function 
     }
 
     static FunctionSignature functionSignature(Method method, ScriptFunction function, boolean constExpr) {
+        return functionSignature(method, function, constExpr, function.name());
+    }
+
+    static FunctionSignature functionSignature(Method method, ScriptFunction function, boolean constExpr, String name) {
         FuncLayout layout = parseFunction(method);
         ScriptParam[] declared = function.params();
         if (layout.arguments) {
             if (declared.length == 0) {
-                return new FunctionSignature(function.name(), constExpr, FunctionParam.variadic("args"));
+                return new FunctionSignature(name, constExpr, FunctionParam.variadic("args"));
             }
-            return signature(function.name(), constExpr, declared);
+            return signature(name, constExpr, declared);
         }
         if (declared.length != 0) {
             validateDeclaredParams(method, layout, declared);
-            return signature(function.name(), constExpr, declared);
+            return signature(name, constExpr, declared);
         }
 
         Annotation[][] annotations = method.getParameterAnnotations();
@@ -94,7 +102,7 @@ public class ReflectFunction extends ReflectInvoker implements Library.Function 
                 params[out++] = FunctionParam.variadic(param.value());
             }
         }
-        return new FunctionSignature(function.name(), constExpr, params);
+        return new FunctionSignature(name, constExpr, params);
     }
 
     static int[] functionPlan(Method method) {

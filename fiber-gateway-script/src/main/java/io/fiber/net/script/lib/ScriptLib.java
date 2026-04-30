@@ -8,5 +8,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface ScriptLib {
+    String functionPrefix() default "";
+
     String namespace() default "";
 }

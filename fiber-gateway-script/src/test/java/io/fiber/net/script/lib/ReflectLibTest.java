@@ -73,6 +73,22 @@ public class ReflectLibTest {
     }
 
     @Test
+    public void shouldApplyScriptLibFunctionPrefix() throws Throwable {
+        StdLibrary library = new StdLibrary();
+        ReflectLib.registerStatic(library, PrefixedExports.class);
+
+        JsonNode value = exec("return util.plus(1, 2) + $util.answer;", library);
+
+        Assert.assertEquals(45, value.asInt());
+
+        Script script = Script.compileWithoutOptimization("return util.asyncPlus(3, 4);", library, true);
+        TestObserver observer = new TestObserver();
+        script.exec(NullNode.getInstance(), null).subscribe(observer);
+        Assert.assertNull(observer.error);
+        Assert.assertEquals(7, observer.value.asInt());
+    }
+
+    @Test
     public void shouldRejectInvalidThrows() throws Exception {
         try {
             new ReflectFunction(BadExports.class.getMethod("badSync"));
@@ -99,6 +115,14 @@ public class ReflectLibTest {
         }
     }
 
+    @Test
+    public void shouldRejectInvalidScriptLibNames() {
+        assertRegisterFails(BadFunctionPrefix.class);
+        assertRegisterFails(BadFunctionName.class);
+        assertRegisterFails(BadConstantNamespace.class);
+        assertRegisterFails(BadConstantKey.class);
+    }
+
     private static JsonNode exec(String script, Library library) throws Throwable {
         Script interpreter = Script.compileWithoutOptimization(script, library, true);
         Script aot = Script.aotCompileWithoutOptimization(script, library, true);
@@ -107,6 +131,15 @@ public class ReflectLibTest {
         JsonNode aotValue = aot.execForSync(root, null);
         Assert.assertEquals(interpreterValue, aotValue);
         return interpreterValue;
+    }
+
+    private static void assertRegisterFails(Class<?> type) {
+        try {
+            ReflectLib.registerStatic(new StdLibrary(), type);
+            Assert.fail("expected invalid script lib metadata");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
     }
 
     @ScriptLib(namespace = "$test")
@@ -170,6 +203,27 @@ public class ReflectLibTest {
         }
     }
 
+    @ScriptLib(functionPrefix = "util", namespace = "$util")
+    public static class PrefixedExports {
+        @ScriptFunction(name = "plus")
+        public static JsonNode plus(@ScriptParam("a") JsonNode a,
+                                    @ScriptParam("b") JsonNode b) {
+            return IntNode.valueOf(a.asInt() + b.asInt());
+        }
+
+        @ScriptFunction(name = "asyncPlus")
+        public static void asyncPlus(Library.AsyncHandle handle,
+                                     @ScriptParam("a") JsonNode a,
+                                     @ScriptParam("b") JsonNode b) {
+            handle.returnVal(IntNode.valueOf(a.asInt() + b.asInt()));
+        }
+
+        @ScriptConstant(key = "answer")
+        public static JsonNode answer() {
+            return IntNode.valueOf(42);
+        }
+    }
+
     public static class BadExports {
         @ScriptFunction(name = "badSync")
         public static JsonNode badSync() throws Exception {
@@ -183,6 +237,37 @@ public class ReflectLibTest {
         @ScriptFunction(name = "badOrder")
         public static JsonNode badOrder(@ScriptParam("a") JsonNode node, ExecutionContext context) {
             return node;
+        }
+    }
+
+    @ScriptLib(functionPrefix = "$bad")
+    public static class BadFunctionPrefix {
+        @ScriptFunction(name = "call")
+        public static JsonNode call() {
+            return NullNode.getInstance();
+        }
+    }
+
+    public static class BadFunctionName {
+        @ScriptFunction(name = "1bad")
+        public static JsonNode call() {
+            return NullNode.getInstance();
+        }
+    }
+
+    @ScriptLib(namespace = "bad")
+    public static class BadConstantNamespace {
+        @ScriptConstant(key = "answer")
+        public static JsonNode answer() {
+            return NullNode.getInstance();
+        }
+    }
+
+    @ScriptLib(namespace = "$bad")
+    public static class BadConstantKey {
+        @ScriptConstant(key = "bad-key")
+        public static JsonNode answer() {
+            return NullNode.getInstance();
         }
     }
 

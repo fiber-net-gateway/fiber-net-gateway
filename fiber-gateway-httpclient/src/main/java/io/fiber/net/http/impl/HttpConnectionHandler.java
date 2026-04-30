@@ -55,7 +55,8 @@ class HttpConnectionHandler extends HttpConnection implements ChannelInboundHand
                     .trustManager(config.trustManager)
                     .sslProvider(SslProvider.OPENSSL_REFCNT)
                     .build();
-            ctx.pipeline().addFirst(context.newHandler(ctx.alloc()));
+            HttpHost httpHost = getHttpHost();
+            ctx.pipeline().addFirst(context.newHandler(ctx.alloc(), httpHost.getHostName(), httpHost.getRealPort()));
         }
         ioSch = Scheduler.current();
     }

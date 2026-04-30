@@ -664,7 +664,10 @@ public class CodeEnterPoint {
         }
 
         int sp = getInitStackSize();
-        for (Instrument code : getCodes()) {
+        Instrument[] codes = getCodes();
+        for (int i = 0; i < codes.length; i++) {
+            Instrument code = codes[i];
+            clzAssembler.visitLineNumber(getCodeIdx() + i);
             if (code instanceof Exp && ((Exp) code).isInlineEmitted()) {
                 sp += stackChange(code);
                 continue;

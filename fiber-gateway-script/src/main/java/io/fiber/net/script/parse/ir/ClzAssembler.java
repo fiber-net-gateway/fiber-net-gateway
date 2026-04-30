@@ -6,6 +6,7 @@ import io.fiber.net.common.utils.CollectionUtils;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
+import io.fiber.net.script.ast.AstUtils;
 import io.fiber.net.script.lib.DirectReflectInvoker;
 import io.fiber.net.script.parse.Compiled;
 import io.fiber.net.script.run.*;
@@ -119,6 +120,7 @@ public class ClzAssembler {
     private TreeMap<Integer, ExpTableItem> expTableMap;
 
     private MethodVisitor visitor;
+    private int lastLineNumber = -1;
 
     void setExceptionTable(TreeMap<Integer, ExpTableItem> expTableMap) {
         this.expTableMap = expTableMap;
@@ -247,6 +249,9 @@ public class ClzAssembler {
                 SUPER_NAME,
                 INTERFACES
         );
+        if (compiled.getFileName() != null) {
+            writer.visitSource(compiled.getFileName(), null);
+        }
         asmFields();
 
         asmInitClz();
@@ -1266,6 +1271,17 @@ public class ClzAssembler {
 
     void visitLabel(Label label) {
         visitor.visitLabel(label);
+    }
+
+    void visitLineNumber(int pc) {
+        int line = compiled.getLineByOffset(AstUtils.startPos(compiled.getPos()[pc]));
+        if (line <= 0 || line == lastLineNumber) {
+            return;
+        }
+        Label label = new Label();
+        visitor.visitLabel(label);
+        visitor.visitLineNumber(line, label);
+        lastLineNumber = line;
     }
 
     void asyncFuncCall(FunctionCall fc) {

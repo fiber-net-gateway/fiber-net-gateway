@@ -67,9 +67,13 @@ public interface Script {
     }
 
     static Script aotCompileWithoutOptimization(String script, Library library, boolean allowAssign) throws ParseException {
+        return aotCompileWithoutOptimization("script.js", script, library, allowAssign);
+    }
+
+    static Script aotCompileWithoutOptimization(String fileName, String script, Library library, boolean allowAssign) throws ParseException {
         Parser parser = new Parser(library, allowAssign);
         Block block = parser.parseScript(script);
-        return AotCompiledScript.createNonOptimise(block);
+        return AotCompiledScript.createNonOptimise(fileName, script, block);
     }
 
     static Script aotCompile(String script, Library library) throws ParseException {
@@ -77,9 +81,13 @@ public interface Script {
     }
 
     static Script aotCompile(String script, Library library, boolean allowAssign) throws ParseException {
+        return aotCompile("script.js", script, library, allowAssign);
+    }
+
+    static Script aotCompile(String fileName, String script, Library library, boolean allowAssign) throws ParseException {
         Parser parser = new Parser(library, allowAssign);
         Block block = parser.parseScript(script);
-        return AotCompiledScript.create(block);
+        return AotCompiledScript.create(fileName, script, block);
     }
 
     static Script aotCompileExpression(String expression, boolean allowAssign) throws ParseException {
@@ -87,10 +95,14 @@ public interface Script {
     }
 
     static Script aotCompileExpression(String expression, Library library, boolean allowAssign) throws ParseException {
+        return aotCompileExpression("script.js", expression, library, allowAssign);
+    }
+
+    static Script aotCompileExpression(String fileName, String expression, Library library, boolean allowAssign) throws ParseException {
         Parser parser = new Parser(library, allowAssign);
         ExpressionNode ast = parser.parseExpression(expression);
         Block block = new Block(ast.getPos(), Collections.singletonList(new ReturnStatement(ast.getPos(), ast)), Block.Type.SCRIPT);
-        return AotCompiledScript.create(block);
+        return AotCompiledScript.create(fileName, expression, block);
     }
 
 

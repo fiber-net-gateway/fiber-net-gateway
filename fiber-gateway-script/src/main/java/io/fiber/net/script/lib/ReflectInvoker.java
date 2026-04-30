@@ -28,7 +28,15 @@ abstract class ReflectInvoker implements DirectReflectInvoker {
         this.method = method;
         this.owner = owner;
         this.argPlan = argPlan;
-        this.handle = unreflect(method, owner);
+        this.handle = bind(unreflect(method), method, owner);
+    }
+
+    ReflectInvoker(ReflectFunctionMeta meta, Object owner) {
+        checkBase(meta.method, owner);
+        this.method = meta.method;
+        this.owner = owner;
+        this.argPlan = meta.argPlan;
+        this.handle = bind(meta.handle, meta.method, owner);
     }
 
     @Override
@@ -101,14 +109,9 @@ abstract class ReflectInvoker implements DirectReflectInvoker {
 
     static void checkBase(Method method, Object owner) {
         Class<?> declaring = method.getDeclaringClass();
+        checkMethodBase(declaring);
         if (!Modifier.isPublic(method.getModifiers())) {
             throw invalid(method, "method must be public");
-        }
-        if (!Modifier.isPublic(declaring.getModifiers())) {
-            throw invalid(method, "declaring class must be public");
-        }
-        if (declaring.getClassLoader() != AbstractVm.class.getClassLoader()) {
-            throw invalid(method, "declaring class must use AbstractVm classLoader");
         }
         if (Modifier.isStatic(method.getModifiers())) {
             return;
@@ -118,6 +121,15 @@ abstract class ReflectInvoker implements DirectReflectInvoker {
         }
         if (!declaring.isInstance(owner)) {
             throw invalid(method, "owner is not declaring class instance");
+        }
+    }
+
+    static void checkMethodBase(Class<?> declaring) {
+        if (!Modifier.isPublic(declaring.getModifiers())) {
+            throw new IllegalArgumentException("declaring class must be public: " + declaring.getName());
+        }
+        if (declaring.getClassLoader() != AbstractVm.class.getClassLoader()) {
+            throw new IllegalArgumentException("declaring class must use AbstractVm classLoader: " + declaring.getName());
         }
     }
 
@@ -167,19 +179,23 @@ abstract class ReflectInvoker implements DirectReflectInvoker {
         return new IllegalArgumentException(msg + ": " + method);
     }
 
-    private static MethodHandle unreflect(Method method, Object owner) {
+    static MethodHandle unreflect(Method method) {
         try {
             MethodHandle mh = MethodHandles.lookup().unreflect(method);
             if (method.isVarArgs()) {
                 mh = mh.asFixedArity();
             }
-            if (!Modifier.isStatic(method.getModifiers())) {
-                mh = mh.bindTo(owner);
-            }
             return mh;
         } catch (IllegalAccessException e) {
             throw invalid(method, "cannot access method");
         }
+    }
+
+    private static MethodHandle bind(MethodHandle handle, Method method, Object owner) {
+        if (Modifier.isStatic(method.getModifiers())) {
+            return handle;
+        }
+        return handle.bindTo(owner);
     }
 
     private static JsonNode[] restArgs(Library.Arguments args, int off) {

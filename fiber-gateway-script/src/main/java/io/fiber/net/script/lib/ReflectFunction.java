@@ -32,6 +32,15 @@ public class ReflectFunction extends ReflectInvoker implements Library.Function 
         this.constExpr = function.constExpr();
     }
 
+    ReflectFunction(ReflectFunctionMeta meta, Object owner, FunctionSignature signature) {
+        super(meta, owner);
+        if (meta.async) {
+            throw invalid(meta.method, "async function cannot be sync function");
+        }
+        this.signature = signature;
+        this.constExpr = meta.constExpr;
+    }
+
     @Override
     public FunctionSignature signature() {
         return signature;

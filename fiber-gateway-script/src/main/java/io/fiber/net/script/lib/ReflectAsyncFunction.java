@@ -28,6 +28,14 @@ public class ReflectAsyncFunction extends ReflectInvoker implements Library.Asyn
         this.signature = ReflectFunction.functionSignature(method, function, false, name);
     }
 
+    ReflectAsyncFunction(ReflectFunctionMeta meta, Object owner, FunctionSignature signature) {
+        super(meta, owner);
+        if (!meta.async) {
+            throw invalid(meta.method, "sync function cannot be async function");
+        }
+        this.signature = signature;
+    }
+
     @Override
     public FunctionSignature signature() {
         return signature;

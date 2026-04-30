@@ -2,6 +2,7 @@ package io.fiber.net.script.std;
 
 import io.fiber.net.script.*;
 import io.fiber.net.script.ast.Literal;
+import io.fiber.net.script.lib.ReflectLib;
 
 import java.util.*;
 
@@ -16,6 +17,18 @@ public class StdLibrary implements Library {
     protected final Map<String, Object> constantMap = new HashMap<>();
 
     public StdLibrary() {
+        ReflectLib.registerStatic(this, LengthFunc.class);
+        ReflectLib.registerStatic(this, IncludesFunc.class);
+        ReflectLib.registerStatic(this, JsonFunc.class);
+        ReflectLib.registerStatic(this, UrlFunc.class);
+        ReflectLib.registerStatic(this, ArrayFuncs.class);
+        ReflectLib.registerStatic(this, ObjectsFuncs.class);
+        ReflectLib.registerStatic(this, StringsFuncs.class);
+        ReflectLib.registerStatic(this, MathFuncs.class);
+        ReflectLib.registerStatic(this, BinaryFunc.class);
+        ReflectLib.registerStatic(this, HashFuncs.class);
+        ReflectLib.registerStatic(this, RandFuncs.class);
+        ReflectLib.registerStatic(this, TimeFuncs.class);
     }
 
     public void putFunc(Function function) {

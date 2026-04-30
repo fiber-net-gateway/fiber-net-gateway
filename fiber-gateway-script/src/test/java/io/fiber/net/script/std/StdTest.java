@@ -200,6 +200,31 @@ public class StdTest extends TestInIOThreadParent {
                 "   && strings.toString({}) === \"<ObjectNode>\" && strings.toString(3.5) === '3.5'", "strings.toString");
     }
 
+    @Test
+    public void test__std_misc() throws Exception {
+        runAndAssertTrue("let obj = JSON.parse('{\"a\":1}');\n" +
+                "let query = URL.parseQuery('a=1&a=2&b=x');\n" +
+                "let bytes = binary.getUtf8Bytes('abc');\n" +
+                "let random = rand.random(10);\n" +
+                "return obj.a === 1\n" +
+                "   && JSON.stringify([1,2]) === '[1,2]'\n" +
+                "   && URL.decodeComponent(URL.encodeComponent('a b')) === 'a b'\n" +
+                "   && query.a[0] === '1' && query.a[1] === '2' && query.b === 'x'\n" +
+                "   && URL.buildQuery({a:1,b:'x'}) === 'a=1&b=x'\n" +
+                "   && math.floor(1.9) === 1 && math.abs(-3) === 3\n" +
+                "   && binary.base64Encode(bytes) === 'YWJj'\n" +
+                "   && binary.hex(bytes) === '616263'\n" +
+                "   && binary.hex(binary.base64Decode('YQ==')) === '61'\n" +
+                "   && binary.hex(binary.fromHex('6162')) === '6162'\n" +
+                "   && hash.crc32('') === 0\n" +
+                "   && length(hash.md5('a')) === 32\n" +
+                "   && length(hash.sha1('a')) === 40\n" +
+                "   && length(hash.sha256('a')) === 64\n" +
+                "   && random >= 0 && random < 10\n" +
+                "   && rand.canary(100) === true && rand.canary(0) === false\n" +
+                "   && time.now() > 0 && length(time.format()) > 0;", "std misc");
+    }
+
     private void expressionAssertTrue(String expression) throws Exception {
         runAndAssertTrue("return (" + expression + ");", expression);
     }

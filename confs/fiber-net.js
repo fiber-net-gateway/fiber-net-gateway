@@ -30,5 +30,13 @@ result.rawBody = strings.toString(bin);
 result.path = req.getPath();
 result.reqHeader = req.getHeader();
 result.query = req.getQueryStr();
+let bodyArray = [1,2,3,4];
+directive baidu = http "https://www.baidu.com";
+let sum = 0;
+for (let _, value of bodyArray) {
+    sum = sum + value;
+}
+result.rr = `tt == ${baidu.request({path: "/favicon.ico"}).body}`;
+result.tt = `sum = ${sum}`;
 
 return result;

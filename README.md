@@ -37,11 +37,17 @@ cd fiber-gateway-example/target
 mkdir scripts
 cat > scripts/fiber-net.js << EOF
 let bodyArray = req.readJson();
+directive baidu = http "https://www.baidu.com";
 let sum = 0;
 for (let _, value of bodyArray) {
     sum = sum + value;
 }
-return "sum = " + sum;
+let r = baidu.request({
+    path: "/favicon.ico",
+});
+return `sum = ${sum}
+${r.body}
+`;
 EOF
 ```
 
@@ -61,7 +67,7 @@ date: Fri, 10 May 2024 08:28:01 GMT
 server: fiber-net(fn)/dev/dev
 transfer-encoding: chunked
 
-"sum = 10"
+"sum = 10\n<base64xxxxxx>\n"
 ```
 
 For detailed instructions, please refer to the [User Manual](doc/user.md)

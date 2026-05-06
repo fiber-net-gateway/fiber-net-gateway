@@ -6,7 +6,7 @@
 ## 核心组件
 - **编译入口**：`Script.compile*` / `aotCompile*` 方法基于 `Parser` 解析脚本，分别生成 `InterpreterScript` 或 `AotCompiledScript`，可控制是否允许赋值、是否开启优化。 【F:fiber-gateway-script/src/main/java/io/fiber/net/script/Script.java†L18-L94】
 - **执行上下文**：`ExecutionContext` 暴露根节点、附加对象、参数读取与返回/抛错接口，脚本库通过该接口与宿主（如 HttpExchange）交互。 【F:fiber-gateway-script/src/main/java/io/fiber/net/script/ExecutionContext.java†L5-L23】
-- **标准库接口**：`Library` 定义常量、函数、异步函数与指令的查找机制，供 Proxy 模块注入 HTTP、治理等扩展。 【F:fiber-gateway-script/src/main/java/io/fiber/net/script/Library.java†L8-L52】
+- **标准库接口**：`Library` 定义常量、函数、异步函数与指令的查找机制；函数按 `FunctionCallArgs` 匹配 `FunctionSignature` 后返回 `ResolvedFunc`，供 Proxy 模块注入 HTTP、治理等扩展。 【F:fiber-gateway-script/src/main/java/io/fiber/net/script/Library.java†L8-L66】
 - **虚拟机实现**：`InterpreterVm` 继承 `AbstractVm`，执行编译后的字节码数组，支持同步/异步恢复、参数展开、异常捕获等逻辑。 【F:fiber-gateway-script/src/main/java/io/fiber/net/script/run/InterpreterVm.java†L13-L200】
 - **异常处理**：`ScriptExecException` 继承 `FiberException`，记录出错位置与额外 JSON 元数据，方便在 HTTP 响应中返回详尽信息。 【F:fiber-gateway-script/src/main/java/io/fiber/net/script/ScriptExecException.java†L1-L83】
 
@@ -17,8 +17,8 @@
 4. 发生错误时抛出 `ScriptExecException`，Proxy 模块可以捕获并写入统一的 JSON 错误响应。 【F:fiber-gateway-script/src/main/java/io/fiber/net/script/ScriptExecException.java†L9-L83】
 
 ## 扩展指南
-- **扩展库**：实现 `Library` 或 `HttpLibConfigure`，在 `findFunc` / `findAsyncFunction` 中返回自定义函数，函数体通过 `ExecutionContext` 读取参数并返回 `JsonNode`。 【F:fiber-gateway-script/src/main/java/io/fiber/net/script/Library.java†L8-L52】【F:fiber-gateway-proxy/src/main/java/io/fiber/net/proxy/LibProxyMainModule.java†L40-L95】
-- **异步操作**：利用 `ExecutionContext.throwErr/returnVal` 与 `Maybe`/`Observable`，在回调中恢复脚本流程；`InterpreterVm` 支持在异步完成后继续执行。 【F:fiber-gateway-script/src/main/java/io/fiber/net/script/run/InterpreterVm.java†L68-L200】
+- **扩展库**：实现 `Library.resolveFunc(name, FunctionCallArgs)` 或扩展 `StdLibrary`，按 `FunctionSignature` 注册同步/异步 host 函数；函数体通过 `ExecutionContext` 和 `Library.Arguments` 读取上下文与参数并返回 `JsonNode`。 【F:fiber-gateway-script/src/main/java/io/fiber/net/script/Library.java†L8-L66】【F:fiber-gateway-script/src/main/java/io/fiber/net/script/std/StdLibrary.java†L24-L104】
+- **异步操作**：利用 `Library.AsyncHandle.returnVal/throwErr` 与 `Maybe`/`Observable`，在回调中恢复脚本流程；`InterpreterVm` 支持在异步完成后继续执行。 【F:fiber-gateway-script/src/main/java/io/fiber/net/script/Library.java†L20-L23】【F:fiber-gateway-script/src/main/java/io/fiber/net/script/run/InterpreterVm.java†L68-L200】
 - **安全控制**：可通过禁用赋值、限制库函数或在编译前执行静态校验来约束脚本能力，必要时在 `ScriptExecException` 中记录错误节点实现审计。 【F:fiber-gateway-script/src/main/java/io/fiber/net/script/Script.java†L22-L94】【F:fiber-gateway-script/src/main/java/io/fiber/net/script/ScriptExecException.java†L9-L83】
 
 ## 与其他模块的协作

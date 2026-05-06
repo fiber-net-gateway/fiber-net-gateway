@@ -53,20 +53,21 @@ return;
 以上文的 脚本为例。在 java 中 sleep 函数如下实现如下。
 ```java
 putAsyncFunc(
-    "sleep", 
-    context -> {
-        int timeout = context.noArgs() ? 0 : context.getArgVal(0).asInt(3000);
+    "sleep",
+    FunctionSignature.fixed("sleep", false,
+            FunctionParam.optional("timeout", IntNode.valueOf(0))),
+    (context, args, handle) -> {
+        int timeout = args.getArgVal(0).asInt(3000);
         // 定时器 通知
-        Scheduler.current().schedule(() -> context.returnVal(null), timeout);
-        return;
+        Scheduler.current().schedule(() -> handle.returnVal(NullNode.getInstance()), timeout);
     }
 );
 ```
-通过定时器来定时，当时间到后 `context.returnVal(null);` 来通知脚本继续往下运行。
+通过定时器来定时，当时间到后 `handle.returnVal(...)` 来通知脚本继续往下运行；失败时调用 `handle.throwErr(...)`。
 
 ### 解释器模式的协程
 解释器的栈和变量表都是在 java 代码中通过数组来模拟的。
-所以当调用异步函数的时候，直接退出，当 context.returnVal(null); 调用，继续往下执行。
+所以当调用异步函数的时候，直接退出，当 `AsyncHandle.returnVal(...)` 调用，继续往下执行。
 
 ### AOT 模式的协程
 AOT 模式下， 脚本会被转成 一个 class 文件。
@@ -94,7 +95,7 @@ protected void run() throws ScriptExecException {
             } else {
                 this.state = 1;
             }
-        case 1: // 等到 context.returnVal(); 执行的时候，run 函数再次被运行。由于上次退出状态机变为1.所以这里直接在此运行
+        case 1: // 等到 AsyncHandle.returnVal(); 执行的时候，run 函数再次被运行。由于上次退出状态机变为1.所以这里直接在此运行
             if (this.rtError != null) {
                 throw this.rtError;
             }
@@ -112,4 +113,3 @@ protected void run() throws ScriptExecException {
     }
 }
 ```
-

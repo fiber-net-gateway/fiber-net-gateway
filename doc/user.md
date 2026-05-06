@@ -86,6 +86,36 @@ transfer-encoding: chunked
 {"types":{"num":"number","txt":"string","bin":"binary","nul":"null","obj":"object","boo":"boolean","mis":"missing","arr":"array"},"result":{"num":1,"txt":"this is string","bin":"","nul":null,"obj":{"n":1},"boo":true,"mis":null,"arr":[1,2,1]}}
 ```
 
+## 模板字符串
+脚本支持使用反引号定义模板字符串。模板字符串可以跨行书写，并通过 `${...}` 内嵌任意表达式，表达式结果会按字符串拼接规则转换为文本。解释器模式和 AOT 模式都支持该语法。
+
+```javascript
+let name = "fiber";
+let cost = 3;
+
+return `hello ${name}, cost=${cost + 1}`;
+// "hello fiber, cost=4"
+```
+
+模板表达式内部仍然使用普通脚本表达式语法，可以访问对象、数组、函数返回值，也可以包含字符串字面量和嵌套对象。
+
+```javascript
+let reqId = req.getHeader("x-request-id");
+let data = {status: 200, path: req.getPath()};
+
+return `request ${reqId}: ${data.path} -> ${data.status}`;
+```
+
+如果要输出反引号或 `${` 字面量，需要转义：
+
+```javascript
+return `a\`\${name}
+line2`;
+// "a`${name}\nline2"
+```
+
+模板字符串中的普通文本支持常见转义：`\n`、`\r`、`\t`、`\b`、`\f`、`\v`、`\\`、反引号转义（<code>\`</code>）、`\$`、`\xNN`、`\uNNNN`，以及三位八进制转义。
+
 ## 运算符
 支持 一元、二元、三元运算符
 

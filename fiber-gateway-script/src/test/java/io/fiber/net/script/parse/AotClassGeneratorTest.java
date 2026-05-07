@@ -105,26 +105,28 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
 
     @Test
     public void shouldEmitAotSourceFileAndLineNumber() throws Throwable {
-        String script = "let a = 1;\n"
-                + "let b = 2;\n"
-                + "let c = 3;\n"
-                + "return panic('x');\n";
-        final Throwable[] error = new Throwable[1];
-        Script.aotCompileWithoutOptimization("line-info.js", script, new MyLib(), true)
-                .exec(NullNode.getInstance(), null)
-                .subscribe((jsonNode, throwable) -> error[0] = throwable);
-        Assert.assertNotNull(error[0]);
+        withAotEngine(AotCompiledScript.AOT_ENGINE_LEGACY, () -> {
+            String script = "let a = 1;\n"
+                    + "let b = 2;\n"
+                    + "let c = 3;\n"
+                    + "return panic('x');\n";
+            final Throwable[] error = new Throwable[1];
+            Script.aotCompileWithoutOptimization("line-info.js", script, new MyLib(), true)
+                    .exec(NullNode.getInstance(), null)
+                    .subscribe((jsonNode, throwable) -> error[0] = throwable);
+            Assert.assertNotNull(error[0]);
 
-        StackTraceElement runFrame = null;
-        for (StackTraceElement element : error[0].getStackTrace()) {
-            if (element.getClassName().contains("GeneratedVm_") && "run".equals(element.getMethodName())) {
-                runFrame = element;
-                break;
+            StackTraceElement runFrame = null;
+            for (StackTraceElement element : error[0].getStackTrace()) {
+                if (element.getClassName().contains("GeneratedVm_") && "run".equals(element.getMethodName())) {
+                    runFrame = element;
+                    break;
+                }
             }
-        }
-        Assert.assertNotNull(stackTrace(error[0]), runFrame);
-        Assert.assertEquals("line-info.js", runFrame.getFileName());
-        Assert.assertEquals(4, runFrame.getLineNumber());
+            Assert.assertNotNull(stackTrace(error[0]), runFrame);
+            Assert.assertEquals("line-info.js", runFrame.getFileName());
+            Assert.assertEquals(4, runFrame.getLineNumber());
+        });
     }
 
     private static String stackTrace(Throwable throwable) {
@@ -137,8 +139,8 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
 
     private void testScript(String file) throws Throwable {
         String resourceStr = getResourceStr(file);
-        Script script = Script.compileWithoutOptimization(resourceStr, new MyLib(), true);
-        generateAndInvoke(script, file);
+        InterpreterScript script = (InterpreterScript) Script.compileWithoutOptimization(resourceStr, new MyLib(), true);
+        generateAndInvoke(resourceStr, script, file);
     }
 
     private static void generateFile(String name, Compiled compiled) throws Throwable {
@@ -153,12 +155,38 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
         Files.write(new File(path, clzFile.substring(i + 1) + ".class").toPath(), bytes);
     }
 
-    private static void generateAndInvoke(Script script, String name) throws Throwable {
-        ComparedMayBeObserver observer = new ComparedMayBeObserver(name);
-        InterpreterScript interpreterScript = (InterpreterScript) script;
+    private static void generateAndInvoke(String script, InterpreterScript interpreterScript, String name) throws Throwable {
         generateFile(name, interpreterScript.getCompiled());
-        interpreterScript.createAotCompiledScript().exec(NullNode.getInstance(), null).subscribe(observer.getOb());
+        invokeAotWithEngine(script, interpreterScript, name, AotCompiledScript.AOT_ENGINE_LEGACY);
+        invokeAotWithEngine(script, interpreterScript, name, AotCompiledScript.AOT_ENGINE_SSA);
+    }
+
+    private static void invokeAotWithEngine(String script,
+                                            InterpreterScript interpreterScript,
+                                            String name,
+                                            String engine) throws Throwable {
+        ComparedMayBeObserver observer = new ComparedMayBeObserver(name + ":" + engine);
+        withAotEngine(engine, () -> Script.aotCompileWithoutOptimization(name, script, new MyLib(), true)
+                .exec(NullNode.getInstance(), null)
+                .subscribe(observer.getOb()));
         interpreterScript.exec(NullNode.getInstance(), null).subscribe(observer.getOb());
     }
 
+    private static void withAotEngine(String engine, ThrowingRunnable action) throws Throwable {
+        String old = System.getProperty(AotCompiledScript.AOT_ENGINE_PROPERTY);
+        System.setProperty(AotCompiledScript.AOT_ENGINE_PROPERTY, engine);
+        try {
+            action.run();
+        } finally {
+            if (old == null) {
+                System.clearProperty(AotCompiledScript.AOT_ENGINE_PROPERTY);
+            } else {
+                System.setProperty(AotCompiledScript.AOT_ENGINE_PROPERTY, old);
+            }
+        }
+    }
+
+    private interface ThrowingRunnable {
+        void run() throws Throwable;
+    }
 }

@@ -5,6 +5,7 @@ import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.utils.SystemPropertyUtil;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.Script;
+import io.fiber.net.script.aot.AotSsaCompiledScript;
 import io.fiber.net.script.ast.Block;
 import io.fiber.net.script.parse.ir.AotClassGenerator;
 import io.fiber.net.script.run.AbstractVm;
@@ -23,6 +24,10 @@ public class AotCompiledScript implements Script {
     private static final MethodType METHOD_TYPE = MethodType.methodType(void.class, JsonNode.class, Object.class, Maybe.Emitter.class);
     private static final String ERROR_PATH = SystemPropertyUtil.get("fiber.aotErrorClzDumpPath", "/tmp/fiber_err_clz");
     private static final String DEFAULT_SOURCE_FILE = "script.js";
+    public static final String AOT_ENGINE_PROPERTY = "fiber.script.aot.engine";
+    public static final String AOT_ENGINE_SSA = "ssa";
+    public static final String AOT_ENGINE_LEGACY = "legacy";
+    public static final String AOT_SSA_FALLBACK_PROPERTY = "fiber.script.aot.ssaFallback";
 
     public static AotCompiledScript create(String script, Library library) throws ParseException {
         return create(DEFAULT_SOURCE_FILE, script, library);
@@ -64,6 +69,25 @@ public class AotCompiledScript implements Script {
     }
 
     public static AotCompiledScript of(Compiled compiled) throws ParseException {
+        String engine = SystemPropertyUtil.get(AOT_ENGINE_PROPERTY, AOT_ENGINE_SSA).trim();
+        if (AOT_ENGINE_LEGACY.equalsIgnoreCase(engine)) {
+            return legacyOf(compiled);
+        }
+        if (!AOT_ENGINE_SSA.equalsIgnoreCase(engine)) {
+            throw new ParseException("unknown aot engine: " + engine);
+        }
+        try {
+            return new AotCompiledScript(AotSsaCompiledScript.of(compiled));
+        } catch (ParseException e) {
+            if (!SystemPropertyUtil.getBoolean(AOT_SSA_FALLBACK_PROPERTY, false)) {
+                throw e;
+            }
+            log.warn("error create ssa aot VM, fallback to legacy aot", e);
+            return legacyOf(compiled);
+        }
+    }
+
+    private static AotCompiledScript legacyOf(Compiled compiled) throws ParseException {
         MethodHandle handle;
         AotClassGenerator generator = new AotClassGenerator(compiled);
         try {
@@ -89,24 +113,41 @@ public class AotCompiledScript implements Script {
 
     private final MethodHandle handle;
     private final boolean containsAsync;
+    private final Script delegate;
 
     public AotCompiledScript(MethodHandle handle, boolean containAsync) {
         this.handle = handle;
         this.containsAsync = containAsync;
+        this.delegate = null;
+    }
+
+    private AotCompiledScript(Script delegate) {
+        this.handle = null;
+        this.containsAsync = delegate.containsAsyncIR();
+        this.delegate = delegate;
     }
 
     @Override
     public Maybe<JsonNode> exec(JsonNode root, Object attach) {
+        if (delegate != null) {
+            return delegate.exec(root, attach);
+        }
         return Maybe.create(emitter -> createAotVm(root, attach, emitter).exec());
     }
 
     @Override
     public boolean containsAsyncIR() {
+        if (delegate != null) {
+            return delegate.containsAsyncIR();
+        }
         return containsAsync;
     }
 
     @Override
     public JsonNode execForSync(JsonNode root, Object attach) throws Throwable {
+        if (delegate != null) {
+            return delegate.execForSync(root, attach);
+        }
         if (containsAsyncIR()) {
             throw new IllegalStateException("cannot sync exec for async script");
         }

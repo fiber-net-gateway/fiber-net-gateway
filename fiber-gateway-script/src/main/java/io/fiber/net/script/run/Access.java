@@ -51,7 +51,7 @@ public class Access {
 
 
         if (parent.isTextual()) {
-            if (key.isInt()) {
+            if (!key.isInt()) {
                 return MissingNode.getInstance();
             }
             int idx = key.intValue();

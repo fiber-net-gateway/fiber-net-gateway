@@ -48,6 +48,12 @@ public class AotSsaClassGeneratorTest extends TestInIOThreadParent {
 
         Assert.assertEquals(AbstractVm.class, clazz.getSuperclass());
         Assert.assertNotNull(constructor);
+        try {
+            clazz.getDeclaredField("currentPc");
+            Assert.fail("generated aot vm should not keep currentPc field");
+        } catch (NoSuchFieldException expected) {
+            // expected
+        }
     }
 
     @Test

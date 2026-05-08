@@ -116,7 +116,6 @@ public final class SsaVmClassGenerator implements Opcodes {
         writer.visitField(ACC_PRIVATE, "argCnt", "I", null, null).visitEnd();
         writer.visitField(ACC_PRIVATE, "spreadArgs", ARRAY_NODE_DESC, null, null).visitEnd();
         writer.visitField(ACC_PRIVATE, "asyncState", "I", null, null).visitEnd();
-        writer.visitField(ACC_PRIVATE, "currentPc", "I", null, null).visitEnd();
         for (Map.Entry<SsaValue, String> entry : storage.fields().entrySet()) {
             writer.visitField(ACC_PRIVATE, entry.getValue(), valueDesc(entry.getKey()), null, null).visitEnd();
         }
@@ -124,7 +123,6 @@ public final class SsaVmClassGenerator implements Opcodes {
         emitConstructor(writer);
         emitGetArgVal(writer);
         emitGetArgCnt(writer);
-        emitGetCurrentPc(writer);
         emitRun(writer, graph, liveness, asyncPlan, storage);
         writer.visitEnd();
         return writer.toByteArray();
@@ -199,16 +197,6 @@ public final class SsaVmClassGenerator implements Opcodes {
         mv.visitEnd();
     }
 
-    private void emitGetCurrentPc(ClassWriter writer) {
-        MethodVisitor mv = writer.visitMethod(ACC_PUBLIC, "getCurrentPc", "()I", null, null);
-        mv.visitCode();
-        mv.visitVarInsn(ALOAD, 0);
-        mv.visitFieldInsn(GETFIELD, internalClassName, "currentPc", "I");
-        mv.visitInsn(IRETURN);
-        mv.visitMaxs(0, 0);
-        mv.visitEnd();
-    }
-
     private void emitAsyncSwitch(MethodVisitor mv, AsyncPlan asyncPlan, Map<SsaValue, Label> asyncLabels) {
         if (asyncPlan.points().isEmpty()) {
             return;
@@ -248,12 +236,9 @@ public final class SsaVmClassGenerator implements Opcodes {
         Map<SsaValue, Label> protectedStarts = new IdentityHashMap<>();
         Map<SsaValue, Label> protectedEnds = new IdentityHashMap<>();
         Map<SsaExceptionInput, Label> exceptionHandlers = new IdentityHashMap<>();
-        collectExceptionHandlerLabels(graph, protectedStarts, protectedEnds, exceptionHandlers);
-        Label methodStart = new Label();
-        Label methodEnd = new Label();
-        Label generalHandler = new Label();
+        Map<SsaValue, Label> generalHandlers = new IdentityHashMap<>();
+        collectExceptionHandlerLabels(graph, protectedStarts, protectedEnds, exceptionHandlers, generalHandlers);
         emitAsyncSwitch(mv, asyncPlan, asyncLabels);
-        mv.visitLabel(methodStart);
         emitInitJsonLocals(mv, storage);
         for (int i = 0; i < graph.blocks().size(); i++) {
             SsaBlock block = graph.blocks().get(i);
@@ -276,10 +261,9 @@ public final class SsaVmClassGenerator implements Opcodes {
             }
             emitFallthrough(mv, graph, liveness, storage, block, i, labels);
         }
-        mv.visitLabel(methodEnd);
         mv.visitInsn(RETURN);
         emitExceptionHandlers(mv, graph, storage, labels, protectedStarts, protectedEnds, exceptionHandlers,
-                generalHandler, methodStart, methodEnd);
+                generalHandlers);
         mv.visitMaxs(0, 0);
         mv.visitEnd();
     }
@@ -287,19 +271,24 @@ public final class SsaVmClassGenerator implements Opcodes {
     private static void collectExceptionHandlerLabels(SsaGraph graph,
                                                       Map<SsaValue, Label> protectedStarts,
                                                       Map<SsaValue, Label> protectedEnds,
-                                                      Map<SsaExceptionInput, Label> exceptionHandlers) {
+                                                      Map<SsaExceptionInput, Label> exceptionHandlers,
+                                                      Map<SsaValue, Label> generalHandlers) {
         for (SsaBlock block : graph.blocks()) {
             for (SsaValue value : block.instructions()) {
                 if (value.bytecode() == null) {
                     continue;
                 }
-                List<SsaExceptionInput> inputs = block.exceptionInputsAt(value.bytecode().pc() - block.basicBlock().startPc());
-                if (inputs.isEmpty()) {
-                    continue;
+                if (value.bytecode().mayThrow()) {
+                    protectedStarts.put(value, new Label());
+                    protectedEnds.put(value, new Label());
+                    generalHandlers.put(value, new Label());
                 }
-                protectedStarts.put(value, new Label());
-                protectedEnds.put(value, new Label());
+                List<SsaExceptionInput> inputs = block.exceptionInputsAt(value.bytecode().pc() - block.basicBlock().startPc());
                 for (SsaExceptionInput input : inputs) {
+                    if (!protectedStarts.containsKey(value)) {
+                        protectedStarts.put(value, new Label());
+                        protectedEnds.put(value, new Label());
+                    }
                     exceptionHandlers.put(input, new Label());
                 }
             }
@@ -313,9 +302,7 @@ public final class SsaVmClassGenerator implements Opcodes {
                                        Map<SsaValue, Label> protectedStarts,
                                        Map<SsaValue, Label> protectedEnds,
                                        Map<SsaExceptionInput, Label> exceptionHandlers,
-                                       Label generalHandler,
-                                       Label methodStart,
-                                       Label methodEnd) {
+                                       Map<SsaValue, Label> generalHandlers) {
         for (SsaBlock block : graph.blocks()) {
             for (SsaValue value : block.instructions()) {
                 if (value.bytecode() == null) {
@@ -326,18 +313,26 @@ public final class SsaVmClassGenerator implements Opcodes {
                     Label handler = exceptionHandlers.get(input);
                     mv.visitLabel(handler);
                     mv.visitFrame(F_SAME1, 0, null, 1, new Object[]{SCRIPT_EXEC_EXCEPTION});
-                    emitExceptionInputHandler(mv, graph, storage, labels, input);
+                    emitExceptionInputHandler(mv, graph, storage, labels, input, value.bytecode());
                 }
             }
         }
-        mv.visitLabel(generalHandler);
-        mv.visitFrame(F_SAME1, 0, null, 1, new Object[]{SCRIPT_EXEC_EXCEPTION});
-        int local = 1;
-        mv.visitVarInsn(ASTORE, local);
-        mv.visitVarInsn(ALOAD, local);
-        emitSetPosFromCurrentPcOnStack(mv);
-        mv.visitVarInsn(ALOAD, local);
-        mv.visitInsn(ATHROW);
+        int errorLocal = Math.max(1, storage.localCount());
+        for (SsaBlock block : graph.blocks()) {
+            for (SsaValue value : block.instructions()) {
+                Label handler = generalHandlers.get(value);
+                if (handler == null) {
+                    continue;
+                }
+                mv.visitLabel(handler);
+                mv.visitFrame(F_SAME1, 0, null, 1, new Object[]{SCRIPT_EXEC_EXCEPTION});
+                mv.visitVarInsn(ASTORE, errorLocal);
+                mv.visitVarInsn(ALOAD, errorLocal);
+                emitSetPosFromPcOnStack(mv, value.bytecode().pc());
+                mv.visitVarInsn(ALOAD, errorLocal);
+                mv.visitInsn(ATHROW);
+            }
+        }
 
         for (SsaBlock block : graph.blocks()) {
             for (SsaValue value : block.instructions()) {
@@ -349,21 +344,26 @@ public final class SsaVmClassGenerator implements Opcodes {
                     mv.visitTryCatchBlock(protectedStarts.get(value), protectedEnds.get(value),
                             exceptionHandlers.get(input), SCRIPT_EXEC_EXCEPTION);
                 }
+                Label generalHandler = generalHandlers.get(value);
+                if (generalHandler != null) {
+                    mv.visitTryCatchBlock(protectedStarts.get(value), protectedEnds.get(value),
+                            generalHandler, SCRIPT_EXEC_EXCEPTION);
+                }
             }
         }
-        mv.visitTryCatchBlock(methodStart, methodEnd, generalHandler, SCRIPT_EXEC_EXCEPTION);
     }
 
     private void emitExceptionInputHandler(MethodVisitor mv,
                                            SsaGraph graph,
                                            StoragePlan storage,
                                            Map<BasicBlock, Label> labels,
-                                           SsaExceptionInput input) {
+                                           SsaExceptionInput input,
+                                           Bytecode bytecode) {
         SsaBlock catchBlock = input.catchBlock();
         SsaValue exceptionValue = catchBlock.exceptionValue();
         mv.visitInsn(DUP);
         storeRawValue(mv, storage, exceptionValue);
-        emitSetPosFromCurrentPcOnStack(mv);
+        emitSetPosFromPcOnStack(mv, bytecode.pc());
         VarState incoming = input.vars();
         VarState target = catchBlock.inVars();
         for (int i = 0; i < target.size(); i++) {
@@ -396,7 +396,6 @@ public final class SsaVmClassGenerator implements Opcodes {
                                  SsaValue value,
                                  Map<BasicBlock, Label> labels,
                                  Map<SsaValue, Label> asyncLabels) {
-        setCurrentPc(mv, value.bytecode());
         switch (value.kind()) {
             case CONST:
             case ROOT:
@@ -640,19 +639,9 @@ public final class SsaVmClassGenerator implements Opcodes {
         }
     }
 
-    private void setCurrentPc(MethodVisitor mv, Bytecode bytecode) {
-        if (bytecode == null) {
-            return;
-        }
-        mv.visitVarInsn(ALOAD, 0);
-        pushInt(mv, bytecode.pc());
-        mv.visitFieldInsn(PUTFIELD, internalClassName, "currentPc", "I");
-    }
-
-    private void emitSetPosFromCurrentPcOnStack(MethodVisitor mv) {
+    private void emitSetPosFromPcOnStack(MethodVisitor mv, int pc) {
         mv.visitFieldInsn(GETSTATIC, internalClassName, "POS", LONG_ARRAY_DESC);
-        mv.visitVarInsn(ALOAD, 0);
-        mv.visitFieldInsn(GETFIELD, internalClassName, "currentPc", "I");
+        pushInt(mv, pc);
         mv.visitInsn(LALOAD);
         mv.visitMethodInsn(INVOKEVIRTUAL, SCRIPT_EXEC_EXCEPTION, "setPos", "(J)V", false);
     }
@@ -871,7 +860,7 @@ public final class SsaVmClassGenerator implements Opcodes {
         mv.visitJumpInsn(IFNULL, success);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitFieldInsn(GETFIELD, internalClassName, "rtError", SCRIPT_EXEC_EXCEPTION_DESC);
-        emitSetPosFromCurrentPcOnStack(mv);
+        emitSetPosFromPcOnStack(mv, value.bytecode().pc());
         mv.visitVarInsn(ALOAD, 0);
         mv.visitFieldInsn(GETFIELD, internalClassName, "rtError", SCRIPT_EXEC_EXCEPTION_DESC);
         mv.visitInsn(ATHROW);

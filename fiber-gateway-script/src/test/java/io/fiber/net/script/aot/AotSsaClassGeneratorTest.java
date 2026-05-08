@@ -5,10 +5,13 @@ import io.fiber.net.common.json.NullNode;
 import io.fiber.net.script.ComparedMayBeObserver;
 import io.fiber.net.script.Script;
 import io.fiber.net.script.parse.InterpreterScript;
+import io.fiber.net.script.run.AbstractVm;
 import io.fiber.net.test.TestInIOThreadParent;
 import lua.test.MyLib;
 import org.junit.Assert;
 import org.junit.Test;
+
+import java.lang.reflect.Constructor;
 
 public class AotSsaClassGeneratorTest extends TestInIOThreadParent {
     @Test
@@ -30,6 +33,21 @@ public class AotSsaClassGeneratorTest extends TestInIOThreadParent {
         JsonNode actual = generated.execForSync(NullNode.getInstance(), null);
 
         Assert.assertEquals(expected, actual);
+    }
+
+    @Test
+    public void shouldGenerateDirectAbstractVmSubclassForSyncScript() throws Throwable {
+        InterpreterScript interpreter = compile("let x = 1; return x + 2;");
+        SsaVmClassGenerator generator = new SsaVmClassGenerator(interpreter.getCompiled());
+        Class<? extends AbstractVm> clazz = generator.loadAsClass();
+        Constructor<? extends AbstractVm> constructor = clazz.getConstructor(
+                io.fiber.net.common.json.JsonNode.class,
+                Object.class,
+                io.fiber.net.common.async.Maybe.Emitter.class
+        );
+
+        Assert.assertEquals(AbstractVm.class, clazz.getSuperclass());
+        Assert.assertNotNull(constructor);
     }
 
     @Test

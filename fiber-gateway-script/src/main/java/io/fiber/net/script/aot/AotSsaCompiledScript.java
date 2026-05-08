@@ -17,6 +17,19 @@ public final class AotSsaCompiledScript implements Script {
             Maybe.Emitter.class);
 
     public static AotSsaCompiledScript of(Compiled compiled) throws ParseException {
+        SsaVmClassGenerator directGenerator = new SsaVmClassGenerator(compiled);
+        try {
+            Class<? extends AbstractVm> aotClass = directGenerator.loadAsClass();
+            MethodHandle handle = MethodHandles.lookup().findConstructor(aotClass, CONSTRUCTOR_TYPE);
+            return new AotSsaCompiledScript(handle, compiled.containsAsyncIS());
+        } catch (UnsupportedOperationException unsupported) {
+            return runtimeFallback(compiled);
+        } catch (Throwable e) {
+            throw new ParseException("could not generate ssa aot class", e);
+        }
+    }
+
+    private static AotSsaCompiledScript runtimeFallback(Compiled compiled) throws ParseException {
         AotSsaClassGenerator generator = new AotSsaClassGenerator(compiled);
         try {
             Class<? extends AotRuntimeVm> aotClass = generator.loadAsClass();

@@ -12,11 +12,22 @@ public final class SsaStoragePlanner {
         int[] nextField = new int[]{0};
 
         for (SsaBlock block : graph.blocks()) {
+            assign(block.exceptionValue(), asyncPlan, kinds, locals, fields, nextLocal, nextField);
             for (SsaValue phi : block.phis()) {
                 assign(phi, asyncPlan, kinds, locals, fields, nextLocal, nextField);
             }
             for (SsaValue value : block.instructions()) {
                 assign(value, asyncPlan, kinds, locals, fields, nextLocal, nextField);
+                if (value.bytecode() == null) {
+                    continue;
+                }
+                for (SsaExceptionInput input : block.exceptionInputsAt(value.bytecode().pc() - block.basicBlock().startPc())) {
+                    assign(input.exception(), asyncPlan, kinds, locals, fields, nextLocal, nextField);
+                    VarState incoming = input.vars();
+                    for (int i = 0; i < incoming.size(); i++) {
+                        assign(incoming.get(i), asyncPlan, kinds, locals, fields, nextLocal, nextField);
+                    }
+                }
             }
             for (Edge edge : block.basicBlock().successors()) {
                 for (SsaLiveness.PhiMove move : liveness.edgeMoves(edge)) {
@@ -59,8 +70,8 @@ public final class SsaStoragePlanner {
                 kinds.put(value, StoragePlan.Kind.NONE);
                 return;
             default:
-                kinds.put(value, StoragePlan.Kind.LOCAL);
-                locals.put(value, nextLocal[0]++);
+                kinds.put(value, StoragePlan.Kind.FIELD);
+                fields.put(value, "_ssa_field_" + nextField[0]++);
                 break;
         }
     }

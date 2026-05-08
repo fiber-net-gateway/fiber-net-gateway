@@ -22,19 +22,6 @@ public final class AotSsaCompiledScript implements Script {
             Class<? extends AbstractVm> aotClass = directGenerator.loadAsClass();
             MethodHandle handle = MethodHandles.lookup().findConstructor(aotClass, CONSTRUCTOR_TYPE);
             return new AotSsaCompiledScript(handle, compiled.containsAsyncIS());
-        } catch (UnsupportedOperationException unsupported) {
-            return runtimeFallback(compiled);
-        } catch (Throwable e) {
-            throw new ParseException("could not generate ssa aot class", e);
-        }
-    }
-
-    private static AotSsaCompiledScript runtimeFallback(Compiled compiled) throws ParseException {
-        AotSsaClassGenerator generator = new AotSsaClassGenerator(compiled);
-        try {
-            Class<? extends AotRuntimeVm> aotClass = generator.loadAsClass();
-            MethodHandle handle = MethodHandles.lookup().findConstructor(aotClass, CONSTRUCTOR_TYPE);
-            return new AotSsaCompiledScript(handle, compiled.containsAsyncIS());
         } catch (Throwable e) {
             throw new ParseException("could not generate ssa aot class", e);
         }

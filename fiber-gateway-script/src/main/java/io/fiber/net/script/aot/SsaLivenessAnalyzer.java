@@ -87,15 +87,64 @@ public final class SsaLivenessAnalyzer {
                 for (SsaValue phi : target.phis()) {
                     SsaValue incoming = incomingValue(block, target, phi);
                     if (incoming != null && incoming != phi) {
-                        edgeMoves.add(new SsaLiveness.PhiMove(incoming, phi));
+                        addMove(edgeMoves, incoming, phi);
                     }
                 }
+                addStateMoves(edgeMoves, block.outStack(), target.inStack());
+                addStateMoves(edgeMoves, block.outVars(), target.inVars());
                 if (!edgeMoves.isEmpty()) {
                     moves.put(edge, Collections.unmodifiableList(edgeMoves));
                 }
             }
         }
         return moves;
+    }
+
+    private static void addStateMoves(ArrayList<SsaLiveness.PhiMove> moves, StackState from, StackState to) {
+        if (from == null || to == null || from.size() != to.size()) {
+            return;
+        }
+        for (int i = 0; i < to.size(); i++) {
+            addMove(moves, from.get(i), to.get(i));
+        }
+    }
+
+    private static void addStateMoves(ArrayList<SsaLiveness.PhiMove> moves, VarState from, VarState to) {
+        if (from == null || to == null || from.size() != to.size()) {
+            return;
+        }
+        for (int i = 0; i < to.size(); i++) {
+            addMove(moves, from.get(i), to.get(i));
+        }
+    }
+
+    private static void addMove(ArrayList<SsaLiveness.PhiMove> moves, SsaValue from, SsaValue to) {
+        if (from == null || to == null || from == to || !needsStorageMove(to)) {
+            return;
+        }
+        for (SsaLiveness.PhiMove move : moves) {
+            if (move.from() == from && move.to() == to) {
+                return;
+            }
+        }
+        moves.add(new SsaLiveness.PhiMove(from, to));
+    }
+
+    private static boolean needsStorageMove(SsaValue value) {
+        switch (value.kind()) {
+            case CONST:
+            case ROOT:
+            case UNDEFINED:
+            case NOOP:
+            case POP:
+            case JUMP:
+            case BRANCH:
+            case RETURN:
+            case THROW:
+                return false;
+            default:
+                return true;
+        }
     }
 
     private static SsaValue incomingValue(SsaBlock from, SsaBlock to, SsaValue phi) {

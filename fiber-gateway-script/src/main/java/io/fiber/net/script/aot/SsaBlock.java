@@ -12,6 +12,7 @@ public final class SsaBlock {
     private final SsaValue[] varPhis;
     private final SsaValue[] instructionValues;
     private final SsaValue[] exceptionValues;
+    private final ArrayList<SsaExceptionInput>[] exceptionInputs;
     private SsaValue exceptionPhi;
 
     StackState inStack;
@@ -20,12 +21,14 @@ public final class SsaBlock {
     VarState outVars;
     SsaValue exceptionValue;
 
+    @SuppressWarnings("unchecked")
     SsaBlock(BasicBlock basicBlock, int maxStack, int varCount) {
         this.basicBlock = basicBlock;
         this.stackPhis = new SsaValue[Math.max(0, maxStack)];
         this.varPhis = new SsaValue[Math.max(0, varCount)];
         this.instructionValues = new SsaValue[basicBlock.codeLength()];
         this.exceptionValues = new SsaValue[basicBlock.codeLength()];
+        this.exceptionInputs = new ArrayList[basicBlock.codeLength()];
     }
 
     public BasicBlock basicBlock() {
@@ -62,6 +65,11 @@ public final class SsaBlock {
 
     public SsaValue exceptionValue() {
         return exceptionValue;
+    }
+
+    public List<SsaExceptionInput> exceptionInputsAt(int codeIndex) {
+        ArrayList<SsaExceptionInput> inputs = exceptionInputs[codeIndex];
+        return inputs == null ? Collections.<SsaExceptionInput>emptyList() : Collections.unmodifiableList(inputs);
     }
 
     void addInstruction(SsaValue value) {
@@ -102,6 +110,14 @@ public final class SsaBlock {
         if (exceptionValue == oldValue) {
             exceptionValue = newValue;
             changed = true;
+        }
+        for (ArrayList<SsaExceptionInput> inputs : exceptionInputs) {
+            if (inputs == null) {
+                continue;
+            }
+            for (SsaExceptionInput input : inputs) {
+                changed |= input.replaceValue(oldValue, newValue);
+            }
         }
         return changed;
     }
@@ -162,6 +178,15 @@ public final class SsaBlock {
             exceptionValues[codeIndex] = value;
         }
         return value;
+    }
+
+    void addExceptionInput(int codeIndex, SsaBlock catchBlock, VarState vars, SsaValue exception) {
+        ArrayList<SsaExceptionInput> inputs = exceptionInputs[codeIndex];
+        if (inputs == null) {
+            inputs = new ArrayList<>();
+            exceptionInputs[codeIndex] = inputs;
+        }
+        inputs.add(new SsaExceptionInput(catchBlock, vars, exception));
     }
 
     @Override

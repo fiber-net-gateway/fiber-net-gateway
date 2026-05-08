@@ -53,6 +53,10 @@ public final class StoragePlan {
         return Collections.unmodifiableMap(fields);
     }
 
+    public Map<SsaValue, Integer> locals() {
+        return Collections.unmodifiableMap(locals);
+    }
+
     static <T> Map<SsaValue, T> identityMap() {
         return new IdentityHashMap<>();
     }

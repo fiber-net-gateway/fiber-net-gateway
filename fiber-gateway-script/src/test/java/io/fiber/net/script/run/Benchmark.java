@@ -1,11 +1,12 @@
 package io.fiber.net.script.run;
 
+import io.fiber.net.common.async.Maybe;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.NullNode;
+import io.fiber.net.script.aot.SsaVmClassGenerator;
 import io.fiber.net.script.parse.Compiled;
 import io.fiber.net.script.parse.CompilerNodeVisitor;
 import io.fiber.net.script.parse.OptimiserNodeVisitor;
-import io.fiber.net.script.parse.ir.AotClassGenerator;
 import lua.test.MyLib;
 import org.apache.commons.io.IOUtils;
 
@@ -22,8 +23,8 @@ public class Benchmark {
             String string = IOUtils.toString(resource);
             Compiled compiled = CompilerNodeVisitor.compileFromScript(string, new MyLib());
 
-            AotClassGenerator generator = new AotClassGenerator(compiled);
-            Class<?> clz = generator.generateClz();
+            SsaVmClassGenerator generator = new SsaVmClassGenerator(compiled);
+            Class<?> clz = generator.loadAsClass();
 
             long l = System.currentTimeMillis();
             run(compiled);
@@ -44,9 +45,11 @@ public class Benchmark {
 
     private static void aotRun(Class<?> clz) throws Throwable {
         MethodHandles.Lookup lookup = MethodHandles.lookup();
-        MethodHandle handle = lookup.findConstructor(clz, MethodType.methodType(void.class, JsonNode.class, Object.class));
+        MethodHandle handle = lookup.findConstructor(clz,
+                MethodType.methodType(void.class, JsonNode.class, Object.class, Maybe.Emitter.class));
         for (int i = 0; i < 1000000000; i++) {
-            AbstractVm abstractVm = (AbstractVm) handle.invoke((JsonNode) NullNode.getInstance(), (Object) null);
+            AbstractVm abstractVm = (AbstractVm) handle.invoke((JsonNode) NullNode.getInstance(), (Object) null,
+                    OptimiserNodeVisitor.noopEmitter());
             abstractVm.exec();
         }
     }

@@ -336,6 +336,7 @@ public final class SsaBuilder {
                 exceptionValue = source.exceptionAt(bytecode.pc() - source.basicBlock().startPc(), bytecode, factory);
             }
             boolean changed = mergeExceptionInput(target, vars, exceptionValue);
+            source.addExceptionInput(bytecode.pc() - source.basicBlock().startPc(), target, vars, exceptionValue);
             if (changed) {
                 enqueue(target, queue, queued);
             }

@@ -1,11 +1,13 @@
 package io.fiber.net.script.aot;
 
+import io.fiber.net.script.run.AbstractVm;
+
 final class AotSsaGeneratedClassLoader extends ClassLoader {
     private final String className;
     private final byte[] classData;
 
     private AotSsaGeneratedClassLoader(String className, byte[] classData) {
-        super(AotRuntimeVm.class.getClassLoader());
+        super(AbstractVm.class.getClassLoader());
         this.className = className;
         this.classData = classData;
     }

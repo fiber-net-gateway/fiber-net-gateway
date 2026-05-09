@@ -172,4 +172,31 @@ public class Compiled {
         }
         return false;
     }
+
+    public static int searchExpHandle(int epc, int[] expIns) {
+        int len, l, r;
+        if (expIns == null || epc < expIns[l = 0] || expIns[(r = len = expIns.length >> 1) - 1] <= epc) {
+            return -1;
+        }
+
+        if (len <= 8) { // too small ，linear search
+            for (int i = 1; i < len; i++) {
+                if (expIns[i] >= epc) {
+                    return expIns[i - 1 + len];
+                }
+            }
+        }
+        while (l < r) {// binary search
+            int m;
+            int mv;
+            if (epc < (mv = expIns[m = (l + r) >> 1])) {
+                r = m;
+            } else if (epc > mv) {
+                l = m + 1;
+            } else {
+                return expIns[epc + len];
+            }
+        }
+        return expIns[l - 1 + len];
+    }
 }

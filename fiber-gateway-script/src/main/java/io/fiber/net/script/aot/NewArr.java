@@ -9,4 +9,10 @@ public class NewArr extends Expr {
     public SsaValue.Type getResultType() {
         return SsaValue.Type.ARRAY;
     }
+
+    @Override
+    public Throw canThrow() {
+        return Throw.NOT;
+    }
+
 }

@@ -9,4 +9,9 @@ public class NewObj extends Expr {
     public SsaValue.Type getResultType() {
         return SsaValue.Type.OBJECT;
     }
+
+    @Override
+    public Throw canThrow() {
+        return Throw.NOT;
+    }
 }

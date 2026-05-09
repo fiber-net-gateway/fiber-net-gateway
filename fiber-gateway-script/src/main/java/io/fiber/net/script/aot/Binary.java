@@ -66,4 +66,9 @@ public class Binary extends Expr {
         }
         return SsaValue.Type.BOOLEAN;
     }
+
+    @Override
+    public Throw canThrow() {
+        return op.ordinal() < Op.MATCH.ordinal() ? Throw.MAYBE : Throw.NOT;
+    }
 }

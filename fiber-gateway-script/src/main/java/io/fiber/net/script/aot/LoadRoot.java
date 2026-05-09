@@ -9,4 +9,9 @@ public class LoadRoot extends Expr {
     public SsaValue.Type getResultType() {
         return SsaValue.Type.Unknown;
     }
+
+    @Override
+    public Throw canThrow() {
+        return Throw.NOT;
+    }
 }

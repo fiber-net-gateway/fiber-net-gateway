@@ -134,10 +134,6 @@ public class Access {
             return parent.path(key);
         }
 
-        if (parent.isTextual() || parent.isArray()) {
-            return IntNode.valueOf(parent.isTextual() ? parent.textValue().length() : parent.size());
-        }
-
         return MissingNode.getInstance();
     }
 

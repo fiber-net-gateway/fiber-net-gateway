@@ -1,6 +1,12 @@
 package io.fiber.net.script.aot;
 
 public abstract class Instruction {
+    public enum Throw {
+        NOT,
+        MAYBE,
+        ALWAYS,
+    }
+
     protected final Block belongTo;
     protected final int pc;
 
@@ -15,5 +21,9 @@ public abstract class Instruction {
 
     public int getPc() {
         return pc;
+    }
+
+    public Throw canThrow() {
+        return Throw.MAYBE;
     }
 }

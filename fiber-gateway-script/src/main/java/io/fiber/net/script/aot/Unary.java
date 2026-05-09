@@ -61,4 +61,21 @@ public class Unary extends Expr {
                 throw new IllegalStateException("[bug] not hit");
         }
     }
+
+    @Override
+    public Throw canThrow() {
+        switch (op) {
+            case PLUS:
+            case MINUS:
+                return Throw.MAYBE;
+            case NEG:
+            case ITERATE_NEXT:
+            case TYPEOF:
+            case ITERATE_INTO:
+            case ITERATE_VALUE:
+                return Throw.NOT;
+            default:
+                throw new IllegalStateException("[bug] not hit");
+        }
+    }
 }

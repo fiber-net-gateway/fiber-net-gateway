@@ -18,4 +18,9 @@ public class LoadConst extends Expr {
     public SsaValue.Type getResultType() {
         return SsaValue.ofType(valueNode.getNodeType());
     }
+
+    @Override
+    public Throw canThrow() {
+        return Throw.NOT;
+    }
 }

@@ -1,6 +1,6 @@
 package io.fiber.net.script.aot;
 
-public class Link {
+public class Edge {
     public enum Type {
         FALLTHROUGH,
         JUMP,
@@ -11,7 +11,7 @@ public class Link {
     final Block predecessor;
     final Block successor;
 
-    public Link(Type type, Block predecessor, Block successor) {
+    public Edge(Type type, Block predecessor, Block successor) {
         this.type = type;
         this.predecessor = predecessor;
         this.successor = successor;

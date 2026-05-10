@@ -7,11 +7,15 @@ public class Block {
 
     private final List<Instruction> instructions = new ArrayList<>();
 
-    final List<Link> predecessors = new ArrayList<>();
-    final List<Link> successors = new ArrayList<>();
+    final List<Edge> predecessors = new ArrayList<>();
+    final List<Edge> successors = new ArrayList<>();
     final int startPc;
     int endPc; // exclude. immutable
     private List<SsaValue> phiValues;
+
+    int inputStackSize; // stackSize when enter block
+    int legacyStackSize; // stackSize legacy (do not contain stack size produced by this) when lease block
+    int outputStackSize; // produced stackSize by this block
 
     public Block(int startPc) {
         this.startPc = startPc;
@@ -32,11 +36,11 @@ public class Block {
         return phiValues;
     }
 
-    public List<Link> getPredecessors() {
+    public List<Edge> getPredecessors() {
         return predecessors;
     }
 
-    public List<Link> getSuccessors() {
+    public List<Edge> getSuccessors() {
         return successors;
     }
 

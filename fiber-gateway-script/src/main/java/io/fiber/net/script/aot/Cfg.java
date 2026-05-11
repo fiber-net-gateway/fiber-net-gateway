@@ -154,29 +154,50 @@ public class Cfg {
 
         }
 
+        private static class MaybePhi extends Expr {
+            private final int idx;
+            private final boolean stack;
 
+            protected MaybePhi(Block belongTo, int pc, int idx, boolean stack) {
+                super(belongTo, pc);
+                this.idx = idx;
+                this.stack = stack;
+            }
+
+            @Override
+            public SsaValue.Type getResultType() {
+                return SsaValue.Type.Unknown;
+            }
+        }
 
         private static class MockInv {
             final Compiled compiled;
             final Expr[] stack;
-            final Var[] vars;
+            final SsaValue[] vars;
             int sp;
             boolean[] varUse;
             boolean[] varDef;
             int varVersion;
+            List<MaybePhi> maybePhis;
 
             public MockInv(Compiled compiled) {
                 this.compiled = compiled;
                 this.stack = new Expr[compiled.getStackSize()];
-                this.vars = new Var[compiled.getVarTableSize()];
+                this.vars = new SsaValue[compiled.getVarTableSize()];
             }
 
-            Var loadVar(int idx) {
-                Var var = vars[idx];
+            SsaValue loadVar(Block block, int pc, int idx) {
+                SsaValue var = vars[idx];
                 if (var != null) {
                     return var;
                 }
-                return vars[idx] = new Var(idx);
+                MaybePhi maybePhi = new MaybePhi(block, pc, idx, false);
+                vars[idx] = maybePhi.getResult();
+                if (maybePhis == null) {
+                    maybePhis = new ArrayList<>();
+                }
+                maybePhis.add(maybePhi);
+                return maybePhi.getResult();
             }
 
             public void clearStack() {
@@ -208,13 +229,16 @@ public class Cfg {
                             sp--;
                             break;
                         case Code.LOAD_VAR:
-                            stack[sp++] = loadVar(code >>> 8);
+                            stack[sp++] = loadVar(block, i, code >>> 8).getAssign();
                             break;
                         case Code.STORE_VAR:
+                            vars[code >>> 8] = stack[--sp].getResult();
                             break;
                         case Code.NEW_OBJECT:
+                            stack[sp++] = new NewObj(block, i);
                             break;
                         case Code.NEW_ARRAY:
+                            stack[sp++] = new NewArr(block, i);
                             break;
                         case Code.EXP_OBJECT:
                             break;

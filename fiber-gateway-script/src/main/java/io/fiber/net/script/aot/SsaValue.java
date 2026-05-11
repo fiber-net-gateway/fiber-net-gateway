@@ -32,11 +32,16 @@ public class SsaValue {
         return VALUES[v.ordinal()];
     }
 
-    private final Expr assign;
+    private Expr assign;
     private List<Instruction> used;
 
     public SsaValue(Expr assign) {
         this.assign = assign;
+    }
+
+    public void replaceAssign(Expr assign) {
+        this.assign = assign;
+        assign.setResult(this);
     }
 
     public int getUsedCount() {

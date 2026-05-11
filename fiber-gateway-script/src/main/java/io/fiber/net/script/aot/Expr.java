@@ -4,11 +4,15 @@ package io.fiber.net.script.aot;
 public abstract class Expr extends Instruction {
 
 
-    final SsaValue result;
+    private SsaValue result;
 
     protected Expr(Block belongTo, int pc) {
         super(belongTo, pc);
         this.result = new SsaValue(this);
+    }
+
+    public void setResult(SsaValue result) {
+        this.result = result;
     }
 
     public SsaValue getResult() {

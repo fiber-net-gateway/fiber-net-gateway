@@ -30,8 +30,14 @@ public class Cfg {
 
     private static void addEdge(Edge.Type type, Block predecessor, Block successor) {
         for (Edge edge : predecessor.successors) {
-            if (edge.type == type && edge.successor == successor) {
-                return;
+            if (edge.successor == successor) {
+                if ((edge.type == Edge.Type.THROW) != (type == Edge.Type.THROW)) {
+                    throw new IllegalStateException("mixed throw and normal edge from " +
+                            predecessor.startPc + " to " + successor.startPc);
+                }
+                if (edge.type == type) {
+                    return;
+                }
             }
         }
         new Edge(type, predecessor, successor);

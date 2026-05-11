@@ -43,6 +43,11 @@ public class Unary extends Expr {
     }
 
     @Override
+    void dropOperands() {
+        material.removeUsed(this);
+    }
+
+    @Override
     public SsaValue.Type getResultType() {
         switch (op) {
             case PLUS:

@@ -35,6 +35,12 @@ public class IndexGet extends Expr {
     }
 
     @Override
+    void dropOperands() {
+        owner.removeUsed(this);
+        key.removeUsed(this);
+    }
+
+    @Override
     public SsaValue.Type getResultType() {
         SsaValue.Type type = owner.getType();
         if (type == SsaValue.Type.Unknown

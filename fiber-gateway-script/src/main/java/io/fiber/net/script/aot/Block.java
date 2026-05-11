@@ -403,6 +403,14 @@ public class Block {
         return instructions;
     }
 
+    void replaceInstruction(Instruction oldInstruction, Instruction newInstruction) {
+        int idx = instructions.indexOf(oldInstruction);
+        if (idx < 0) {
+            throw new IllegalStateException("[bug]instruction not in block");
+        }
+        instructions.set(idx, newInstruction);
+    }
+
     public List<MaybePhi> getMaybePhis() {
         if (maybePhis == null) {
             return Collections.emptyList();

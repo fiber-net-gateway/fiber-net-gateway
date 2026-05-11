@@ -152,6 +152,8 @@ public class Cfg {
             }
             resolveSsa();
             simplifyPhis();
+            new ConstPropagation(cfg).optimize();
+            simplifyPhis();
             return cfg;
         }
 

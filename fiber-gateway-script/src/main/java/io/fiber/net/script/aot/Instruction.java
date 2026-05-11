@@ -30,4 +30,7 @@ public abstract class Instruction {
     public int replaceOperand(SsaValue oldVal, SsaValue newVal) {
         return 0;
     }
+
+    void dropOperands() {
+    }
 }

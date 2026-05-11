@@ -29,6 +29,11 @@ public class PropGet extends Expr {
     }
 
     @Override
+    void dropOperands() {
+        owner.removeUsed(this);
+    }
+
+    @Override
     public SsaValue.Type getResultType() {
         SsaValue.Type type = owner.getType();
         if (type == SsaValue.Type.Unknown) {

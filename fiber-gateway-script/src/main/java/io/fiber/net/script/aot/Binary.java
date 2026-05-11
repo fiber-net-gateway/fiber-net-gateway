@@ -61,6 +61,12 @@ public class Binary extends Expr {
     }
 
     @Override
+    void dropOperands() {
+        left.removeUsed(this);
+        right.removeUsed(this);
+    }
+
+    @Override
     public SsaValue.Type getResultType() {
         assert op != null;
         if (op == Op.PLUS) {

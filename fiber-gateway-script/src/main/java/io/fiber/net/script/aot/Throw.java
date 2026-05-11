@@ -6,6 +6,7 @@ public class Throw extends Instruction {
     protected Throw(Block belongTo, int pc, SsaValue value) {
         super(belongTo, pc);
         this.value = value;
+        value.addUsed(this);
     }
 
     @Override

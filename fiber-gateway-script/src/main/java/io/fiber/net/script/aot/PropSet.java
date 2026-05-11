@@ -10,6 +10,8 @@ public class PropSet extends Expr {
         this.owner = owner;
         this.key = key;
         this.alien = alien;
+        owner.addUsed(this);
+        alien.addUsed(this);
     }
 
     @Override

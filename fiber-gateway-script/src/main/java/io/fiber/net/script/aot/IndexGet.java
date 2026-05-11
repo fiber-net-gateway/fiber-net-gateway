@@ -8,6 +8,8 @@ public class IndexGet extends Expr {
         super(belongTo, pc);
         this.owner = owner;
         this.key = key;
+        owner.addUsed(this);
+        key.addUsed(this);
     }
 
     public SsaValue getOwner() {

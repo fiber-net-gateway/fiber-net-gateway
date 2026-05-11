@@ -6,11 +6,16 @@ public class CallFunc extends Expr {
 
     final Library.Function function;
     final boolean spread;
+    final SsaValue[] args;
 
-    protected CallFunc(Block belongTo, int pc, Library.Function function, boolean spread) {
+    protected CallFunc(Block belongTo, int pc, Library.Function function, boolean spread, SsaValue[] args) {
         super(belongTo, pc);
         this.function = function;
         this.spread = spread;
+        this.args = args;
+        for (SsaValue arg : args) {
+            arg.addUsed(this);
+        }
     }
 
     @Override
@@ -24,5 +29,9 @@ public class CallFunc extends Expr {
 
     public boolean isSpread() {
         return spread;
+    }
+
+    public SsaValue[] getArgs() {
+        return args;
     }
 }

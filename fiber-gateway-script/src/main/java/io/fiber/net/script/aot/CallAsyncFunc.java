@@ -6,11 +6,16 @@ public class CallAsyncFunc extends Expr {
 
     final Library.AsyncFunction function;
     final boolean spread;
+    final SsaValue[] args;
 
-    protected CallAsyncFunc(Block belongTo, int pc, Library.AsyncFunction function, boolean spread) {
+    protected CallAsyncFunc(Block belongTo, int pc, Library.AsyncFunction function, boolean spread, SsaValue[] args) {
         super(belongTo, pc);
         this.function = function;
         this.spread = spread;
+        this.args = args;
+        for (SsaValue arg : args) {
+            arg.addUsed(this);
+        }
     }
 
     @Override
@@ -24,5 +29,9 @@ public class CallAsyncFunc extends Expr {
 
     public boolean isSpread() {
         return spread;
+    }
+
+    public SsaValue[] getArgs() {
+        return args;
     }
 }

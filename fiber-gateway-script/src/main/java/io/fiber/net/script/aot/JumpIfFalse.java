@@ -8,6 +8,7 @@ public class JumpIfFalse extends Instruction {
         super(belongTo, pc);
         this.target = target;
         this.cond = cond;
+        cond.addUsed(this);
     }
 
     @Override

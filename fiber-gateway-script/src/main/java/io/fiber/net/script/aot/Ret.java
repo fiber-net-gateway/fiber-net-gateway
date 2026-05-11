@@ -7,6 +7,7 @@ public class Ret extends Instruction {
     protected Ret(Block belongTo, int pc, SsaValue value) {
         super(belongTo, pc);
         this.value = value;
+        value.addUsed(this);
     }
 
     public SsaValue getValue() {

@@ -8,6 +8,7 @@ public class PropGet extends Expr {
         super(belongTo, pc);
         this.owner = owner;
         this.key = key;
+        owner.addUsed(this);
     }
 
     public SsaValue getOwner() {

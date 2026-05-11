@@ -72,6 +72,7 @@ public class Unary extends Expr {
             case ITERATE_NEXT:
             case TYPEOF:
             case ITERATE_INTO:
+            case ITERATE_KEY:
             case ITERATE_VALUE:
                 return Throw.NOT;
             default:

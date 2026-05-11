@@ -9,6 +9,8 @@ public class ExpandObj extends Instruction {
         super(belongTo, pc);
         this.target = target;
         this.addition = addition;
+        target.addUsed(this);
+        addition.addUsed(this);
     }
 
     public SsaValue getTarget() {

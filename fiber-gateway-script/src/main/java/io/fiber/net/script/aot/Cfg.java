@@ -1,7 +1,5 @@
 package io.fiber.net.script.aot;
 
-import io.fiber.net.common.json.ValueNode;
-import io.fiber.net.common.utils.Assert;
 import io.fiber.net.script.parse.Compiled;
 import io.fiber.net.script.run.Code;
 
@@ -22,6 +20,23 @@ public class Cfg {
         return Objects.requireNonNull(blockTreeMap.floorEntry(pc).getValue());
     }
 
+    Block mustGetBlock(int pc) {
+        return Objects.requireNonNull(blockTreeMap.get(pc));
+    }
+
+    public Collection<Block> getBlocks() {
+        return blockTreeMap.values();
+    }
+
+    private static void addEdge(Edge.Type type, Block predecessor, Block successor) {
+        for (Edge edge : predecessor.successors) {
+            if (edge.type == type && edge.successor == successor) {
+                return;
+            }
+        }
+        new Edge(type, predecessor, successor);
+    }
+
 
     public static class Builder {
 
@@ -40,10 +55,10 @@ public class Cfg {
         }
 
         private Block mustGetByPc(int pc) {
-            return Objects.requireNonNull(cfg.blockTreeMap.get(pc));
+            return cfg.mustGetBlock(pc);
         }
 
-        public void build() {
+        public Cfg build() {
             cfg = new Cfg();
             addBlock(0);
             int[] codes = compiled.getCodes();
@@ -88,358 +103,80 @@ public class Cfg {
                 }
             }
 
-            for (int i = 0; i < codes.length; i++) {
-                Block current = cfg.mustFindBlock(i);
-                int code = codes[i];
+            for (Block current : cfg.blockTreeMap.values()) {
+                int pc = current.endPc - 1;
+                if (pc < current.startPc) {
+                    continue;
+                }
+                int code = codes[pc];
                 int c = code & 0xFF;
                 switch (c) {
                     case Code.JUMP: {
                         Block block = mustGetByPc(code >>> 8);
-                        Assert.isTrue(current != block);
-                        new Edge(Edge.Type.JUMP, current, block);
+                        addEdge(Edge.Type.JUMP, current, block);
                         break;
                     }
                     case Code.JUMP_IF_FALSE:
                     case Code.JUMP_IF_TRUE: {
                         Block block = mustGetByPc(code >>> 8);
-                        Assert.isTrue(current != block);
-                        new Edge(Edge.Type.JUMP, current, block);
-                        Block next = mustGetByPc(i + 1);
-                        Assert.isTrue(current != next);
-                        new Edge(Edge.Type.FALLTHROUGH, current, next);
+                        addEdge(Edge.Type.JUMP, current, block);
+                        addFallthrough(current);
                         break;
                     }
                     default:
-                        break;
-                }
-                Instruction.Throw aThrow = getThrow(c);
-                if (aThrow != Instruction.Throw.NOT) {
-                    int cpc = Compiled.searchExpHandle(i, compiled.getExpIns());
-                    if (cpc >= 0) {
-                        Block catchPoint = mustGetByPc(cpc);
-                        Assert.isTrue(current != catchPoint);
-                        new Edge(Edge.Type.THROW, current, catchPoint);
-                    }
-                    if (aThrow == Instruction.Throw.MAYBE) {
-                        Block next = mustGetByPc(i + 1);
-                        Assert.isTrue(current != next);
-                        new Edge(Edge.Type.FALLTHROUGH, current, next);
-                    }
+                        Instruction.Throw aThrow = getThrow(c);
+                        if (aThrow != Instruction.Throw.NOT) {
+                            int cpc = Compiled.searchExpHandle(pc, compiled.getExpIns());
+                            if (cpc >= 0) {
+                                addEdge(Edge.Type.THROW, current, mustGetByPc(cpc));
+                            }
+                            if (aThrow == Instruction.Throw.MAYBE) {
+                                addFallthrough(current);
+                            }
+                        } else if (c != Code.END_RETURN) {
+                            addFallthrough(current);
+                        }
                 }
             }
 
-            Set<Block> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+            propagateStackSize();
 
+            for (Block block : cfg.blockTreeMap.values()) {
+                block.simulate(compiled, cfg);
+            }
+            return cfg;
+        }
 
-            MockInv inv = new MockInv(compiled);
-            int sp = 0;
-            int pc = 0;
+        private void propagateStackSize() {
+            for (Block block : cfg.blockTreeMap.values()) {
+                block.prepareStackShape(compiled);
+            }
+
             Queue<Block> queue = new ArrayDeque<>();
-            queue.add(mustGetByPc(pc));
-            do {
-                Block b = queue.poll();
-                visited.add(b);
-                for (int i = b.startPc; i < b.endPc; i++) {
-
-                }
-
-                for (Edge edge : b.successors) {
-                    if (!visited.contains(edge.successor)) {
+            Block entry = mustGetByPc(0);
+            entry.mergeInputStackSize(0);
+            queue.add(entry);
+            while (!queue.isEmpty()) {
+                Block block = queue.poll();
+                for (Edge edge : block.successors) {
+                    int nextStackSize = edge.type == Edge.Type.THROW ? 0 : block.outputStackSize;
+                    if (edge.successor.mergeInputStackSize(nextStackSize)) {
                         queue.add(edge.successor);
                     }
                 }
-
-            } while (!queue.isEmpty());
-
-
-        }
-
-        private static class MaybePhi extends Expr {
-            private final int idx;
-            private final boolean stack;
-
-            protected MaybePhi(Block belongTo, int pc, int idx, boolean stack) {
-                super(belongTo, pc);
-                this.idx = idx;
-                this.stack = stack;
             }
 
-            @Override
-            public SsaValue.Type getResultType() {
-                return SsaValue.Type.Unknown;
+            for (Block block : cfg.blockTreeMap.values()) {
+                block.setFallbackInputStackSize();
             }
         }
 
-        private static class MockInv {
-            final Compiled compiled;
-            final Expr[] stack;
-            final SsaValue[] vars;
-            int sp;
-            boolean[] varUse;
-            boolean[] varDef;
-            int varVersion;
-            List<MaybePhi> maybePhis;
-
-            public MockInv(Compiled compiled) {
-                this.compiled = compiled;
-                this.stack = new Expr[compiled.getStackSize()];
-                this.vars = new SsaValue[compiled.getVarTableSize()];
+        private void addFallthrough(Block current) {
+            if (current.endPc >= compiled.getCodes().length) {
+                return;
             }
-
-            SsaValue loadVar(Block block, int pc, int idx) {
-                SsaValue var = vars[idx];
-                if (var != null) {
-                    return var;
-                }
-                MaybePhi maybePhi = new MaybePhi(block, pc, idx, false);
-                vars[idx] = maybePhi.getResult();
-                if (maybePhis == null) {
-                    maybePhis = new ArrayList<>();
-                }
-                maybePhis.add(maybePhi);
-                return maybePhi.getResult();
-            }
-
-            public void clearStack() {
-                sp = 0;
-            }
-
-            public void invoke(Block block) {
-                varUse = new boolean[compiled.getVarTableSize()];
-                varDef = new boolean[compiled.getVarTableSize()];
-
-                int[] codes = compiled.getCodes();
-                for (int i = block.startPc; i < block.endPc; i++) {
-                    int code = codes[i];
-                    int ins = code & 0xFF;
-                    switch (ins) {
-                        case Code.NOOP:
-                            break;
-                        case Code.LOAD_CONST:
-                            stack[sp++] = new LoadConst(block, i, (ValueNode) compiled.getOperands()[code >>> 8]);
-                            break;
-                        case Code.LOAD_ROOT:
-                            stack[sp++] = new LoadRoot(block, i);
-                            break;
-                        case Code.DUMP:
-                            stack[sp] = stack[sp - 1];
-                            sp++;
-                            break;
-                        case Code.POP:
-                            sp--;
-                            break;
-                        case Code.LOAD_VAR:
-                            stack[sp++] = loadVar(block, i, code >>> 8).getAssign();
-                            break;
-                        case Code.STORE_VAR:
-                            vars[code >>> 8] = stack[--sp].getResult();
-                            break;
-                        case Code.NEW_OBJECT:
-                            stack[sp++] = new NewObj(block, i);
-                            break;
-                        case Code.NEW_ARRAY:
-                            stack[sp++] = new NewArr(block, i);
-                            break;
-                        case Code.EXP_OBJECT:
-                            break;
-                        case Code.EXP_ARRAY:
-                            break;
-                        case Code.PUSH_ARRAY:
-                            break;
-                        //
-                        case Code.IDX_GET://!
-                            break;
-                        case Code.IDX_SET://!
-                            break;
-                        case Code.IDX_SET_1://!
-                            break;
-                        case Code.PROP_GET://!
-                            break;
-                        case Code.PROP_SET://! {a:1}
-                            break;
-                        case Code.PROP_SET_1://! {a:1}
-                            break;
-                        //
-                        case Code.BOP_PLUS:
-                        case Code.BOP_MINUS:
-                        case Code.BOP_MULTIPLY:
-                        case Code.BOP_DIVIDE:
-                        case Code.BOP_MOD:
-                        case Code.BOP_MATCH: //~
-
-                        case Code.BOP_LT: //<
-                        case Code.BOP_LTE: //<=
-                        case Code.BOP_GT: //~
-                        case Code.BOP_GTE: //~
-                        case Code.BOP_EQ: //~
-                        case Code.BOP_SEQ: //~
-                        case Code.BOP_NE: //~
-                        case Code.BOP_SNE: //~
-                        case Code.BOP_IN: // in
-                            break;
-                        //
-                        case Code.UNARY_PLUS:
-                        case Code.UNARY_MINUS:
-                        case Code.UNARY_NEG://!
-                        case Code.UNARY_TYPEOF://!
-                            break;
-                        case Code.CALL_FUNC: {
-                            break;
-                        }
-                        case Code.CALL_FUNC_SPREAD: {
-                            break;
-                        }
-
-                        case Code.CALL_ASYNC_FUNC: {
-                            break;
-                        }
-                        case Code.CALL_ASYNC_FUNC_SPREAD: {
-                            break;
-                        }
-                        case Code.CALL_CONST:
-                            break;
-                        case Code.CALL_ASYNC_CONST:
-                            break;
-                        case Code.JUMP:
-                            break;
-                        case Code.JUMP_IF_FALSE:
-                            break;
-                        case Code.JUMP_IF_TRUE:
-                            break;
-                        case Code.ITERATE_INTO:
-                            break;
-                        case Code.ITERATE_NEXT:
-                            break;
-                        case Code.ITERATE_KEY:
-                            break;
-                        case Code.ITERATE_VALUE:
-                            break;
-
-                        case Code.INTO_CATCH:
-                            break;
-                        case Code.THROW_EXP:
-                            break;
-                        case Code.END_RETURN:
-                            break;
-                        default:
-                            throw new IllegalStateException("unknown code:" + code);
-                    }
-                }
-            }
-
+            addEdge(Edge.Type.FALLTHROUGH, current, mustGetByPc(current.endPc));
         }
-        /*
-            for (int i = 0; i < codes.length; i++) {
-                Block current = cfg.mustFindBlock(i);
-                int code = codes[i];
-                int ins = code & 0xFF;
-                switch (ins) {
-                    case Code.NOOP:
-                        break;
-                    case Code.LOAD_CONST:
-                        new LoadConst(current, i, (ValueNode) compiled.getOperands()[code >>> 8]);
-                        break;
-                    case Code.LOAD_ROOT:
-                        break;
-                    case Code.DUMP:
-                        break;
-                    case Code.POP:
-                        break;
-                    case Code.LOAD_VAR:
-                        break;
-                    case Code.STORE_VAR:
-                        break;
-                    case Code.NEW_OBJECT:
-                        break;
-                    case Code.NEW_ARRAY:
-                        break;
-                    case Code.EXP_OBJECT:
-                        break;
-                    case Code.EXP_ARRAY:
-                        break;
-                    case Code.PUSH_ARRAY:
-                        break;
-                    //
-                    case Code.IDX_GET://!
-                        break;
-                    case Code.IDX_SET://!
-                        break;
-                    case Code.IDX_SET_1://!
-                        break;
-                    case Code.PROP_GET://!
-                        break;
-                    case Code.PROP_SET://! {a:1}
-                        break;
-                    case Code.PROP_SET_1://! {a:1}
-                        break;
-                    //
-                    case Code.BOP_PLUS:
-                    case Code.BOP_MINUS:
-                    case Code.BOP_MULTIPLY:
-                    case Code.BOP_DIVIDE:
-                    case Code.BOP_MOD:
-                    case Code.BOP_MATCH: //~
-
-                    case Code.BOP_LT: //<
-                    case Code.BOP_LTE: //<=
-                    case Code.BOP_GT: //~
-                    case Code.BOP_GTE: //~
-                    case Code.BOP_EQ: //~
-                    case Code.BOP_SEQ: //~
-                    case Code.BOP_NE: //~
-                    case Code.BOP_SNE: //~
-                    case Code.BOP_IN: // in
-                        break;
-                    //
-                    case Code.UNARY_PLUS:
-                    case Code.UNARY_MINUS:
-                    case Code.UNARY_NEG://!
-                    case Code.UNARY_TYPEOF://!
-                        break;
-                    case Code.CALL_FUNC: {
-                        break;
-                    }
-                    case Code.CALL_FUNC_SPREAD: {
-                        break;
-                    }
-
-                    case Code.CALL_ASYNC_FUNC: {
-                        break;
-                    }
-                    case Code.CALL_ASYNC_FUNC_SPREAD: {
-                        break;
-                    }
-                    case Code.CALL_CONST:
-                        break;
-                    case Code.CALL_ASYNC_CONST:
-                        break;
-                    case Code.JUMP:
-                        break;
-                    case Code.JUMP_IF_FALSE:
-                        break;
-                    case Code.JUMP_IF_TRUE:
-                        break;
-                    case Code.ITERATE_INTO:
-                        break;
-                    case Code.ITERATE_NEXT:
-                        break;
-                    case Code.ITERATE_KEY:
-                        break;
-                    case Code.ITERATE_VALUE:
-                        break;
-
-                    case Code.INTO_CATCH:
-                        break;
-                    case Code.THROW_EXP:
-                        break;
-                    case Code.END_RETURN:
-                        break;
-                    default:
-                        throw new IllegalStateException("unknown code:" + code);
-                }
-            }
-
-         */
 
         public static Instruction.Throw getThrow(int c) {
             switch (c) {

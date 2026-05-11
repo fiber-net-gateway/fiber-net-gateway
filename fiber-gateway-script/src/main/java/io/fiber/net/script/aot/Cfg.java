@@ -32,7 +32,7 @@ public class Cfg {
         for (Edge edge : predecessor.successors) {
             if (edge.successor == successor) {
                 if ((edge.type == Edge.Type.THROW) != (type == Edge.Type.THROW)) {
-                    throw new IllegalStateException("mixed throw and normal edge from " +
+                    throw new IllegalStateException("[bug]mixed throw and normal edge from " +
                             predecessor.startPc + " to " + successor.startPc);
                 }
                 if (edge.type == type) {
@@ -112,7 +112,7 @@ public class Cfg {
             for (Block current : cfg.blockTreeMap.values()) {
                 int pc = current.endPc - 1;
                 if (pc < current.startPc) {
-                    continue;
+                    throw new IllegalStateException("[bug]end Pc < startPc ???");
                 }
                 int code = codes[pc];
                 int c = code & 0xFF;

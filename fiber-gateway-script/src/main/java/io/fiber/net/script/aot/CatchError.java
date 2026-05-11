@@ -9,26 +9,27 @@ public class CatchError extends Expr {
 
     @Override
     public SsaValue.Type getResultType() {
-        SsaValue throwValue = null;
+        SsaValue.Type t = null;
         for (Edge predecessor : belongTo.predecessors) {
-            SsaValue value = explicitThrowValue(predecessor);
-            if (value == null) {
+            SsaValue.Type c = explicitThrowValue(predecessor);
+            if (c == null) {
                 continue;
             }
-            if (throwValue != null || belongTo.predecessors.size() > 1) {
+            if (t == null) {
+                t = c;
+            } else if (t != c) {
                 return SsaValue.Type.Unknown;
             }
-            throwValue = value;
         }
-        if (throwValue != null) {
-            return throwValue.getType();
+        if (t != null) {
+            return t;
         }
         return SsaValue.Type.EXCEPTION;
     }
 
-    private static SsaValue explicitThrowValue(Edge predecessor) {
+    private static SsaValue.Type explicitThrowValue(Edge predecessor) {
         if (predecessor.type != Edge.Type.THROW) {
-            return null;
+            throw new IllegalStateException("[bug]catch error instruction occur after jump/fallthrough ???");
         }
         List<Instruction> instructions = predecessor.predecessor.getInstructions();
         if (instructions.isEmpty()) {
@@ -36,9 +37,9 @@ public class CatchError extends Expr {
         }
         Instruction instruction = instructions.get(instructions.size() - 1);
         if (!(instruction instanceof io.fiber.net.script.aot.Throw)) {
-            return null;
+            return SsaValue.Type.EXCEPTION;
         }
-        return ((io.fiber.net.script.aot.Throw) instruction).value;
+        return ((io.fiber.net.script.aot.Throw) instruction).value.getType();
     }
 
     @Override

@@ -26,6 +26,7 @@ public class Block {
     private int requiredInputStackSize;
     private int stackDelta;
     private List<MaybePhi> maybePhis;
+    private SsaValue[] entryVars;
     private SsaValue[] exitStack;
     private SsaValue[] exitVars;
 
@@ -160,6 +161,7 @@ public class Block {
     void simulate(Compiled compiled, Cfg cfg) {
         instructions.clear();
         maybePhis = null;
+        entryVars = new SsaValue[compiled.getVarTableSize()];
         setFallbackInputStackSize();
 
         Frame frame = new Frame(compiled.getStackSize(), compiled.getVarTableSize(), inputStackSize);
@@ -333,9 +335,8 @@ public class Block {
                                     loadVar(frame, i, code >>> InterpreterVm.ITERATOR_OFF))).getResult();
                     break;
                 case Code.INTO_CATCH:
-                    emit(new IntoCatch(this, i));
                     frame.vars[code >>> InterpreterVm.INSTRUMENT_LEN] =
-                            newMaybePhi(i, code >>> InterpreterVm.INSTRUMENT_LEN, false).getResult();
+                            emitExpr(new CatchError(this, i)).getResult();
                     break;
                 case Code.THROW_EXP:
                     emit(new Throw(this, i, pop(frame)));
@@ -372,7 +373,22 @@ public class Block {
     }
 
     public List<SsaValue> getPhiValues() {
+        if (phiValues == null) {
+            return Collections.emptyList();
+        }
         return phiValues;
+    }
+
+    public void removePhi(Phi phi) {
+        for (Phi.Case aCase : phi.getCases()) {
+            aCase.value.removeUsed(phi);
+        }
+        if (phiValues != null) {
+            phiValues.remove(phi.getResult());
+            if (phiValues.isEmpty()) {
+                phiValues = null;
+            }
+        }
     }
 
     public List<Edge> getPredecessors() {
@@ -402,6 +418,22 @@ public class Block {
         return exitVars;
     }
 
+    SsaValue getExitVar(int idx) {
+        SsaValue var = exitVars[idx];
+        if (var != null) {
+            return var;
+        }
+        var = getOrCreateEntryVar(startPc, idx);
+        exitVars[idx] = var;
+        return var;
+    }
+
+    void replaceFrameValue(SsaValue oldVal, SsaValue newVal) {
+        replace(entryVars, oldVal, newVal);
+        replace(exitVars, oldVal, newVal);
+        replace(exitStack, oldVal, newVal);
+    }
+
     private MaybePhi newMaybePhi(int pc, int idx, boolean stack) {
         MaybePhi maybePhi = new MaybePhi(this, pc, idx, stack);
         if (maybePhis == null) {
@@ -409,6 +441,16 @@ public class Block {
         }
         maybePhis.add(maybePhi);
         return maybePhi;
+    }
+
+    private SsaValue getOrCreateEntryVar(int pc, int idx) {
+        SsaValue var = entryVars[idx];
+        if (var != null) {
+            return var;
+        }
+        var = newMaybePhi(pc, idx, false).getResult();
+        entryVars[idx] = var;
+        return var;
     }
 
     private static boolean isUnary(int ins) {
@@ -421,9 +463,20 @@ public class Block {
         if (var != null) {
             return var;
         }
-        var = newMaybePhi(pc, idx, false).getResult();
+        var = getOrCreateEntryVar(pc, idx);
         frame.vars[idx] = var;
         return var;
+    }
+
+    private static void replace(SsaValue[] values, SsaValue oldVal, SsaValue newVal) {
+        if (values == null) {
+            return;
+        }
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] == oldVal) {
+                values[i] = newVal;
+            }
+        }
     }
 
     private SsaValue pop(Frame frame) {

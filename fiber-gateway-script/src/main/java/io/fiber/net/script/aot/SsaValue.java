@@ -96,6 +96,10 @@ public class SsaValue {
         }
     }
 
+    void removeUsed(Instruction instruction) {
+        removeUsed(instruction, 1);
+    }
+
     public List<Instruction> getUsed() {
         if (used == null) {
             return Collections.emptyList();

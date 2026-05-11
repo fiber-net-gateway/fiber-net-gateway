@@ -1,8 +1,8 @@
 package io.fiber.net.script.aot;
 
 public class IndexGet extends Expr {
-    final SsaValue owner;
-    final SsaValue key;
+    SsaValue owner;
+    SsaValue key;
 
     protected IndexGet(Block belongTo, int pc, SsaValue owner, SsaValue key) {
         super(belongTo, pc);
@@ -18,6 +18,20 @@ public class IndexGet extends Expr {
 
     public SsaValue getKey() {
         return key;
+    }
+
+    @Override
+    public int replaceOperand(SsaValue oldVal, SsaValue newVal) {
+        int replaced = 0;
+        if (owner == oldVal) {
+            owner = newVal;
+            replaced++;
+        }
+        if (key == oldVal) {
+            key = newVal;
+            replaced++;
+        }
+        return replaced;
     }
 
     @Override

@@ -1,7 +1,7 @@
 package io.fiber.net.script.aot;
 
 public class PropGet extends Expr {
-    final SsaValue owner;
+    SsaValue owner;
     final String key;
 
     protected PropGet(Block belongTo, int pc, SsaValue owner, String key) {
@@ -17,6 +17,15 @@ public class PropGet extends Expr {
 
     public String getKey() {
         return key;
+    }
+
+    @Override
+    public int replaceOperand(SsaValue oldVal, SsaValue newVal) {
+        if (owner != oldVal) {
+            return 0;
+        }
+        owner = newVal;
+        return 1;
     }
 
     @Override

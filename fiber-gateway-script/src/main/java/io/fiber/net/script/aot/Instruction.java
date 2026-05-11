@@ -26,4 +26,8 @@ public abstract class Instruction {
     public Throw canThrow() {
         return Throw.MAYBE;
     }
+
+    public int replaceOperand(SsaValue oldVal, SsaValue newVal) {
+        return 0;
+    }
 }

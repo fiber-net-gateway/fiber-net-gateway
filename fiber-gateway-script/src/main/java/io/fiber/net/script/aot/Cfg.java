@@ -150,6 +150,8 @@ public class Cfg {
             for (Block block : cfg.blockTreeMap.values()) {
                 block.simulate(compiled, cfg);
             }
+            resolveSsa();
+            simplifyPhis();
             return cfg;
         }
 
@@ -182,6 +184,143 @@ public class Cfg {
                 return;
             }
             addEdge(Edge.Type.FALLTHROUGH, current, mustGetByPc(current.endPc));
+        }
+
+        private void resolveSsa() {
+            ArrayDeque<MaybePhi> queue = new ArrayDeque<>();
+            Set<MaybePhi> queued = Collections.newSetFromMap(new IdentityHashMap<MaybePhi, Boolean>());
+            Set<MaybePhi> resolved = Collections.newSetFromMap(new IdentityHashMap<MaybePhi, Boolean>());
+            enqueueMaybePhis(queue, queued);
+            while (!queue.isEmpty()) {
+                MaybePhi maybePhi = queue.poll();
+                if (!resolved.add(maybePhi)) {
+                    continue;
+                }
+                resolveMaybePhi(maybePhi);
+                enqueueMaybePhis(queue, queued);
+            }
+        }
+
+        private void enqueueMaybePhis(ArrayDeque<MaybePhi> queue, Set<MaybePhi> queued) {
+            for (Block block : cfg.blockTreeMap.values()) {
+                List<MaybePhi> maybePhis = block.getMaybePhis();
+                for (int i = 0; i < maybePhis.size(); i++) {
+                    MaybePhi maybePhi = maybePhis.get(i);
+                    if (queued.add(maybePhi)) {
+                        queue.add(maybePhi);
+                    }
+                }
+            }
+        }
+
+        private void resolveMaybePhi(MaybePhi maybePhi) {
+            Block block = maybePhi.getBelongTo();
+            List<Edge> predecessors = block.predecessors;
+            if (predecessors.isEmpty()) {
+                throw new IllegalStateException("[bug]unresolved entry " + describeMaybePhi(maybePhi));
+            }
+
+            SsaValue same = null;
+            SsaValue[] values = new SsaValue[predecessors.size()];
+            boolean different = false;
+            for (int i = 0; i < values.length; i++) {
+                SsaValue value = incomingValue(predecessors.get(i), maybePhi);
+                values[i] = value;
+                if (same == null) {
+                    same = value;
+                } else if (same != value) {
+                    different = true;
+                }
+            }
+
+            if (!different) {
+                replaceValue(maybePhi.getResult(), same);
+                return;
+            }
+
+            Phi phi = block.newPhi();
+            for (int i = 0; i < values.length; i++) {
+                phi.addCase(predecessors.get(i).predecessor, values[i]);
+            }
+            block.addPhi(phi);
+            replaceValue(maybePhi.getResult(), phi.getResult());
+        }
+
+        private SsaValue incomingValue(Edge edge, MaybePhi maybePhi) {
+            if (!maybePhi.isStack()) {
+                return edge.predecessor.getExitVar(maybePhi.getIdx());
+            }
+            if (edge.type == Edge.Type.THROW) {
+                throw new IllegalStateException("[bug]throw edge cannot provide stack " + describeMaybePhi(maybePhi));
+            }
+            SsaValue[] stack = edge.predecessor.getExitStack();
+            int idx = maybePhi.getIdx();
+            if (idx >= stack.length) {
+                throw new IllegalStateException("[bug]missing stack " + describeMaybePhi(maybePhi) +
+                        " from " + edge.predecessor.startPc);
+            }
+            SsaValue value = stack[idx];
+            if (value == null) {
+                throw new IllegalStateException("[bug]empty stack " + describeMaybePhi(maybePhi) +
+                        " from " + edge.predecessor.startPc);
+            }
+            return value;
+        }
+
+        private void simplifyPhis() {
+            boolean changed;
+            do {
+                changed = false;
+                for (Block block : cfg.blockTreeMap.values()) {
+                    List<SsaValue> phiValues = block.getPhiValues();
+                    for (int i = 0, size = phiValues.size(); i < size; i++) {
+                        Expr assign = phiValues.get(i).getAssign();
+                        if (!(assign instanceof Phi)) {
+                            continue;
+                        }
+                        Phi phi = (Phi) assign;
+                        SsaValue replacement = findTrivialPhiReplacement(phi);
+                        if (replacement == null) {
+                            continue;
+                        }
+                        replaceValue(phi.getResult(), replacement);
+                        block.removePhi(phi);
+                        changed = true;
+                        break;
+                    }
+                    if (changed) {
+                        break;
+                    }
+                }
+            } while (changed);
+        }
+
+        private SsaValue findTrivialPhiReplacement(Phi phi) {
+            SsaValue same = null;
+            for (Phi.Case aCase : phi.getCases()) {
+                SsaValue value = aCase.value;
+                if (value == phi.getResult()) {
+                    continue;
+                }
+                if (same == null) {
+                    same = value;
+                } else if (same != value) {
+                    return null;
+                }
+            }
+            return same;
+        }
+
+        private void replaceValue(SsaValue oldVal, SsaValue newVal) {
+            oldVal.replaceAllUsesWith(newVal);
+            for (Block block : cfg.blockTreeMap.values()) {
+                block.replaceFrameValue(oldVal, newVal);
+            }
+        }
+
+        private static String describeMaybePhi(MaybePhi maybePhi) {
+            return (maybePhi.isStack() ? "stack" : "local") + '#' + maybePhi.getIdx() +
+                    " at block " + maybePhi.getBelongTo().startPc;
         }
 
         public static Instruction.Throw getThrow(int c) {

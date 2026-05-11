@@ -16,6 +16,27 @@ public class CfgSsaTest {
     }
 
     @Test
+    public void shouldInferCatchErrorTypeFromSingleExplicitThrow() {
+        Cfg cfg = build("try { throw 'x'; } catch (e) { return e; }");
+
+        Assert.assertEquals(SsaValue.Type.STRING, findCatchError(cfg).getResultType());
+    }
+
+    @Test
+    public void shouldUseExceptionTypeForRuntimeThrowOnly() {
+        Cfg cfg = build("try { 1 * 0; } catch (e) { return e; }");
+
+        Assert.assertEquals(SsaValue.Type.EXCEPTION, findCatchError(cfg).getResultType());
+    }
+
+    @Test
+    public void shouldUseUnknownTypeForMixedExplicitAndRuntimeThrow() {
+        Cfg cfg = build("try { if ($.x) { throw 'x'; } 1 * 0; } catch (e) { return e; }");
+
+        Assert.assertEquals(SsaValue.Type.Unknown, findCatchError(cfg).getResultType());
+    }
+
+    @Test
     public void shouldAvoidPhiWhenSinglePredecessorProvidesValue() {
         Cfg cfg = build("let a = 1 + 2; return a;");
 
@@ -50,6 +71,17 @@ public class CfgSsaTest {
             }
         }
         return false;
+    }
+
+    private static CatchError findCatchError(Cfg cfg) {
+        for (Block block : cfg.getBlocks()) {
+            for (Instruction instruction : block.getInstructions()) {
+                if (instruction instanceof CatchError) {
+                    return (CatchError) instruction;
+                }
+            }
+        }
+        throw new AssertionError("missing CatchError");
     }
 
     private static int countPhi(Cfg cfg) {

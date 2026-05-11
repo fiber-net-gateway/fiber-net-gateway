@@ -2,8 +2,8 @@ package io.fiber.net.script.aot;
 
 public class ExpandObj extends Instruction {
 
-    final SsaValue target;
-    final SsaValue addition;
+    SsaValue target;
+    SsaValue addition;
 
     protected ExpandObj(Block belongTo, int pc, SsaValue target, SsaValue addition) {
         super(belongTo, pc);
@@ -19,6 +19,20 @@ public class ExpandObj extends Instruction {
 
     public SsaValue getAddition() {
         return addition;
+    }
+
+    @Override
+    public int replaceOperand(SsaValue oldVal, SsaValue newVal) {
+        int replaced = 0;
+        if (target == oldVal) {
+            target = newVal;
+            replaced++;
+        }
+        if (addition == oldVal) {
+            addition = newVal;
+            replaced++;
+        }
+        return replaced;
     }
 
     @Override

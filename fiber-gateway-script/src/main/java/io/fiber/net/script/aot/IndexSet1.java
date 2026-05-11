@@ -1,9 +1,9 @@
 package io.fiber.net.script.aot;
 
 public class IndexSet1 extends Expr {
-    final SsaValue owner;
-    final SsaValue key;
-    final SsaValue alien;
+    SsaValue owner;
+    SsaValue key;
+    SsaValue alien;
 
     protected IndexSet1(Block belongTo, int pc, SsaValue owner, SsaValue key, SsaValue alien) {
         super(belongTo, pc);
@@ -30,5 +30,23 @@ public class IndexSet1 extends Expr {
 
     public SsaValue getAlien() {
         return alien;
+    }
+
+    @Override
+    public int replaceOperand(SsaValue oldVal, SsaValue newVal) {
+        int replaced = 0;
+        if (owner == oldVal) {
+            owner = newVal;
+            replaced++;
+        }
+        if (key == oldVal) {
+            key = newVal;
+            replaced++;
+        }
+        if (alien == oldVal) {
+            alien = newVal;
+            replaced++;
+        }
+        return replaced;
     }
 }

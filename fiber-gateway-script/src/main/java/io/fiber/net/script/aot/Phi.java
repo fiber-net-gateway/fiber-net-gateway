@@ -12,7 +12,7 @@ public class Phi extends Expr {
 
     public static class Case {
         final Block from;
-        final SsaValue value;
+        SsaValue value;
 
         public Case(Block from, SsaValue value) {
             this.from = from;
@@ -38,9 +38,22 @@ public class Phi extends Expr {
 
     public void addCase(Block from, SsaValue value) {
         cases.add(new Case(from, value));
+        value.addUsed(this);
     }
 
     public List<Case> getCases() {
         return cases;
+    }
+
+    @Override
+    public int replaceOperand(SsaValue oldVal, SsaValue newVal) {
+        int replaced = 0;
+        for (Case aCase : cases) {
+            if (aCase.value == oldVal) {
+                aCase.value = newVal;
+                replaced++;
+            }
+        }
+        return replaced;
     }
 }

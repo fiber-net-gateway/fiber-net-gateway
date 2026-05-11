@@ -16,7 +16,7 @@ public class Unary extends Expr {
     }
 
     final Op op;
-    final SsaValue material;
+    SsaValue material;
 
     public Unary(Block belongTo, int pc, Op op, SsaValue material) {
         super(belongTo, pc);
@@ -31,6 +31,15 @@ public class Unary extends Expr {
 
     public SsaValue getMaterial() {
         return material;
+    }
+
+    @Override
+    public int replaceOperand(SsaValue oldVal, SsaValue newVal) {
+        if (material != oldVal) {
+            return 0;
+        }
+        material = newVal;
+        return 1;
     }
 
     @Override

@@ -1,9 +1,9 @@
 package io.fiber.net.script.aot;
 
 public class PropSet1 extends Expr {
-    final SsaValue owner;
+    SsaValue owner;
     final String key;
-    final SsaValue alien;
+    SsaValue alien;
 
     protected PropSet1(Block belongTo, int pc, SsaValue owner, String key, SsaValue alien) {
         super(belongTo, pc);
@@ -31,4 +31,17 @@ public class PropSet1 extends Expr {
         return alien;
     }
 
+    @Override
+    public int replaceOperand(SsaValue oldVal, SsaValue newVal) {
+        int replaced = 0;
+        if (owner == oldVal) {
+            owner = newVal;
+            replaced++;
+        }
+        if (alien == oldVal) {
+            alien = newVal;
+            replaced++;
+        }
+        return replaced;
+    }
 }

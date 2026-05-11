@@ -22,8 +22,8 @@ public class Binary extends Expr {
     }
 
     final Op op;
-    final SsaValue left;
-    final SsaValue right;
+    SsaValue left;
+    SsaValue right;
 
     public Binary(Block belongTo, int pc, Op op, SsaValue left, SsaValue right) {
         super(belongTo, pc);
@@ -44,6 +44,20 @@ public class Binary extends Expr {
 
     public SsaValue getRight() {
         return right;
+    }
+
+    @Override
+    public int replaceOperand(SsaValue oldVal, SsaValue newVal) {
+        int replaced = 0;
+        if (left == oldVal) {
+            left = newVal;
+            replaced++;
+        }
+        if (right == oldVal) {
+            right = newVal;
+            replaced++;
+        }
+        return replaced;
     }
 
     @Override

@@ -62,6 +62,40 @@ public class SsaValue {
         used.add(usedIns);
     }
 
+    public void replaceAllUsesWith(SsaValue newVal) {
+        if (newVal == this) {
+            return;
+        }
+        List<Instruction> used = this.used;
+        while (!CollectionUtils.isEmpty(used)) {
+            Instruction instruction = used.get(used.size() - 1);
+            int replaced = instruction.replaceOperand(this, newVal);
+            if (replaced <= 0) {
+                removeUsed(instruction, 1);
+                continue;
+            }
+            removeUsed(instruction, replaced);
+            for (int i = 0; i < replaced; i++) {
+                newVal.addUsed(instruction);
+            }
+        }
+    }
+
+    private void removeUsed(Instruction instruction, int count) {
+        if (used == null) {
+            return;
+        }
+        for (int i = used.size() - 1; i >= 0 && count > 0; i--) {
+            if (used.get(i) == instruction) {
+                used.remove(i);
+                count--;
+            }
+        }
+        if (used.isEmpty()) {
+            used = null;
+        }
+    }
+
     public List<Instruction> getUsed() {
         if (used == null) {
             return Collections.emptyList();

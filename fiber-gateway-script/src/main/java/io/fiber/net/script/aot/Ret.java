@@ -2,7 +2,7 @@ package io.fiber.net.script.aot;
 
 public class Ret extends Instruction {
 
-    final SsaValue value;
+    SsaValue value;
 
     protected Ret(Block belongTo, int pc, SsaValue value) {
         super(belongTo, pc);
@@ -12,6 +12,15 @@ public class Ret extends Instruction {
 
     public SsaValue getValue() {
         return value;
+    }
+
+    @Override
+    public int replaceOperand(SsaValue oldVal, SsaValue newVal) {
+        if (value != oldVal) {
+            return 0;
+        }
+        value = newVal;
+        return 1;
     }
 
     @Override

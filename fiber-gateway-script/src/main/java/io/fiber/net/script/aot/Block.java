@@ -364,7 +364,7 @@ public class Block {
         if (phiValues == null) {
             phiValues = new ArrayList<>();
         }
-        phiValues.add(new SsaValue(phi));
+        phiValues.add(phi.getResult());
     }
 
     public Phi newPhi() {

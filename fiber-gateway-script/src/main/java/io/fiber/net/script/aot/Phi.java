@@ -45,6 +45,18 @@ public class Phi extends Expr {
         return cases;
     }
 
+    public boolean removeCase(Block from) {
+        for (int i = 0; i < cases.size(); i++) {
+            Case aCase = cases.get(i);
+            if (aCase.from == from) {
+                aCase.value.removeUsed(this);
+                cases.remove(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public int replaceOperand(SsaValue oldVal, SsaValue newVal) {
         int replaced = 0;

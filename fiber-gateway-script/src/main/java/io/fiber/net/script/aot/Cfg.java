@@ -28,6 +28,36 @@ public class Cfg {
         return blockTreeMap.values();
     }
 
+    Block getEntryBlock() {
+        return blockTreeMap.firstEntry().getValue();
+    }
+
+    void removeBlock(Block block) {
+        for (Edge edge : new ArrayList<>(block.successors)) {
+            removeEdge(edge);
+        }
+        for (Edge edge : new ArrayList<>(block.predecessors)) {
+            removeEdge(edge);
+        }
+        for (Phi phi : new ArrayList<>(block.getPhiValues())) {
+            block.removePhi(phi);
+        }
+        for (Instruction instruction : block.getInstructions()) {
+            instruction.dropOperands();
+        }
+        blockTreeMap.remove(block.startPc);
+    }
+
+    void removeEdge(Edge edge) {
+        if (!edge.predecessor.successors.remove(edge)) {
+            return;
+        }
+        edge.successor.predecessors.remove(edge);
+        for (Phi phi : edge.successor.getPhiValues()) {
+            phi.removeCase(edge.predecessor);
+        }
+    }
+
     private static void addEdge(Edge.Type type, Block predecessor, Block successor) {
         for (Edge edge : predecessor.successors) {
             if (edge.successor == successor) {
@@ -153,6 +183,9 @@ public class Cfg {
             resolveSsa();
             simplifyPhis();
             new ConstPropagation(cfg).optimize();
+            new BranchElimination(cfg).optimize();
+            simplifyPhis();
+            new DeadCodeElimination(cfg).optimize();
             simplifyPhis();
             return cfg;
         }

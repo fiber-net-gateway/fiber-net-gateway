@@ -8,6 +8,10 @@ public class Jump extends Instruction {
         this.target = target;
     }
 
+    public Block getTarget() {
+        return target;
+    }
+
     @Override
     public Throw canThrow() {
         return Throw.NOT;

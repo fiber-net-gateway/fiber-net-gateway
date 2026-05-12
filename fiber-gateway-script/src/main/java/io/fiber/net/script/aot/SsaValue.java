@@ -35,7 +35,6 @@ public class SsaValue {
 
     private Expr assign;
     private List<Instruction> used;
-    private Type inferredType;
 
     public SsaValue(Expr assign) {
         this.assign = assign;
@@ -107,13 +106,6 @@ public class SsaValue {
     }
 
     public Type getType() {
-        if (inferredType != null) {
-            return inferredType;
-        }
         return assign.getResultType();
-    }
-
-    void setInferredType(Type inferredType) {
-        this.inferredType = inferredType;
     }
 }

@@ -24,14 +24,14 @@ public class CfgSsaTest {
 
     @Test
     public void shouldUseExceptionTypeForRuntimeThrowOnly() {
-        Cfg cfg = build("try { 1 * 0; } catch (e) { return e; }");
+        Cfg cfg = build("try { $.x * true; } catch (e) { return e; }");
 
         Assert.assertEquals(SsaValue.Type.EXCEPTION, findCatchError(cfg).getResultType());
     }
 
     @Test
     public void shouldUseUnknownTypeForMixedExplicitAndRuntimeThrow() {
-        Cfg cfg = build("try { if ($.x) { throw 'x'; } 1 * 0; } catch (e) { return e; }");
+        Cfg cfg = build("try { if ($.x) { throw 'x'; } $.y * true; } catch (e) { return e; }");
 
         Assert.assertEquals(SsaValue.Type.Unknown, findCatchError(cfg).getResultType());
     }

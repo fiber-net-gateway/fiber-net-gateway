@@ -410,6 +410,12 @@ public class Block {
         instructions.set(idx, newInstruction);
     }
 
+    void removeInstruction(Instruction instruction) {
+        if (!instructions.remove(instruction)) {
+            throw new IllegalStateException("[bug]instruction not in block");
+        }
+    }
+
     public List<MaybePhi> getMaybePhis() {
         if (maybePhis == null) {
             return Collections.emptyList();

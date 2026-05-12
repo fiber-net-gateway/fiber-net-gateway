@@ -44,4 +44,10 @@ public class PropSet1 extends Expr {
         }
         return replaced;
     }
+
+    @Override
+    void dropOperands() {
+        owner.removeUsed(this);
+        alien.removeUsed(this);
+    }
 }

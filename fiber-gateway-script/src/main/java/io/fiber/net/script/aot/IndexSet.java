@@ -49,4 +49,11 @@ public class IndexSet extends Expr {
         }
         return replaced;
     }
+
+    @Override
+    void dropOperands() {
+        owner.removeUsed(this);
+        key.removeUsed(this);
+        alien.removeUsed(this);
+    }
 }

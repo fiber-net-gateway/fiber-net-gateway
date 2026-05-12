@@ -19,6 +19,11 @@ public class Throw extends Instruction {
     }
 
     @Override
+    void dropOperands() {
+        value.removeUsed(this);
+    }
+
+    @Override
     public Throw canThrow() {
         return Throw.ALWAYS;
     }

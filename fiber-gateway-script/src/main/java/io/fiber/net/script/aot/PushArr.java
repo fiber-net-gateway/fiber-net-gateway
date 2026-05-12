@@ -36,6 +36,12 @@ public class PushArr extends Instruction {
     }
 
     @Override
+    void dropOperands() {
+        target.removeUsed(this);
+        addition.removeUsed(this);
+    }
+
+    @Override
     public Throw canThrow() {
         return Throw.NOT;
     }

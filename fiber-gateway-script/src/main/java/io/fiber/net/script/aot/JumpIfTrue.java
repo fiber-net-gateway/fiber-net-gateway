@@ -11,6 +11,14 @@ public class JumpIfTrue extends Instruction {
         cond.addUsed(this);
     }
 
+    public Block getTarget() {
+        return target;
+    }
+
+    public SsaValue getCond() {
+        return cond;
+    }
+
     @Override
     public int replaceOperand(SsaValue oldVal, SsaValue newVal) {
         if (cond != oldVal) {
@@ -18,6 +26,11 @@ public class JumpIfTrue extends Instruction {
         }
         cond = newVal;
         return 1;
+    }
+
+    @Override
+    void dropOperands() {
+        cond.removeUsed(this);
     }
 
     @Override

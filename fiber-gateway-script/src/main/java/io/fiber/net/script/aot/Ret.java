@@ -24,6 +24,11 @@ public class Ret extends Instruction {
     }
 
     @Override
+    void dropOperands() {
+        value.removeUsed(this);
+    }
+
+    @Override
     public Throw canThrow() {
         return Throw.NOT;
     }

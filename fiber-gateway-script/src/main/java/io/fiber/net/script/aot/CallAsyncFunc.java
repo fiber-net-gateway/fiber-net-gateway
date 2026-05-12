@@ -46,4 +46,11 @@ public class CallAsyncFunc extends Expr {
         }
         return replaced;
     }
+
+    @Override
+    void dropOperands() {
+        for (SsaValue arg : args) {
+            arg.removeUsed(this);
+        }
+    }
 }

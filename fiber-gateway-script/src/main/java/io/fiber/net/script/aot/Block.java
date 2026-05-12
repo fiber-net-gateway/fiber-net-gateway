@@ -18,7 +18,7 @@ public class Block {
     final List<Edge> successors = new ArrayList<>();
     final int startPc;
     int endPc; // exclude. immutable
-    private List<SsaValue> phiValues;
+    private List<Phi> phiValues;
 
     int inputStackSize; // stackSize when enter block
     int legacyStackSize; // stackSize legacy (do not contain stack size produced by this) when lease block
@@ -136,10 +136,9 @@ public class Block {
         outputStackSize = -1;
     }
 
-    void setFallbackInputStackSize() {
+    void checkInputStackSize() {
         if (inputStackSize < 0) {
-            inputStackSize = requiredInputStackSize;
-            outputStackSize = inputStackSize + stackDelta;
+            throw new IllegalStateException("[bug]not merge input stack size");
         }
     }
 
@@ -162,7 +161,7 @@ public class Block {
         instructions.clear();
         maybePhis = null;
         entryVars = new SsaValue[compiled.getVarTableSize()];
-        setFallbackInputStackSize();
+        checkInputStackSize();
 
         Frame frame = new Frame(compiled.getStackSize(), compiled.getVarTableSize(), inputStackSize);
         for (int i = 0; i < inputStackSize; i++) {
@@ -365,14 +364,14 @@ public class Block {
         if (phiValues == null) {
             phiValues = new ArrayList<>();
         }
-        phiValues.add(phi.getResult());
+        phiValues.add(phi);
     }
 
     public Phi newPhi() {
         return new Phi(this, startPc);
     }
 
-    public List<SsaValue> getPhiValues() {
+    public List<Phi> getPhiValues() {
         if (phiValues == null) {
             return Collections.emptyList();
         }
@@ -384,7 +383,7 @@ public class Block {
             aCase.value.removeUsed(phi);
         }
         if (phiValues != null) {
-            phiValues.remove(phi.getResult());
+            phiValues.remove(phi);
             if (phiValues.isEmpty()) {
                 phiValues = null;
             }

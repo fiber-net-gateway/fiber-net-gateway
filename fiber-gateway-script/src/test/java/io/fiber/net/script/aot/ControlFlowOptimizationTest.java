@@ -173,6 +173,60 @@ public class ControlFlowOptimizationTest {
     }
 
     @Test
+    public void shouldMergeFoldedBranchToSingleReturnBlock() {
+        Cfg cfg = build("let x = 1; if(x + 3 > 4) {return 3;} else {return x+5;}");
+
+        Assert.assertEquals(1, countBlocks(cfg));
+        Assert.assertEquals(IntNode.valueOf(6), returnConst(cfg));
+    }
+
+    @Test
+    public void shouldBypassJumpOnlyBlock() {
+        Cfg cfg = new Cfg();
+        cfg.addBlock(0);
+        cfg.addBlock(1);
+        cfg.addBlock(2);
+        Block predecessor = cfg.mustGetBlock(0);
+        Block jumpOnly = cfg.mustGetBlock(1);
+        Block target = cfg.mustGetBlock(2);
+        cfg.setEntryBlock(predecessor);
+        Jump predecessorJump = new Jump(predecessor, 0, jumpOnly);
+        predecessor.getInstructions().add(predecessorJump);
+        jumpOnly.getInstructions().add(new Jump(jumpOnly, 1, target));
+        cfg.addEdge(Edge.Type.JUMP, predecessor, jumpOnly);
+        cfg.addEdge(Edge.Type.JUMP, jumpOnly, target);
+
+        Assert.assertTrue(new JumpOnlyBlockPruning(cfg).optimize());
+
+        Assert.assertFalse(cfg.getBlocks().contains(jumpOnly));
+        Assert.assertSame(target, ((Jump) predecessor.getInstructions().get(0)).getTarget());
+        Assert.assertEquals(1, predecessor.getSuccessors().size());
+        Assert.assertSame(target, predecessor.getSuccessors().get(0).successor);
+    }
+
+    @Test
+    public void shouldMergeLinearBlocksAndMoveInstructionOwner() {
+        Cfg cfg = new Cfg();
+        cfg.addBlock(0);
+        cfg.addBlock(1);
+        Block entry = cfg.mustGetBlock(0);
+        Block target = cfg.mustGetBlock(1);
+        cfg.setEntryBlock(entry);
+        LoadConst value = new LoadConst(entry, 0, IntNode.valueOf(6));
+        Ret ret = new Ret(target, 1, value.getResult());
+        entry.getInstructions().add(value);
+        target.getInstructions().add(ret);
+        cfg.addEdge(Edge.Type.FALLTHROUGH, entry, target);
+
+        Assert.assertTrue(new LinearBlockMerging(cfg).optimize());
+
+        Assert.assertFalse(cfg.getBlocks().contains(target));
+        Assert.assertEquals(2, entry.getInstructions().size());
+        Assert.assertSame(entry, ret.getBelongTo());
+        Assert.assertSame(ret, entry.getInstructions().get(1));
+    }
+
+    @Test
     public void shouldSimplifyAlgebraWithPropagatedNumberType() {
         Cfg cfg = build("let a = 0; if ($.x) { a = 2; } else { a = 3; } return a + 0;");
 
@@ -247,6 +301,10 @@ public class ControlFlowOptimizationTest {
             }
         }
         return count;
+    }
+
+    private static int countBlocks(Cfg cfg) {
+        return cfg.getBlocks().size();
     }
 
     private static int countEmptyNonEntryBlocks(Cfg cfg) {

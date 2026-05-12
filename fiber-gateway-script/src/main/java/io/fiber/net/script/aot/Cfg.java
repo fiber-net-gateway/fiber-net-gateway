@@ -59,6 +59,19 @@ public class Cfg {
         blockTreeMap.remove(block.startPc);
     }
 
+    void removeDetachedBlock(Block block) {
+        if (block == entryBlock) {
+            throw new IllegalStateException("[bug]cannot remove entry block");
+        }
+        if (!block.successors.isEmpty()
+                || !block.predecessors.isEmpty()
+                || !block.getPhiValues().isEmpty()
+                || !block.getInstructions().isEmpty()) {
+            throw new IllegalStateException("[bug]block still attached");
+        }
+        blockTreeMap.remove(block.startPc);
+    }
+
     void removeEdge(Edge edge) {
         if (!edge.predecessor.successors.remove(edge)) {
             return;
@@ -222,6 +235,8 @@ public class Cfg {
                 simplifyPhis();
                 changed |= new DeadCodeElimination(cfg).optimize();
                 changed |= new EmptyBlockPruning(cfg).optimize();
+                changed |= new JumpOnlyBlockPruning(cfg).optimize();
+                changed |= new LinearBlockMerging(cfg).optimize();
                 simplifyPhis();
             } while (changed);
         }

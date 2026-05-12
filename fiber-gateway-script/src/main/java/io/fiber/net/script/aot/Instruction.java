@@ -7,7 +7,7 @@ public abstract class Instruction {
         ALWAYS,
     }
 
-    protected final Block belongTo;
+    protected Block belongTo;
     protected final int pc;
 
     protected Instruction(Block belongTo, int pc) {
@@ -17,6 +17,10 @@ public abstract class Instruction {
 
     public Block getBelongTo() {
         return belongTo;
+    }
+
+    void moveTo(Block block) {
+        belongTo = block;
     }
 
     public int getPc() {

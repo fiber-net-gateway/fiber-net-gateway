@@ -81,6 +81,98 @@ public class ControlFlowOptimizationTest {
     }
 
     @Test
+    public void shouldRemoveEmptyBlocksAfterOptimization() {
+        Cfg cfg = build("let a = 1; if ($.x) {} else {} return a;");
+
+        Assert.assertEquals(0, countEmptyNonEntryBlocks(cfg));
+    }
+
+    @Test
+    public void shouldRewriteSuccessorPhiWhenPruningEmptyPhiBlock() {
+        Cfg cfg = new Cfg();
+        cfg.addBlock(0);
+        cfg.addBlock(1);
+        cfg.addBlock(2);
+        cfg.addBlock(3);
+        Block p1 = cfg.mustGetBlock(0);
+        Block p2 = cfg.mustGetBlock(1);
+        Block empty = cfg.mustGetBlock(2);
+        Block target = cfg.mustGetBlock(3);
+        cfg.setEntryBlock(p1);
+
+        LoadConst one = new LoadConst(p1, 0, IntNode.valueOf(1));
+        LoadConst two = new LoadConst(p2, 1, IntNode.valueOf(2));
+        Phi emptyPhi = empty.newPhi();
+        emptyPhi.addCase(p1, one.getResult());
+        emptyPhi.addCase(p2, two.getResult());
+        empty.addPhi(emptyPhi);
+        Phi targetPhi = target.newPhi();
+        targetPhi.addCase(empty, emptyPhi.getResult());
+        target.addPhi(targetPhi);
+        cfg.addEdge(Edge.Type.FALLTHROUGH, p1, empty);
+        cfg.addEdge(Edge.Type.JUMP, p2, empty);
+        cfg.addEdge(Edge.Type.FALLTHROUGH, empty, target);
+
+        Assert.assertTrue(new EmptyBlockPruning(cfg).optimize());
+
+        Assert.assertFalse(cfg.getBlocks().contains(empty));
+        Assert.assertEquals(2, targetPhi.getCases().size());
+        Assert.assertTrue(hasPhiCase(targetPhi, p1, one.getResult()));
+        Assert.assertTrue(hasPhiCase(targetPhi, p2, two.getResult()));
+    }
+
+    @Test
+    public void shouldMoveLivePhiWhenPruningEmptyBlock() {
+        Cfg cfg = new Cfg();
+        cfg.addBlock(0);
+        cfg.addBlock(1);
+        cfg.addBlock(2);
+        cfg.addBlock(3);
+        Block p1 = cfg.mustGetBlock(0);
+        Block p2 = cfg.mustGetBlock(1);
+        Block empty = cfg.mustGetBlock(2);
+        Block target = cfg.mustGetBlock(3);
+        cfg.setEntryBlock(p1);
+
+        LoadConst one = new LoadConst(p1, 0, IntNode.valueOf(1));
+        LoadConst two = new LoadConst(p2, 1, IntNode.valueOf(2));
+        Phi emptyPhi = empty.newPhi();
+        emptyPhi.addCase(p1, one.getResult());
+        emptyPhi.addCase(p2, two.getResult());
+        empty.addPhi(emptyPhi);
+        Ret ret = new Ret(target, 3, emptyPhi.getResult());
+        target.getInstructions().add(ret);
+        cfg.addEdge(Edge.Type.FALLTHROUGH, p1, empty);
+        cfg.addEdge(Edge.Type.JUMP, p2, empty);
+        cfg.addEdge(Edge.Type.FALLTHROUGH, empty, target);
+
+        Assert.assertTrue(new EmptyBlockPruning(cfg).optimize());
+
+        Assert.assertFalse(cfg.getBlocks().contains(empty));
+        Assert.assertTrue(ret.getValue().getAssign() instanceof Phi);
+        Phi moved = (Phi) ret.getValue().getAssign();
+        Assert.assertSame(target, moved.getBelongTo());
+        Assert.assertTrue(hasPhiCase(moved, p1, one.getResult()));
+        Assert.assertTrue(hasPhiCase(moved, p2, two.getResult()));
+    }
+
+    @Test
+    public void shouldMoveEmptyEntryToOnlySuccessor() {
+        Cfg cfg = new Cfg();
+        cfg.addBlock(0);
+        cfg.addBlock(1);
+        Block entry = cfg.mustGetBlock(0);
+        Block target = cfg.mustGetBlock(1);
+        cfg.setEntryBlock(entry);
+        cfg.addEdge(Edge.Type.FALLTHROUGH, entry, target);
+
+        Assert.assertTrue(new EmptyBlockPruning(cfg).optimize());
+
+        Assert.assertSame(target, cfg.getEntryBlock());
+        Assert.assertFalse(cfg.getBlocks().contains(entry));
+    }
+
+    @Test
     public void shouldSimplifyAlgebraWithPropagatedNumberType() {
         Cfg cfg = build("let a = 0; if ($.x) { a = 2; } else { a = 3; } return a + 0;");
 
@@ -155,6 +247,27 @@ public class ControlFlowOptimizationTest {
             }
         }
         return count;
+    }
+
+    private static int countEmptyNonEntryBlocks(Cfg cfg) {
+        int count = 0;
+        for (Block block : cfg.getBlocks()) {
+            if (block != cfg.getEntryBlock()
+                    && block.getInstructions().isEmpty()
+                    && block.getPhiValues().isEmpty()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static boolean hasPhiCase(Phi phi, Block from, SsaValue value) {
+        for (Phi.Case aCase : phi.getCases()) {
+            if (aCase.from == from && aCase.value == value) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static int countPhi(Cfg cfg) {

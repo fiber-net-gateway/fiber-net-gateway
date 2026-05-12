@@ -7,6 +7,7 @@ import java.util.*;
 
 public class Cfg {
     private final TreeMap<Integer, Block> blockTreeMap = new TreeMap<>();
+    private Block entryBlock;
 
     public void addBlock(int pc) {
         Integer idx = pc;
@@ -29,10 +30,20 @@ public class Cfg {
     }
 
     Block getEntryBlock() {
-        return blockTreeMap.firstEntry().getValue();
+        return Objects.requireNonNull(entryBlock);
+    }
+
+    void setEntryBlock(Block entryBlock) {
+        if (!blockTreeMap.containsValue(entryBlock)) {
+            throw new IllegalStateException("[bug]entry block not in cfg");
+        }
+        this.entryBlock = entryBlock;
     }
 
     void removeBlock(Block block) {
+        if (block == entryBlock) {
+            throw new IllegalStateException("[bug]cannot remove entry block");
+        }
         for (Edge edge : new ArrayList<>(block.successors)) {
             removeEdge(edge);
         }
@@ -108,6 +119,7 @@ public class Cfg {
         public Cfg build() {
             cfg = new Cfg();
             addBlock(0);
+            cfg.setEntryBlock(mustGetByPc(0));
             int[] codes = compiled.getCodes();
             for (int i = 0; i < codes.length; i++) {
                 int code = codes[i];
@@ -209,6 +221,7 @@ public class Cfg {
                 changed |= new BranchElimination(cfg).optimize();
                 simplifyPhis();
                 changed |= new DeadCodeElimination(cfg).optimize();
+                changed |= new EmptyBlockPruning(cfg).optimize();
                 simplifyPhis();
             } while (changed);
         }
@@ -219,7 +232,7 @@ public class Cfg {
             }
 
             Queue<Block> queue = new ArrayDeque<>();
-            Block entry = mustGetByPc(0);
+            Block entry = cfg.getEntryBlock();
             entry.mergeInputStackSize(0);
             queue.add(entry);
             while (!queue.isEmpty()) {

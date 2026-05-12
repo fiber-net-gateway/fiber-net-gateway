@@ -28,7 +28,7 @@ public class DeadCodeElimination {
         return changed;
     }
 
-    private static boolean isDead(Instruction instruction) {
+    static boolean isDead(Instruction instruction) {
         if (!(instruction instanceof Expr)) {
             return false;
         }
@@ -38,7 +38,7 @@ public class DeadCodeElimination {
                 && isPure(expr);
     }
 
-    private static boolean isPure(Expr expr) {
+    static boolean isPure(Expr expr) {
         return expr instanceof LoadConst
                 || expr instanceof LoadRoot
                 || expr instanceof NewObj
@@ -47,5 +47,11 @@ public class DeadCodeElimination {
                 || expr instanceof IndexGet
                 || expr instanceof Unary
                 || expr instanceof Binary;
+    }
+
+    static boolean isRemovablePure(Instruction instruction) {
+        return instruction instanceof Expr
+                && instruction.canThrow() == Instruction.Throw.NOT
+                && isPure((Expr) instruction);
     }
 }

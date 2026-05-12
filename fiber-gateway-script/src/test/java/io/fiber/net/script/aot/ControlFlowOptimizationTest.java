@@ -37,6 +37,16 @@ public class ControlFlowOptimizationTest {
     }
 
     @Test
+    public void shouldRemoveEmptyDynamicBranch() {
+        Cfg cfg = build("let a = 1; if ($.x) {} return a;");
+
+        Assert.assertFalse(containsInstruction(cfg, JumpIfTrue.class));
+        Assert.assertFalse(containsInstruction(cfg, JumpIfFalse.class));
+        Assert.assertFalse(containsInstruction(cfg, PropGet.class));
+        Assert.assertEquals(IntNode.valueOf(1), returnConst(cfg));
+    }
+
+    @Test
     public void shouldKeepDeadExpressionThatMayThrow() {
         Cfg cfg = build("let a = 'x' * true; return 1;");
 

@@ -2,6 +2,7 @@ package io.fiber.net.script.aot;
 
 import io.fiber.net.common.json.JsonNodeType;
 import io.fiber.net.common.utils.CollectionUtils;
+import io.fiber.net.common.utils.Predictions;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,10 +71,7 @@ public class SsaValue {
         while (!CollectionUtils.isEmpty(used)) {
             Instruction instruction = used.get(used.size() - 1);
             int replaced = instruction.replaceOperand(this, newVal);
-            if (replaced <= 0) {
-                removeUsed(instruction, 1);
-                continue;
-            }
+            Predictions.assertTrue(replaced>=0, "[bug] used value cannot replaced operand");
             removeUsed(instruction, replaced);
             for (int i = 0; i < replaced; i++) {
                 newVal.addUsed(instruction);

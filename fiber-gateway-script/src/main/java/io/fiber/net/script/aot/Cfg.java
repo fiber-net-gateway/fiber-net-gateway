@@ -177,7 +177,7 @@ public class Cfg {
             }
 
             for (Block block : cfg.blockTreeMap.values()) {
-                block.setFallbackInputStackSize();
+                block.checkInputStackSize();
             }
         }
 
@@ -206,8 +206,7 @@ public class Cfg {
         private void enqueueMaybePhis(ArrayDeque<MaybePhi> queue, Set<MaybePhi> queued) {
             for (Block block : cfg.blockTreeMap.values()) {
                 List<MaybePhi> maybePhis = block.getMaybePhis();
-                for (int i = 0; i < maybePhis.size(); i++) {
-                    MaybePhi maybePhi = maybePhis.get(i);
+                for (MaybePhi maybePhi : maybePhis) {
                     if (queued.add(maybePhi)) {
                         queue.add(maybePhi);
                     }
@@ -274,13 +273,8 @@ public class Cfg {
             do {
                 changed = false;
                 for (Block block : cfg.blockTreeMap.values()) {
-                    List<SsaValue> phiValues = block.getPhiValues();
-                    for (int i = 0, size = phiValues.size(); i < size; i++) {
-                        Expr assign = phiValues.get(i).getAssign();
-                        if (!(assign instanceof Phi)) {
-                            continue;
-                        }
-                        Phi phi = (Phi) assign;
+                    List<Phi> phiValues = block.getPhiValues();
+                    for (Phi phi : phiValues) {
                         SsaValue replacement = findTrivialPhiReplacement(phi);
                         if (replacement == null) {
                             continue;

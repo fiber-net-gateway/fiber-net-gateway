@@ -28,9 +28,7 @@ public class ConstPropagation {
     private void analyze() {
         ArrayDeque<Instruction> queue = new ArrayDeque<>();
         for (Block block : cfg.getBlocks()) {
-            for (SsaValue phiValue : block.getPhiValues()) {
-                queue.add(phiValue.getAssign());
-            }
+            queue.addAll(block.getPhiValues());
             queue.addAll(block.getInstructions());
         }
 
@@ -47,9 +45,7 @@ public class ConstPropagation {
                 continue;
             }
             constants.put(result, newConst);
-            for (Instruction used : result.getUsed()) {
-                queue.add(used);
-            }
+            queue.addAll(result.getUsed());
         }
     }
 
@@ -57,17 +53,17 @@ public class ConstPropagation {
         boolean changed = false;
         for (Block block : cfg.getBlocks()) {
             for (int i = 0; i < block.getPhiValues().size(); i++) {
-                SsaValue value = block.getPhiValues().get(i);
-                Const constant = get(value);
+                Phi phi = block.getPhiValues().get(i);
+                Const constant = get(phi.getResult());
                 if (!constant.isConst()) {
                     continue;
                 }
-                SsaValue replacement = findConstReplacement((Phi) value.getAssign(), constant.value);
+                SsaValue replacement = findConstReplacement(phi, constant.value);
                 if (replacement == null) {
                     continue;
                 }
-                replaceValue(value, replacement);
-                block.removePhi((Phi) value.getAssign());
+                replaceValue(phi.getResult(), replacement);
+                block.removePhi(phi);
                 changed = true;
                 i--;
             }

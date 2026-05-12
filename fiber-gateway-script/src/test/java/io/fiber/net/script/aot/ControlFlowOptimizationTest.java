@@ -65,6 +65,22 @@ public class ControlFlowOptimizationTest {
     }
 
     @Test
+    public void shouldPruneExceptionEdgeAfterTypeInferredBinary() {
+        Cfg cfg = build("try { let a = 0; if ($.x) { a = 2; } else { a = 3; } a * 4; } catch (e) { return 9; } return 1;");
+
+        Assert.assertFalse(containsInstruction(cfg, CatchError.class));
+        Assert.assertEquals(IntNode.valueOf(1), returnConst(cfg));
+    }
+
+    @Test
+    public void shouldKeepExceptionEdgeForInvalidBinary() {
+        Cfg cfg = build("try { 'x' * $.y; } catch (e) { return 9; } return 1;");
+
+        Assert.assertTrue(containsInstruction(cfg, CatchError.class));
+        Assert.assertTrue(containsInstruction(cfg, Binary.class));
+    }
+
+    @Test
     public void shouldSimplifyAlgebraWithPropagatedNumberType() {
         Cfg cfg = build("let a = 0; if ($.x) { a = 2; } else { a = 3; } return a + 0;");
 

@@ -1,5 +1,8 @@
 package io.fiber.net.script.aot;
 
+import io.fiber.net.common.json.ValueNode;
+import io.fiber.net.script.ast.AstUtils;
+
 public class Unary extends Expr {
 
     public enum Op {
@@ -81,7 +84,7 @@ public class Unary extends Expr {
         switch (op) {
             case PLUS:
             case MINUS:
-                return Throw.MAYBE;
+                return numericThrow(material);
             case NEG:
             case ITERATE_NEXT:
             case TYPEOF:
@@ -92,5 +95,40 @@ public class Unary extends Expr {
             default:
                 throw new IllegalStateException("[bug] not hit");
         }
+    }
+
+    private static Throw numericThrow(SsaValue value) {
+        ValueNode constant = constantValue(value);
+        if (constant != null) {
+            return canCoerceToNumber(constant) ? Throw.NOT : Throw.ALWAYS;
+        }
+        switch (value.getType()) {
+            case NUMBER:
+                return Throw.NOT;
+            case STRING:
+            case Unknown:
+                return Throw.MAYBE;
+            default:
+                return Throw.ALWAYS;
+        }
+    }
+
+    private static boolean canCoerceToNumber(ValueNode value) {
+        if (value.isNumber()) {
+            return true;
+        }
+        if (!value.isTextual()) {
+            return false;
+        }
+        try {
+            return AstUtils.tryToNumber(value.asText()) != null;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private static ValueNode constantValue(SsaValue value) {
+        Expr assign = value.getAssign();
+        return assign instanceof LoadConst ? ((LoadConst) assign).getValueNode() : null;
     }
 }

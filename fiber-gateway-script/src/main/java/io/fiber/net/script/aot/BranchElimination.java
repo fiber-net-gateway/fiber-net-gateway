@@ -18,6 +18,7 @@ public class BranchElimination {
 
     public boolean optimize() {
         boolean changed = foldConstantBranches();
+        changed |= removeRedundantBranches();
         return removeUnreachableBlocks() || changed;
     }
 
@@ -44,6 +45,27 @@ public class BranchElimination {
                 } else {
                     block.removeInstruction(instruction);
                 }
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    private boolean removeRedundantBranches() {
+        boolean changed = false;
+        for (Block block : cfg.getBlocks()) {
+            for (Instruction instruction : block.getInstructions().toArray(new Instruction[0])) {
+                if (!(instruction instanceof JumpIfTrue) && !(instruction instanceof JumpIfFalse)) {
+                    continue;
+                }
+                Edge jump = findEdge(block, Edge.Type.JUMP);
+                Edge fallthrough = findEdge(block, Edge.Type.FALLTHROUGH);
+                if (jump == null || fallthrough == null || jump.successor != fallthrough.successor) {
+                    continue;
+                }
+                cfg.removeEdge(jump);
+                instruction.dropOperands();
+                block.removeInstruction(instruction);
                 changed = true;
             }
         }
@@ -77,6 +99,15 @@ public class BranchElimination {
                     return edge;
                 }
             } else if (edge.type == Edge.Type.FALLTHROUGH) {
+                return edge;
+            }
+        }
+        return null;
+    }
+
+    private static Edge findEdge(Block block, Edge.Type type) {
+        for (Edge edge : block.getSuccessors()) {
+            if (edge.type == type) {
                 return edge;
             }
         }

@@ -58,7 +58,18 @@ public class Cfg {
         }
     }
 
-    private static void addEdge(Edge.Type type, Block predecessor, Block successor) {
+    void addEdge(Edge.Type type, Block predecessor, Block successor) {
+        addEdge0(type, predecessor, successor);
+    }
+
+    void replaceValue(SsaValue oldVal, SsaValue newVal) {
+        oldVal.replaceAllUsesWith(newVal);
+        for (Block block : blockTreeMap.values()) {
+            block.replaceFrameValue(oldVal, newVal);
+        }
+    }
+
+    private static void addEdge0(Edge.Type type, Block predecessor, Block successor) {
         for (Edge edge : predecessor.successors) {
             if (edge.successor == successor) {
                 if ((edge.type == Edge.Type.THROW) != (type == Edge.Type.THROW)) {
@@ -149,13 +160,13 @@ public class Cfg {
                 switch (c) {
                     case Code.JUMP: {
                         Block block = mustGetByPc(code >>> 8);
-                        addEdge(Edge.Type.JUMP, current, block);
+                        cfg.addEdge(Edge.Type.JUMP, current, block);
                         break;
                     }
                     case Code.JUMP_IF_FALSE:
                     case Code.JUMP_IF_TRUE: {
                         Block block = mustGetByPc(code >>> 8);
-                        addEdge(Edge.Type.JUMP, current, block);
+                        cfg.addEdge(Edge.Type.JUMP, current, block);
                         addFallthrough(current);
                         break;
                     }
@@ -164,7 +175,7 @@ public class Cfg {
                         if (aThrow != Instruction.Throw.NOT) {
                             int cpc = Compiled.searchExpHandle(pc, compiled.getExpIns());
                             if (cpc >= 0) {
-                                addEdge(Edge.Type.THROW, current, mustGetByPc(cpc));
+                                cfg.addEdge(Edge.Type.THROW, current, mustGetByPc(cpc));
                             }
                             if (aThrow == Instruction.Throw.MAYBE) {
                                 addFallthrough(current);
@@ -182,12 +193,25 @@ public class Cfg {
             }
             resolveSsa();
             simplifyPhis();
-            new ConstPropagation(cfg).optimize();
-            new BranchElimination(cfg).optimize();
-            simplifyPhis();
-            new DeadCodeElimination(cfg).optimize();
-            simplifyPhis();
+            optimizeCfg();
             return cfg;
+        }
+
+        private void optimizeCfg() {
+            boolean changed;
+            do {
+                changed = false;
+                changed |= new ConstPropagation(cfg).optimize();
+                changed |= new TypePropagation(cfg).optimize();
+                changed |= new AlgebraicSimplification(cfg).optimize();
+                changed |= new LocalCse(cfg).optimize();
+                changed |= new ExceptionEdgePruning(cfg).optimize();
+                changed |= new JumpOptimization(cfg).optimize();
+                changed |= new BranchElimination(cfg).optimize();
+                simplifyPhis();
+                changed |= new DeadCodeElimination(cfg).optimize();
+                simplifyPhis();
+            } while (changed);
         }
 
         private void propagateStackSize() {
@@ -218,7 +242,7 @@ public class Cfg {
             if (current.endPc >= compiled.getCodes().length) {
                 return;
             }
-            addEdge(Edge.Type.FALLTHROUGH, current, mustGetByPc(current.endPc));
+            cfg.addEdge(Edge.Type.FALLTHROUGH, current, mustGetByPc(current.endPc));
         }
 
         private void resolveSsa() {

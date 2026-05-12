@@ -47,6 +47,38 @@ public class ControlFlowOptimizationTest {
     }
 
     @Test
+    public void shouldRemoveEmptyDynamicIfElseBranch() {
+        Cfg cfg = build("let a = 1; if ($.x) {} else {} return a;");
+
+        Assert.assertFalse(containsInstruction(cfg, JumpIfTrue.class));
+        Assert.assertFalse(containsInstruction(cfg, JumpIfFalse.class));
+        Assert.assertFalse(containsInstruction(cfg, PropGet.class));
+        Assert.assertEquals(IntNode.valueOf(1), returnConst(cfg));
+    }
+
+    @Test
+    public void shouldPruneExceptionEdgeAfterConstantFold() {
+        Cfg cfg = build("try { let a = 1 + 2; } catch (e) { return 9; } return 1;");
+
+        Assert.assertFalse(containsInstruction(cfg, CatchError.class));
+        Assert.assertEquals(IntNode.valueOf(1), returnConst(cfg));
+    }
+
+    @Test
+    public void shouldSimplifyAlgebraWithPropagatedNumberType() {
+        Cfg cfg = build("let a = 0; if ($.x) { a = 2; } else { a = 3; } return a + 0;");
+
+        Assert.assertFalse(containsInstruction(cfg, Binary.class, Binary.Op.PLUS));
+    }
+
+    @Test
+    public void shouldEliminateLocalCommonSubexpressions() {
+        Cfg cfg = build("let x = $.x; return (x == 1) == (x == 1);");
+
+        Assert.assertEquals(2, countInstruction(cfg, Binary.class));
+    }
+
+    @Test
     public void shouldKeepDeadExpressionThatMayThrow() {
         Cfg cfg = build("let a = 'x' * true; return 1;");
 
@@ -84,6 +116,29 @@ public class ControlFlowOptimizationTest {
             }
         }
         return false;
+    }
+
+    private static boolean containsInstruction(Cfg cfg, Class<?> type, Binary.Op op) {
+        for (Block block : cfg.getBlocks()) {
+            for (Instruction instruction : block.getInstructions()) {
+                if (type.isInstance(instruction) && ((Binary) instruction).getOp() == op) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static int countInstruction(Cfg cfg, Class<?> type) {
+        int count = 0;
+        for (Block block : cfg.getBlocks()) {
+            for (Instruction instruction : block.getInstructions()) {
+                if (type.isInstance(instruction)) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     private static int countPhi(Cfg cfg) {

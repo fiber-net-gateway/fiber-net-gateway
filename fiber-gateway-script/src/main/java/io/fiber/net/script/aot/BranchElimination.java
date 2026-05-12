@@ -60,16 +60,65 @@ public class BranchElimination {
                 }
                 Edge jump = findEdge(block, Edge.Type.JUMP);
                 Edge fallthrough = findEdge(block, Edge.Type.FALLTHROUGH);
-                if (jump == null || fallthrough == null || jump.successor != fallthrough.successor) {
+                if (jump == null || fallthrough == null) {
                     continue;
                 }
-                cfg.removeEdge(jump);
+                Block jumpTarget = transparentTarget(jump.successor);
+                Block fallthroughTarget = transparentTarget(fallthrough.successor);
+                if (jumpTarget == null || jumpTarget != fallthroughTarget || !jumpTarget.getPhiValues().isEmpty()) {
+                    continue;
+                }
+                for (Edge edge : block.getSuccessors().toArray(new Edge[0])) {
+                    cfg.removeEdge(edge);
+                }
+                cfg.addEdge(Edge.Type.FALLTHROUGH, block, jumpTarget);
                 instruction.dropOperands();
                 block.removeInstruction(instruction);
                 changed = true;
             }
         }
         return changed;
+    }
+
+    private static Block transparentTarget(Block block) {
+        Set<Block> visited = Collections.newSetFromMap(new IdentityHashMap<Block, Boolean>());
+        Block current = block;
+        while (visited.add(current)) {
+            if (!current.getPhiValues().isEmpty()) {
+                return current;
+            }
+            Edge next = transparentNext(current);
+            if (next == null || next.type == Edge.Type.THROW) {
+                return current;
+            }
+            current = next.successor;
+        }
+        return null;
+    }
+
+    private static Edge transparentNext(Block block) {
+        Edge next = null;
+        for (Edge edge : block.getSuccessors()) {
+            if (edge.type == Edge.Type.THROW) {
+                return null;
+            }
+            if (next != null) {
+                return null;
+            }
+            next = edge;
+        }
+        if (next == null) {
+            return null;
+        }
+        for (Instruction instruction : block.getInstructions()) {
+            if (instruction instanceof Jump) {
+                continue;
+            }
+            if (!DeadCodeElimination.isRemovablePure(instruction)) {
+                return null;
+            }
+        }
+        return next;
     }
 
     private Boolean constantJumpDecision(Instruction instruction) {

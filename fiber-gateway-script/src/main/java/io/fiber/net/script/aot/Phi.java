@@ -24,6 +24,9 @@ public class Phi extends Expr {
 
     @Override
     public SsaValue.Type getResultType() {
+        if (cases.isEmpty()) {
+            return SsaValue.Type.Unknown;
+        }
         Iterator<Case> iterator = cases.iterator();
         SsaValue.Type type = iterator.next().value.getType();
         while (iterator.hasNext()) {

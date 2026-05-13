@@ -248,7 +248,6 @@ public class Binary extends Expr {
     }
 
     private static ValueNode constantValue(SsaValue value) {
-        Expr assign = value.getAssign();
-        return assign instanceof LoadConst ? ((LoadConst) assign).getValueNode() : null;
+        return ConstantValues.valueOf(value);
     }
 }

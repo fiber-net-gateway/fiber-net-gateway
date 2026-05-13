@@ -243,10 +243,7 @@ public class SparseConditionalConstPropagation {
                 if (!constant.isConst()) {
                     continue;
                 }
-                LoadConst replacement = new LoadConst(block, instruction.getPc(), constant.value);
-                instruction.dropOperands();
-                expr.getResult().replaceAssign(replacement);
-                block.replaceInstruction(instruction, replacement);
+                ConstantValues.replaceWithConst(block, expr, constant.value);
                 changed = true;
             }
         }
@@ -483,6 +480,10 @@ public class SparseConditionalConstPropagation {
     }
 
     private Const get(SsaValue value) {
+        ValueNode constantValue = ConstantValues.valueOf(value);
+        if (constantValue != null) {
+            return Const.of(constantValue);
+        }
         Const constant = constants.get(value);
         return constant == null ? Const.UNDEF : constant;
     }

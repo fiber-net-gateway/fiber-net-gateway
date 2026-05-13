@@ -118,15 +118,11 @@ public class AlgebraicSimplification {
     }
 
     private static void replaceWithConst(Block block, Expr expr, ValueNode value) {
-        LoadConst replacement = new LoadConst(block, expr.getPc(), value);
-        expr.dropOperands();
-        expr.getResult().replaceAssign(replacement);
-        block.replaceInstruction(expr, replacement);
+        ConstantValues.replaceWithConst(block, expr, value);
     }
 
     private static ValueNode constantValue(SsaValue value) {
-        Expr assign = value.getAssign();
-        return assign instanceof LoadConst ? ((LoadConst) assign).getValueNode() : null;
+        return ConstantValues.valueOf(value);
     }
 
     private static boolean isZero(ValueNode node) {

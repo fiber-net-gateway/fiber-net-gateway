@@ -142,8 +142,7 @@ public class BranchElimination {
     }
 
     private static ValueNode constantValue(SsaValue value) {
-        Expr assign = value.getAssign();
-        return assign instanceof LoadConst ? ((LoadConst) assign).getValueNode() : null;
+        return ConstantValues.valueOf(value);
     }
 
     private static Edge findKeptEdge(Block block, Instruction instruction, boolean jumpTaken) {

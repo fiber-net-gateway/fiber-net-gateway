@@ -259,6 +259,7 @@ public class Cfg {
                 changed |= passChanged;
                 simplifyPhis();
                 changed |= new DeadCodeElimination(cfg).optimize();
+                changed |= new LoadConstVirtualization(cfg).optimize();
                 passChanged = new EmptyBlockPruning(cfg).optimize();
                 if (passChanged) {
                     context.invalidateControlFlow();

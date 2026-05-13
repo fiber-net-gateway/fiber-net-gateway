@@ -55,7 +55,8 @@ public class ConstPropagationTest {
     public void shouldKeepExpressionWhenConstantEvaluationThrows() {
         Cfg cfg = build("return 'x' * true;");
 
-        Assert.assertTrue(returnValue(cfg).getAssign() instanceof Binary);
+        Assert.assertTrue(containsInstruction(cfg, Binary.class));
+        Assert.assertFalse(containsInstruction(cfg, Ret.class));
     }
 
     private static ValueNode returnConst(String script) {
@@ -82,6 +83,17 @@ public class ConstPropagationTest {
     private static Cfg build(String script) {
         Compiled compiled = CompilerNodeVisitor.compileFromScript(script, StdLibrary.getDefInstance());
         return new Cfg.Builder(compiled).build();
+    }
+
+    private static boolean containsInstruction(Cfg cfg, Class<?> type) {
+        for (Block block : cfg.getBlocks()) {
+            for (Instruction instruction : block.getInstructions()) {
+                if (type.isInstance(instruction)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static int countPhi(Cfg cfg) {

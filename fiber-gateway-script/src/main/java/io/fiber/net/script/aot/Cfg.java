@@ -228,6 +228,7 @@ public class Cfg {
                 changed = false;
                 changed |= new SparseConditionalConstPropagation(cfg).optimize();
                 changed |= new AlgebraicSimplification(cfg).optimize();
+                changed |= new AlwaysThrowPruning(cfg).optimize();
                 changed |= new LocalCse(cfg).optimize();
                 changed |= new ExceptionEdgePruning(cfg).optimize();
                 changed |= new JumpOptimization(cfg).optimize();

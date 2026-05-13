@@ -81,6 +81,14 @@ public class ControlFlowOptimizationTest {
     }
 
     @Test
+    public void shouldPruneFallthroughAfterAlwaysThrowingBinary() {
+        Cfg cfg = build("let a = 0; try { 'x' * true; a = 1; } catch (e) { a = 2; } return a;");
+
+        Assert.assertTrue(containsInstruction(cfg, Binary.class));
+        Assert.assertEquals(IntNode.valueOf(2), returnConst(cfg));
+    }
+
+    @Test
     public void shouldRemoveEmptyBlocksAfterOptimization() {
         Cfg cfg = build("let a = 1; if ($.x) {} else {} return a;");
 

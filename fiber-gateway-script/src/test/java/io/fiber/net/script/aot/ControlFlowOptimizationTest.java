@@ -330,6 +330,70 @@ public class ControlFlowOptimizationTest {
         Assert.assertEquals(1, countUnary(loopBlocks, Unary.Op.ITERATE_VALUE));
     }
 
+    @Test
+    public void shouldReplaceFreshObjectPropertyGet() {
+        Cfg cfg = build("let o = {}; o.a = 3; return o.a;");
+
+        Assert.assertEquals(IntNode.valueOf(3), returnConst(cfg));
+        Assert.assertFalse(containsInstruction(cfg, NewObj.class));
+        Assert.assertFalse(containsInstruction(cfg, PropSet.class));
+        Assert.assertFalse(containsInstruction(cfg, PropGet.class));
+    }
+
+    @Test
+    public void shouldReplaceObjectLiteralPropertyGet() {
+        Cfg cfg = build("let o = {a: 1, b: 2}; return o.a;");
+
+        Assert.assertEquals(IntNode.valueOf(1), returnConst(cfg));
+        Assert.assertFalse(containsInstruction(cfg, NewObj.class));
+        Assert.assertFalse(containsInstruction(cfg, PropGet.class));
+    }
+
+    @Test
+    public void shouldPreserveFreshObjectPropertyAssignmentResult() {
+        Cfg cfg = build("let o = {}; return o.a = 7;");
+
+        Assert.assertEquals(IntNode.valueOf(7), returnConst(cfg));
+        Assert.assertFalse(containsInstruction(cfg, NewObj.class));
+        Assert.assertFalse(containsInstruction(cfg, PropSet.class));
+    }
+
+    @Test
+    public void shouldCreateFieldPhiForFreshObjectPropertyAcrossBranches() {
+        Cfg cfg = build("let o = {}; if ($.x) { o.a = 1; } else { o.a = 2; } return o.a;");
+
+        Assert.assertFalse(containsInstruction(cfg, NewObj.class));
+        Assert.assertFalse(containsInstruction(cfg, PropSet.class));
+        Assert.assertEquals(0, countPropGet(cfg, "a"));
+        Assert.assertTrue(returnValue(cfg).getAssign() instanceof Phi);
+    }
+
+    @Test
+    public void shouldKeepEscapingFreshObject() {
+        Cfg cfg = build("let o = {}; o.a = 1; return o;");
+
+        Assert.assertTrue(containsInstruction(cfg, NewObj.class));
+        Assert.assertTrue(containsInstruction(cfg, PropSet.class));
+    }
+
+    @Test
+    public void shouldReplaceFreshArrayIndexGet() {
+        Cfg cfg = build("let a = [1, 2]; return a[1];");
+
+        Assert.assertEquals(IntNode.valueOf(2), returnConst(cfg));
+        Assert.assertFalse(containsInstruction(cfg, NewArr.class));
+        Assert.assertFalse(containsInstruction(cfg, PushArr.class));
+        Assert.assertFalse(containsInstruction(cfg, IndexGet.class));
+    }
+
+    @Test
+    public void shouldKeepEscapingFreshArray() {
+        Cfg cfg = build("let a = [1, 2]; return a;");
+
+        Assert.assertTrue(containsInstruction(cfg, NewArr.class));
+        Assert.assertTrue(containsInstruction(cfg, PushArr.class));
+    }
+
     private static Cfg build(String script) {
         Compiled compiled = CompilerNodeVisitor.compileFromScript(script, StdLibrary.getDefInstance());
         return new Cfg.Builder(compiled).build();

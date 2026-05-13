@@ -36,6 +36,22 @@ public class ConstPropagationTest {
     }
 
     @Test
+    public void shouldIgnoreUnreachablePhiInputFromFalseBranch() {
+        Cfg cfg = build("let a = 1; if (false) { a = $.x; } return a;");
+
+        Assert.assertEquals(0, countPhi(cfg));
+        Assert.assertEquals(IntNode.valueOf(1), returnConst(cfg));
+    }
+
+    @Test
+    public void shouldIgnoreUnreachablePhiInputFromTrueBranchElse() {
+        Cfg cfg = build("let a = 1; if (true) { a = 2; } else { a = $.x; } return a;");
+
+        Assert.assertEquals(0, countPhi(cfg));
+        Assert.assertEquals(IntNode.valueOf(2), returnConst(cfg));
+    }
+
+    @Test
     public void shouldKeepExpressionWhenConstantEvaluationThrows() {
         Cfg cfg = build("return 'x' * true;");
 

@@ -226,7 +226,7 @@ public class Cfg {
             boolean changed;
             do {
                 changed = false;
-                changed |= new ConstPropagation(cfg).optimize();
+                changed |= new SparseConditionalConstPropagation(cfg).optimize();
                 changed |= new AlgebraicSimplification(cfg).optimize();
                 changed |= new LocalCse(cfg).optimize();
                 changed |= new ExceptionEdgePruning(cfg).optimize();

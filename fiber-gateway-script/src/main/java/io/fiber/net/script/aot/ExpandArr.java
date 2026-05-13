@@ -45,4 +45,9 @@ public class ExpandArr extends Instruction {
     public Throw canThrow() {
         return Throw.NOT;
     }
+
+    @Override
+    public int effects() {
+        return EFFECT_MEMORY_WRITE;
+    }
 }

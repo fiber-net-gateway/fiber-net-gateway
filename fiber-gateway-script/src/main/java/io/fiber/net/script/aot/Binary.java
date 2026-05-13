@@ -118,6 +118,11 @@ public class Binary extends Expr {
         }
     }
 
+    @Override
+    public int effects() {
+        return EFFECT_PURE;
+    }
+
     private Throw plusThrow() {
         Throw constant = constantThrow();
         if (constant != null) {

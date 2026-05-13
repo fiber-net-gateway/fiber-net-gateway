@@ -97,6 +97,11 @@ public class Unary extends Expr {
         }
     }
 
+    @Override
+    public int effects() {
+        return EFFECT_PURE;
+    }
+
     private static Throw numericThrow(SsaValue value) {
         ValueNode constant = constantValue(value);
         if (constant != null) {

@@ -50,4 +50,9 @@ public class PropSet extends Expr {
         owner.removeUsed(this);
         alien.removeUsed(this);
     }
+
+    @Override
+    public int effects() {
+        return EFFECT_MEMORY_WRITE;
+    }
 }

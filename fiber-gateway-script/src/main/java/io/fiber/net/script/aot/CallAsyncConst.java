@@ -19,4 +19,9 @@ public class CallAsyncConst extends Expr {
     public Library.AsyncConstant getConstant() {
         return constant;
     }
+
+    @Override
+    public int effects() {
+        return EFFECT_CALL | EFFECT_MEMORY_WRITE;
+    }
 }

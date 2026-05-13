@@ -19,4 +19,9 @@ public class CallConst extends Expr {
     public Library.Constant getConstant() {
         return constant;
     }
+
+    @Override
+    public int effects() {
+        return EFFECT_CALL | EFFECT_MEMORY_WRITE;
+    }
 }

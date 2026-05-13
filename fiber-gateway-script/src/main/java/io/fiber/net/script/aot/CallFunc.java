@@ -53,4 +53,9 @@ public class CallFunc extends Expr {
             arg.removeUsed(this);
         }
     }
+
+    @Override
+    public int effects() {
+        return EFFECT_CALL | EFFECT_MEMORY_WRITE;
+    }
 }

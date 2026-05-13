@@ -51,4 +51,9 @@ public class PropGet extends Expr {
     public Throw canThrow() {
         return Throw.NOT;
     }
+
+    @Override
+    public int effects() {
+        return EFFECT_PURE | EFFECT_MEMORY_READ;
+    }
 }

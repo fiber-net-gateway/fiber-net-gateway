@@ -3,7 +3,6 @@ package io.fiber.net.script.aot;
 import io.fiber.net.common.json.ValueNode;
 import io.fiber.net.script.run.Compares;
 
-import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
@@ -11,15 +10,24 @@ import java.util.Set;
 public class BranchElimination {
 
     private final Cfg cfg;
+    private final OptimizationContext context;
 
     public BranchElimination(Cfg cfg) {
+        this(cfg, new OptimizationContext(cfg));
+    }
+
+    BranchElimination(Cfg cfg, OptimizationContext context) {
         this.cfg = cfg;
+        this.context = context;
     }
 
     public boolean optimize() {
         boolean changed = foldConstantBranches();
         changed |= removeRedundantBranches();
-        return removeUnreachableBlocks() || changed;
+        if (changed) {
+            context.invalidateControlFlow();
+        }
+        return context.removeUnreachableBlocks() || changed;
     }
 
     private boolean foldConstantBranches() {
@@ -114,7 +122,7 @@ public class BranchElimination {
             if (instruction instanceof Jump) {
                 continue;
             }
-            if (!DeadCodeElimination.isRemovablePure(instruction)) {
+            if (!instruction.isRemovablePure()) {
                 return null;
             }
         }
@@ -163,28 +171,4 @@ public class BranchElimination {
         return null;
     }
 
-    private boolean removeUnreachableBlocks() {
-        Set<Block> reachable = Collections.newSetFromMap(new IdentityHashMap<Block, Boolean>());
-        ArrayDeque<Block> queue = new ArrayDeque<>();
-        queue.add(cfg.getEntryBlock());
-        while (!queue.isEmpty()) {
-            Block block = queue.poll();
-            if (!reachable.add(block)) {
-                continue;
-            }
-            for (Edge edge : block.getSuccessors()) {
-                queue.add(edge.successor);
-            }
-        }
-
-        boolean changed = false;
-        for (Block block : cfg.getBlocks().toArray(new Block[0])) {
-            if (reachable.contains(block)) {
-                continue;
-            }
-            cfg.removeBlock(block);
-            changed = true;
-        }
-        return changed;
-    }
 }

@@ -56,4 +56,9 @@ public class IndexSet1 extends Expr {
         key.removeUsed(this);
         alien.removeUsed(this);
     }
+
+    @Override
+    public int effects() {
+        return EFFECT_MEMORY_WRITE;
+    }
 }

@@ -9,16 +9,22 @@ import java.util.Objects;
 public class GlobalValueNumbering {
 
     private final Cfg cfg;
+    private final OptimizationContext context;
     private final Map<Key, SsaValue> available = new HashMap<>();
     private final List<Undo> undoLog = new ArrayList<>();
     private boolean changed;
 
     public GlobalValueNumbering(Cfg cfg) {
+        this(cfg, new OptimizationContext(cfg));
+    }
+
+    GlobalValueNumbering(Cfg cfg, OptimizationContext context) {
         this.cfg = cfg;
+        this.context = context;
     }
 
     public boolean optimize() {
-        Dominators dominators = Dominators.compute(cfg);
+        Dominators dominators = context.dominators();
         visitDominatorTree(cfg.getEntryBlock(), dominators);
         return changed;
     }
@@ -26,7 +32,7 @@ public class GlobalValueNumbering {
     private void visitDominatorTree(Block block, Dominators dominators) {
         int mark = undoLog.size();
         for (Instruction instruction : block.getInstructions().toArray(new Instruction[0])) {
-            if (isMemoryBarrier(instruction)) {
+            if (instruction.isMemoryBarrier()) {
                 applyMemoryBarrier(instruction);
             }
             if (!(instruction instanceof Expr) || !isCseCandidate((Expr) instruction)) {
@@ -127,22 +133,8 @@ public class GlobalValueNumbering {
         }
     }
 
-    private static boolean isMemoryBarrier(Instruction instruction) {
-        return instruction instanceof PropSet
-                || instruction instanceof PropSet1
-                || instruction instanceof IndexSet
-                || instruction instanceof IndexSet1
-                || instruction instanceof ExpandObj
-                || instruction instanceof ExpandArr
-                || instruction instanceof PushArr
-                || instruction instanceof CallFunc
-                || instruction instanceof CallAsyncFunc
-                || instruction instanceof CallConst
-                || instruction instanceof CallAsyncConst;
-    }
-
     private static boolean isCseCandidate(Expr expr) {
-        if (expr.canThrow() != Instruction.Throw.NOT) {
+        if (!expr.isRemovablePure()) {
             return false;
         }
         return expr instanceof LoadConst

@@ -33,25 +33,14 @@ public class DeadCodeElimination {
             return false;
         }
         Expr expr = (Expr) instruction;
-        return expr.getResult().getUsedCount() == 0
-                && expr.canThrow() == Instruction.Throw.NOT
-                && isPure(expr);
+        return expr.getResult().getUsedCount() == 0 && expr.isRemovablePure();
     }
 
     static boolean isPure(Expr expr) {
-        return expr instanceof LoadConst
-                || expr instanceof LoadRoot
-                || expr instanceof NewObj
-                || expr instanceof NewArr
-                || expr instanceof PropGet
-                || expr instanceof IndexGet
-                || expr instanceof Unary
-                || expr instanceof Binary;
+        return expr.isPure();
     }
 
     static boolean isRemovablePure(Instruction instruction) {
-        return instruction instanceof Expr
-                && instruction.canThrow() == Instruction.Throw.NOT
-                && isPure((Expr) instruction);
+        return instruction instanceof Expr && instruction.isRemovablePure();
     }
 }

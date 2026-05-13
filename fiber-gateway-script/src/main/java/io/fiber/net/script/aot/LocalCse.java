@@ -41,11 +41,11 @@ public class LocalCse {
     }
 
     private static boolean hasSideEffect(Instruction instruction) {
-        return !DeadCodeElimination.isRemovablePure(instruction) && !(instruction instanceof Jump);
+        return !instruction.isRemovablePure() && !(instruction instanceof Jump);
     }
 
     private static boolean isCseCandidate(Expr expr) {
-        if (expr.canThrow() != Instruction.Throw.NOT) {
+        if (!expr.isRemovablePure()) {
             return false;
         }
         return expr instanceof LoadConst

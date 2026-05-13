@@ -10,15 +10,21 @@ import java.util.Set;
 public class LoopInvariantCodeMotion {
 
     private final Cfg cfg;
+    private final OptimizationContext context;
     private Dominators dominators;
     private boolean changed;
 
     public LoopInvariantCodeMotion(Cfg cfg) {
+        this(cfg, new OptimizationContext(cfg));
+    }
+
+    LoopInvariantCodeMotion(Cfg cfg, OptimizationContext context) {
         this.cfg = cfg;
+        this.context = context;
     }
 
     public boolean optimize() {
-        dominators = Dominators.compute(cfg);
+        dominators = context.dominators();
         for (Block block : dominators.reversePostOrder) {
             for (Edge edge : block.getSuccessors()) {
                 if (edge.type == Edge.Type.THROW || !dominators.dominates(edge.successor, block)) {

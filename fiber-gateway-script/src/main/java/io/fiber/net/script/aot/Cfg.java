@@ -225,21 +225,54 @@ public class Cfg {
         private void optimizeCfg() {
             boolean changed;
             do {
+                OptimizationContext context = new OptimizationContext(cfg);
                 changed = false;
-                changed |= new SparseConditionalConstPropagation(cfg).optimize();
+                boolean passChanged = new SparseConditionalConstPropagation(cfg).optimize();
+                if (passChanged) {
+                    context.invalidateControlFlow();
+                }
+                changed |= passChanged;
                 changed |= new AlgebraicSimplification(cfg).optimize();
-                changed |= new AlwaysThrowPruning(cfg).optimize();
+                passChanged = new AlwaysThrowPruning(cfg, context).optimize();
+                if (passChanged) {
+                    context.invalidateControlFlow();
+                }
+                changed |= passChanged;
                 changed |= new LocalCse(cfg).optimize();
-                changed |= new GlobalValueNumbering(cfg).optimize();
-                changed |= new LoopInvariantCodeMotion(cfg).optimize();
-                changed |= new ExceptionEdgePruning(cfg).optimize();
-                changed |= new JumpOptimization(cfg).optimize();
-                changed |= new BranchElimination(cfg).optimize();
+                changed |= new GlobalValueNumbering(cfg, context).optimize();
+                changed |= new LoopInvariantCodeMotion(cfg, context).optimize();
+                passChanged = new ExceptionEdgePruning(cfg).optimize();
+                if (passChanged) {
+                    context.invalidateControlFlow();
+                }
+                changed |= passChanged;
+                passChanged = new JumpOptimization(cfg).optimize();
+                if (passChanged) {
+                    context.invalidateControlFlow();
+                }
+                changed |= passChanged;
+                passChanged = new BranchElimination(cfg, context).optimize();
+                if (passChanged) {
+                    context.invalidateControlFlow();
+                }
+                changed |= passChanged;
                 simplifyPhis();
                 changed |= new DeadCodeElimination(cfg).optimize();
-                changed |= new EmptyBlockPruning(cfg).optimize();
-                changed |= new JumpOnlyBlockPruning(cfg).optimize();
-                changed |= new LinearBlockMerging(cfg).optimize();
+                passChanged = new EmptyBlockPruning(cfg).optimize();
+                if (passChanged) {
+                    context.invalidateControlFlow();
+                }
+                changed |= passChanged;
+                passChanged = new JumpOnlyBlockPruning(cfg).optimize();
+                if (passChanged) {
+                    context.invalidateControlFlow();
+                }
+                changed |= passChanged;
+                passChanged = new LinearBlockMerging(cfg).optimize();
+                if (passChanged) {
+                    context.invalidateControlFlow();
+                }
+                changed |= passChanged;
                 simplifyPhis();
             } while (changed);
         }

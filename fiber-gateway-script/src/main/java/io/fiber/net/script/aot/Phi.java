@@ -21,22 +21,30 @@ public class Phi extends Expr {
     }
 
     final List<Case> cases = new ArrayList<>();
+    private boolean resolvingType;
 
     @Override
     public SsaValue.Type getResultType() {
+        if (resolvingType) {
+            return SsaValue.Type.Unknown;
+        }
         if (cases.isEmpty()) {
             return SsaValue.Type.Unknown;
         }
-        Iterator<Case> iterator = cases.iterator();
-        SsaValue.Type type = iterator.next().value.getType();
-        while (iterator.hasNext()) {
-            Case next = iterator.next();
-            if (next.value.getType() != type) {
-                return SsaValue.Type.Unknown;
+        resolvingType = true;
+        try {
+            Iterator<Case> iterator = cases.iterator();
+            SsaValue.Type type = iterator.next().value.getType();
+            while (iterator.hasNext()) {
+                Case next = iterator.next();
+                if (next.value.getType() != type) {
+                    return SsaValue.Type.Unknown;
+                }
             }
+            return type;
+        } finally {
+            resolvingType = false;
         }
-
-        return type;
     }
 
     public void addCase(Block from, SsaValue value) {

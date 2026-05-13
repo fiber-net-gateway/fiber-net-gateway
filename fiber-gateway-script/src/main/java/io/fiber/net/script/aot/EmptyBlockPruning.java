@@ -59,6 +59,7 @@ public class EmptyBlockPruning {
             move.apply();
         }
         for (Edge incoming : incomingEdges) {
+            retargetTerminalJump(incoming.predecessor, block, target);
             cfg.addEdge(incoming.type, incoming.predecessor, target);
         }
         cfg.removeBlock(block);
@@ -199,6 +200,28 @@ public class EmptyBlockPruning {
             }
         }
         return false;
+    }
+
+    private static void retargetTerminalJump(Block block, Block oldTarget, Block newTarget) {
+        List<Instruction> instructions = block.getInstructions();
+        if (instructions.isEmpty()) {
+            return;
+        }
+
+        Instruction terminal = instructions.get(instructions.size() - 1);
+        if (terminal instanceof Jump && ((Jump) terminal).getTarget() == oldTarget) {
+            block.replaceInstruction(terminal, new Jump(block, terminal.getPc(), newTarget));
+        } else if (terminal instanceof JumpIfTrue && ((JumpIfTrue) terminal).getTarget() == oldTarget) {
+            JumpIfTrue jump = (JumpIfTrue) terminal;
+            JumpIfTrue replacement = new JumpIfTrue(block, jump.getPc(), newTarget, jump.getCond());
+            jump.dropOperands();
+            block.replaceInstruction(jump, replacement);
+        } else if (terminal instanceof JumpIfFalse && ((JumpIfFalse) terminal).getTarget() == oldTarget) {
+            JumpIfFalse jump = (JumpIfFalse) terminal;
+            JumpIfFalse replacement = new JumpIfFalse(block, jump.getPc(), newTarget, jump.getCond());
+            jump.dropOperands();
+            block.replaceInstruction(jump, replacement);
+        }
     }
 
     private static final class PhiUpdate {

@@ -230,6 +230,7 @@ public class Cfg {
                 changed |= new AlgebraicSimplification(cfg).optimize();
                 changed |= new AlwaysThrowPruning(cfg).optimize();
                 changed |= new LocalCse(cfg).optimize();
+                changed |= new GlobalValueNumbering(cfg).optimize();
                 changed |= new ExceptionEdgePruning(cfg).optimize();
                 changed |= new JumpOptimization(cfg).optimize();
                 changed |= new BranchElimination(cfg).optimize();

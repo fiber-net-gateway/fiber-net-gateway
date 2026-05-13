@@ -387,6 +387,51 @@ public class ControlFlowOptimizationTest {
     }
 
     @Test
+    public void shouldCreateIndexPhiForFreshArrayAcrossBranches() {
+        Cfg cfg = build("let a = [0]; if ($.x) { a[0] = 1; } else { a[0] = 2; } return a[0];");
+
+        Assert.assertFalse(containsInstruction(cfg, NewArr.class));
+        Assert.assertFalse(containsInstruction(cfg, PushArr.class));
+        Assert.assertFalse(containsInstruction(cfg, IndexSet.class));
+        Assert.assertFalse(containsInstruction(cfg, IndexSet1.class));
+        Assert.assertFalse(containsInstruction(cfg, IndexGet.class));
+        Assert.assertTrue(returnValue(cfg).getAssign() instanceof Phi);
+    }
+
+    @Test
+    public void shouldMergeFreshArrayIndexWithInheritedValue() {
+        Cfg cfg = build("let a = [0]; if ($.x) { a[0] = 1; } return a[0];");
+
+        Assert.assertFalse(containsInstruction(cfg, NewArr.class));
+        Assert.assertFalse(containsInstruction(cfg, PushArr.class));
+        Assert.assertFalse(containsInstruction(cfg, IndexSet.class));
+        Assert.assertFalse(containsInstruction(cfg, IndexSet1.class));
+        Assert.assertFalse(containsInstruction(cfg, IndexGet.class));
+        Assert.assertTrue(returnValue(cfg).getAssign() instanceof Phi);
+    }
+
+    @Test
+    public void shouldUseMergedFreshArrayLengthForLaterPush() {
+        Cfg cfg = freshArrayBranchPushCfg();
+        Assert.assertTrue(new ScalarReplacement(cfg).optimize());
+        Assert.assertTrue(new DeadCodeElimination(cfg).optimize());
+
+        Assert.assertEquals(IntNode.valueOf(3), returnConst(cfg));
+        Assert.assertFalse(containsInstruction(cfg, NewArr.class));
+        Assert.assertFalse(containsInstruction(cfg, PushArr.class));
+        Assert.assertFalse(containsInstruction(cfg, IndexGet.class));
+    }
+
+    @Test
+    public void shouldKeepOutOfBoundsFreshArrayIndexSet() {
+        Cfg cfg = build("let a = [0]; a[1] = 2; return 1;");
+
+        Assert.assertTrue(containsInstruction(cfg, NewArr.class));
+        Assert.assertTrue(containsInstruction(cfg, PushArr.class));
+        Assert.assertTrue(containsInstruction(cfg, IndexSet.class) || containsInstruction(cfg, IndexSet1.class));
+    }
+
+    @Test
     public void shouldKeepEscapingFreshArray() {
         Cfg cfg = build("let a = [1, 2]; return a;");
 
@@ -397,6 +442,53 @@ public class ControlFlowOptimizationTest {
     private static Cfg build(String script) {
         Compiled compiled = CompilerNodeVisitor.compileFromScript(script, StdLibrary.getDefInstance());
         return new Cfg.Builder(compiled).build();
+    }
+
+    private static Cfg freshArrayBranchPushCfg() {
+        Cfg cfg = new Cfg();
+        cfg.addBlock(0);
+        cfg.addBlock(1);
+        cfg.addBlock(2);
+        cfg.addBlock(3);
+        Block entry = cfg.mustGetBlock(0);
+        Block left = cfg.mustGetBlock(1);
+        Block right = cfg.mustGetBlock(2);
+        Block merge = cfg.mustGetBlock(3);
+        cfg.setEntryBlock(entry);
+
+        NewArr array = new NewArr(entry, 0);
+        LoadConst zero = new LoadConst(entry, 1, IntNode.valueOf(0));
+        entry.getInstructions().add(array);
+        entry.getInstructions().add(zero);
+        entry.getInstructions().add(new PushArr(entry, 2, array.getResult(), zero.getResult()));
+
+        LoadConst leftIndex = new LoadConst(left, 3, IntNode.valueOf(0));
+        LoadConst one = new LoadConst(left, 4, IntNode.valueOf(1));
+        left.getInstructions().add(leftIndex);
+        left.getInstructions().add(one);
+        left.getInstructions().add(new IndexSet1(left, 5, array.getResult(), leftIndex.getResult(), one.getResult()));
+
+        LoadConst rightIndex = new LoadConst(right, 6, IntNode.valueOf(0));
+        LoadConst two = new LoadConst(right, 7, IntNode.valueOf(2));
+        right.getInstructions().add(rightIndex);
+        right.getInstructions().add(two);
+        right.getInstructions().add(new IndexSet1(right, 8, array.getResult(), rightIndex.getResult(), two.getResult()));
+
+        LoadConst three = new LoadConst(merge, 9, IntNode.valueOf(3));
+        LoadConst readIndex = new LoadConst(merge, 10, IntNode.valueOf(1));
+        PushArr push = new PushArr(merge, 11, array.getResult(), three.getResult());
+        IndexGet read = new IndexGet(merge, 12, array.getResult(), readIndex.getResult());
+        merge.getInstructions().add(three);
+        merge.getInstructions().add(push);
+        merge.getInstructions().add(readIndex);
+        merge.getInstructions().add(read);
+        merge.getInstructions().add(new Ret(merge, 13, read.getResult()));
+
+        cfg.addEdge(Edge.Type.FALLTHROUGH, entry, left);
+        cfg.addEdge(Edge.Type.JUMP, entry, right);
+        cfg.addEdge(Edge.Type.FALLTHROUGH, left, merge);
+        cfg.addEdge(Edge.Type.JUMP, right, merge);
+        return cfg;
     }
 
     private static ValueNode returnConst(Cfg cfg) {

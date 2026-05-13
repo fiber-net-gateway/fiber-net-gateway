@@ -41,7 +41,7 @@ public class ScalarReplacement {
 
     private void optimizeCandidate(NewObj allocation) {
         Candidate candidate = collectCandidate(allocation);
-        if (candidate == null || touchesLoop(candidate)) {
+        if (candidate == null || touchesLoop(candidate.useBlocks)) {
             return;
         }
 
@@ -56,54 +56,19 @@ public class ScalarReplacement {
     }
 
     private void optimizeArrayCandidate(NewArr allocation) {
-        Block block = allocation.getBelongTo();
-        List<PushArr> pushes = new ArrayList<>();
-        List<IndexGet> reads = new ArrayList<>();
-        for (Instruction used : allocation.getResult().getUsed()) {
-            if (used.getBelongTo() != block) {
-                return;
-            }
-            if (used instanceof PushArr) {
-                PushArr pushArr = (PushArr) used;
-                if (pushArr.getTarget() != allocation.getResult()
-                        || pushArr.getAddition() == allocation.getResult()) {
-                    return;
-                }
-                pushes.add(pushArr);
-            } else if (used instanceof IndexGet) {
-                IndexGet indexGet = (IndexGet) used;
-                if (indexGet.getOwner() != allocation.getResult()) {
-                    return;
-                }
-                reads.add(indexGet);
-            } else {
-                return;
-            }
+        ArrayCandidate candidate = collectArrayCandidate(allocation);
+        if (candidate == null || touchesLoop(candidate.useBlocks)) {
+            return;
         }
 
-        List<SsaValue> values = new ArrayList<>();
-        List<RewriteAction> actions = new ArrayList<>();
-        for (Instruction instruction : block.getInstructions()) {
-            if (instruction instanceof PushArr && pushes.contains(instruction)) {
-                PushArr pushArr = (PushArr) instruction;
-                values.add(pushArr.getAddition());
-                actions.add(new RemoveInstructionAction(pushArr));
-            } else if (instruction instanceof IndexGet && reads.contains(instruction)) {
-                IndexGet indexGet = (IndexGet) instruction;
-                Integer idx = constArrayIndex(indexGet.getKey());
-                if (idx == null || idx < 0 || idx >= values.size()) {
-                    return;
-                }
-                actions.add(new RewriteAction(indexGet, values.get(idx)));
-            }
+        ArrayAnalysis analysis = analyzeArray(candidate);
+        if (analysis.failed || analysis.actions.isEmpty()) {
+            return;
         }
-
-        if (!actions.isEmpty()) {
-            for (RewriteAction action : actions) {
-                action.apply(cfg);
-            }
-            changed = true;
+        for (RewriteAction action : analysis.actions) {
+            action.apply(cfg);
         }
+        changed = true;
     }
 
     private static Integer constArrayIndex(SsaValue value) {
@@ -161,6 +126,63 @@ public class ScalarReplacement {
         return candidate;
     }
 
+    private ArrayCandidate collectArrayCandidate(NewArr allocation) {
+        ArrayCandidate candidate = new ArrayCandidate(allocation);
+        boolean updated;
+        do {
+            updated = false;
+            List<SsaValue> aliases = new ArrayList<>(candidate.aliases);
+            for (SsaValue alias : aliases) {
+                for (Instruction used : alias.getUsed()) {
+                    if (used instanceof PushArr) {
+                        PushArr pushArr = (PushArr) used;
+                        if (pushArr.getTarget() != alias || candidate.aliases.contains(pushArr.getAddition())) {
+                            return null;
+                        }
+                        candidate.writes.add(pushArr);
+                        candidate.useBlocks.add(pushArr.getBelongTo());
+                    } else if (used instanceof IndexGet) {
+                        IndexGet indexGet = (IndexGet) used;
+                        if (indexGet.getOwner() != alias || constArrayIndex(indexGet.getKey()) == null) {
+                            return null;
+                        }
+                        candidate.reads.add(indexGet);
+                        candidate.useBlocks.add(indexGet.getBelongTo());
+                    } else if (used instanceof IndexSet) {
+                        IndexSet indexSet = (IndexSet) used;
+                        if (indexSet.getOwner() != alias
+                                || constArrayIndex(indexSet.getKey()) == null
+                                || candidate.aliases.contains(indexSet.getAlien())) {
+                            return null;
+                        }
+                        candidate.writes.add(indexSet);
+                        candidate.useBlocks.add(indexSet.getBelongTo());
+                    } else if (used instanceof IndexSet1) {
+                        IndexSet1 indexSet = (IndexSet1) used;
+                        if (indexSet.getOwner() != alias
+                                || constArrayIndex(indexSet.getKey()) == null
+                                || candidate.aliases.contains(indexSet.getAlien())) {
+                            return null;
+                        }
+                        candidate.writes.add(indexSet);
+                        candidate.useBlocks.add(indexSet.getBelongTo());
+                        updated |= candidate.aliases.add(indexSet.getResult());
+                    } else if (used instanceof Phi) {
+                        Phi phi = (Phi) used;
+                        if (!allPhiInputsAreAliases(phi, candidate.aliases)) {
+                            return null;
+                        }
+                        updated |= candidate.aliases.add(phi.getResult());
+                        candidate.useBlocks.add(phi.getBelongTo());
+                    } else {
+                        return null;
+                    }
+                }
+            }
+        } while (updated);
+        return candidate;
+    }
+
     private static boolean allPhiInputsAreAliases(Phi phi, Set<SsaValue> aliases) {
         for (Phi.Case aCase : phi.getCases()) {
             if (!aliases.contains(aCase.value)) {
@@ -170,7 +192,7 @@ public class ScalarReplacement {
         return true;
     }
 
-    private boolean touchesLoop(Candidate candidate) {
+    private boolean touchesLoop(Set<Block> useBlocks) {
         Dominators dominators = context.dominators();
         for (Block block : dominators.reversePostOrder) {
             for (Edge edge : block.getSuccessors()) {
@@ -178,7 +200,7 @@ public class ScalarReplacement {
                     continue;
                 }
                 Set<Block> loopBlocks = naturalLoop(edge.successor, block);
-                for (Block useBlock : candidate.useBlocks) {
+                for (Block useBlock : useBlocks) {
                     if (loopBlocks.contains(useBlock)) {
                         return true;
                     }
@@ -242,6 +264,159 @@ public class ScalarReplacement {
         }
         analysis.finish(candidate);
         return analysis;
+    }
+
+    private ArrayAnalysis analyzeArray(ArrayCandidate candidate) {
+        ArrayAnalysis analysis = new ArrayAnalysis(candidate);
+        Map<Block, ArrayState> outStates = new IdentityHashMap<>();
+        Map<Block, ArrayState> inStates = new IdentityHashMap<>();
+        List<Block> rpo = context.dominators().reversePostOrder;
+        for (Block block : rpo) {
+            outStates.put(block, ArrayState.EMPTY);
+        }
+
+        boolean updated;
+        int iterations = 0;
+        do {
+            updated = false;
+            for (Block block : rpo) {
+                ArrayState in = mergeArrayPredecessors(block, outStates, analysis);
+                if (analysis.failed) {
+                    return analysis;
+                }
+                ArrayState oldIn = inStates.put(block, in);
+                ArrayState out = transferArray(block, in, candidate, analysis);
+                if (analysis.failed) {
+                    return analysis;
+                }
+                if (!in.equals(oldIn) || !out.equals(outStates.get(block))) {
+                    outStates.put(block, out);
+                    updated = true;
+                }
+            }
+        } while (updated && ++iterations <= rpo.size());
+
+        if (updated) {
+            analysis.failed = true;
+            return analysis;
+        }
+        analysis.finish(candidate);
+        return analysis;
+    }
+
+    private ArrayState mergeArrayPredecessors(Block block,
+                                              Map<Block, ArrayState> outStates,
+                                              ArrayAnalysis analysis) {
+        if (block == cfg.getEntryBlock()) {
+            return ArrayState.EMPTY;
+        }
+
+        List<Edge> predecessors = block.getPredecessors();
+        List<Block> predBlocks = new ArrayList<>();
+        List<ArrayState> predStates = new ArrayList<>();
+        for (Edge edge : predecessors) {
+            if (edge.type == Edge.Type.THROW) {
+                continue;
+            }
+            ArrayState predecessorState = outStates.get(edge.predecessor);
+            if (predecessorState == null) {
+                predecessorState = ArrayState.EMPTY;
+            }
+            predBlocks.add(edge.predecessor);
+            predStates.add(predecessorState);
+        }
+        if (predStates.isEmpty()) {
+            return ArrayState.EMPTY;
+        }
+
+        ArrayState first = predStates.get(0);
+        for (int i = 1; i < predStates.size(); i++) {
+            if (predStates.get(i).length != first.length) {
+                analysis.failed = true;
+                return first;
+            }
+        }
+
+        Map<Integer, SsaValue> indexes = new HashMap<>();
+        for (Map.Entry<Integer, SsaValue> entry : first.indexes.entrySet()) {
+            Integer index = entry.getKey();
+            SsaValue same = entry.getValue();
+            boolean different = false;
+            SsaValue[] values = new SsaValue[predStates.size()];
+            for (int i = 0; i < predStates.size(); i++) {
+                SsaValue value = predStates.get(i).indexes.get(index);
+                if (value == null) {
+                    values = null;
+                    break;
+                }
+                values[i] = value;
+                if (same != value) {
+                    different = true;
+                }
+            }
+            if (values == null) {
+                continue;
+            }
+            indexes.put(index, different ? analysis.phi(block, new Slot(index), predBlocks, values) : same);
+        }
+        return indexes.isEmpty() && first.length == 0 ? ArrayState.EMPTY : new ArrayState(first.length, indexes);
+    }
+
+    private ArrayState transferArray(Block block,
+                                     ArrayState input,
+                                     ArrayCandidate candidate,
+                                     ArrayAnalysis analysis) {
+        ArrayState state = input;
+        for (Instruction instruction : block.getInstructions()) {
+            if (instruction == candidate.allocation) {
+                continue;
+            }
+            if (instruction instanceof PushArr) {
+                PushArr pushArr = (PushArr) instruction;
+                if (!candidate.aliases.contains(pushArr.getTarget())) {
+                    continue;
+                }
+                state = state.push(pushArr.getAddition());
+                analysis.removeInstruction(pushArr);
+            } else if (instruction instanceof IndexSet) {
+                IndexSet indexSet = (IndexSet) instruction;
+                if (!candidate.aliases.contains(indexSet.getOwner())) {
+                    continue;
+                }
+                Integer idx = constArrayIndex(indexSet.getKey());
+                if (idx == null || idx < 0 || idx >= state.length) {
+                    analysis.failed = true;
+                    return state;
+                }
+                state = state.with(idx, indexSet.getAlien());
+                analysis.remove(indexSet, indexSet.getAlien());
+            } else if (instruction instanceof IndexSet1) {
+                IndexSet1 indexSet = (IndexSet1) instruction;
+                if (!candidate.aliases.contains(indexSet.getOwner())) {
+                    continue;
+                }
+                Integer idx = constArrayIndex(indexSet.getKey());
+                if (idx == null || idx < 0 || idx >= state.length) {
+                    analysis.failed = true;
+                    return state;
+                }
+                state = state.with(idx, indexSet.getAlien());
+                analysis.remove(indexSet, candidate.allocation.getResult());
+            } else if (instruction instanceof IndexGet) {
+                IndexGet indexGet = (IndexGet) instruction;
+                if (!candidate.aliases.contains(indexGet.getOwner())) {
+                    continue;
+                }
+                Integer idx = constArrayIndex(indexGet.getKey());
+                SsaValue replacement = idx == null ? null : state.indexes.get(idx);
+                if (replacement == null) {
+                    analysis.failed = true;
+                    return state;
+                }
+                analysis.remove(indexGet, replacement);
+            }
+        }
+        return state;
     }
 
     private State mergePredecessors(Block block,
@@ -345,6 +520,20 @@ public class ScalarReplacement {
         }
     }
 
+    private static final class ArrayCandidate {
+        final NewArr allocation;
+        final Set<SsaValue> aliases = Collections.newSetFromMap(new IdentityHashMap<SsaValue, Boolean>());
+        final Set<Block> useBlocks = Collections.newSetFromMap(new IdentityHashMap<Block, Boolean>());
+        final Set<Instruction> reads = Collections.newSetFromMap(new IdentityHashMap<Instruction, Boolean>());
+        final Set<Instruction> writes = Collections.newSetFromMap(new IdentityHashMap<Instruction, Boolean>());
+
+        ArrayCandidate(NewArr allocation) {
+            this.allocation = allocation;
+            aliases.add(allocation.getResult());
+            useBlocks.add(allocation.getBelongTo());
+        }
+    }
+
     private static final class Analysis {
         final Candidate candidate;
         final List<RewriteAction> actions = new ArrayList<>();
@@ -373,6 +562,59 @@ public class ScalarReplacement {
         }
 
         void finish(Candidate candidate) {
+            for (PhiPlan plan : phis.values()) {
+                Phi phi = plan.phi;
+                if (!phi.getCases().isEmpty()) {
+                    continue;
+                }
+                for (int i = 0; i < plan.predecessors.size(); i++) {
+                    phi.addCase(plan.predecessors.get(i), plan.values[i]);
+                }
+                phi.getBelongTo().addPhi(phi);
+            }
+            if (!candidate.reads.isEmpty() && !removed.containsAll(candidate.reads)) {
+                failed = true;
+            }
+            if (!candidate.writes.isEmpty() && !removed.containsAll(candidate.writes)) {
+                failed = true;
+            }
+        }
+    }
+
+    private static final class ArrayAnalysis {
+        final ArrayCandidate candidate;
+        final List<RewriteAction> actions = new ArrayList<>();
+        final Map<PhiKey, PhiPlan> phis = new HashMap<>();
+        final Set<Instruction> removed = Collections.newSetFromMap(new IdentityHashMap<Instruction, Boolean>());
+        boolean failed;
+
+        ArrayAnalysis(ArrayCandidate candidate) {
+            this.candidate = candidate;
+        }
+
+        SsaValue phi(Block block, Slot slot, List<Block> predecessors, SsaValue[] values) {
+            PhiKey key = new PhiKey(block, slot, predecessors, values);
+            PhiPlan plan = phis.get(key);
+            if (plan == null) {
+                plan = new PhiPlan(block.newPhi(), predecessors, values);
+                phis.put(key, plan);
+            }
+            return plan.phi.getResult();
+        }
+
+        void remove(Expr expr, SsaValue replacement) {
+            if (removed.add(expr)) {
+                actions.add(new RewriteAction(expr, replacement));
+            }
+        }
+
+        void removeInstruction(Instruction instruction) {
+            if (removed.add(instruction)) {
+                actions.add(new RemoveInstructionAction(instruction));
+            }
+        }
+
+        void finish(ArrayCandidate candidate) {
             for (PhiPlan plan : phis.values()) {
                 Phi phi = plan.phi;
                 if (!phi.getCases().isEmpty()) {
@@ -457,10 +699,55 @@ public class ScalarReplacement {
         }
     }
 
+    private static final class ArrayState {
+        static final ArrayState EMPTY = new ArrayState(0, Collections.<Integer, SsaValue>emptyMap());
+
+        final int length;
+        final Map<Integer, SsaValue> indexes;
+
+        ArrayState(int length, Map<Integer, SsaValue> indexes) {
+            this.length = length;
+            this.indexes = indexes;
+        }
+
+        ArrayState push(SsaValue value) {
+            Map<Integer, SsaValue> next = new HashMap<>(indexes);
+            next.put(length, value);
+            return new ArrayState(length + 1, next);
+        }
+
+        ArrayState with(int index, SsaValue value) {
+            Map<Integer, SsaValue> next = new HashMap<>(indexes);
+            next.put(index, value);
+            return new ArrayState(length, next);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof ArrayState)) {
+                return false;
+            }
+            ArrayState that = (ArrayState) o;
+            return length == that.length && indexes.equals(that.indexes);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * length + indexes.hashCode();
+        }
+    }
+
     private static final class Slot {
-        final String key;
+        final Object key;
 
         Slot(String key) {
+            this.key = key;
+        }
+
+        Slot(int key) {
             this.key = key;
         }
 

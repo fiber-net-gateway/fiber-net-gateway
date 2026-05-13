@@ -249,6 +249,41 @@ public class ControlFlowOptimizationTest {
     }
 
     @Test
+    public void shouldEliminateDominatedCommonBinaryExpression() {
+        Cfg cfg = build("let x = 0; if ($.c) { x = 1; } else { x = 2; } let a = x + 1; if ($.d) { includes(\"abc\", \"a\"); } return a == (x + 1);");
+
+        Assert.assertEquals(1, countBinary(cfg, Binary.Op.PLUS));
+    }
+
+    @Test
+    public void shouldEliminateDominatedPropertyGet() {
+        Cfg cfg = build("let u = $.user; let x = u.id; if ($.c) { includes(\"abc\", \"a\"); } return x == u.id;");
+
+        Assert.assertEquals(1, countPropGet(cfg, "id"));
+    }
+
+    @Test
+    public void shouldKeepPropertyGetAcrossPropertySetBarrier() {
+        Cfg cfg = build("let u = $.user; let x = u.id; if ($.c) { includes(\"abc\", \"a\"); } u.id = 2; return x == u.id;");
+
+        Assert.assertEquals(2, countPropGet(cfg, "id"));
+    }
+
+    @Test
+    public void shouldKeepPropertyGetAcrossCallBarrier() {
+        Cfg cfg = build("let u = $.user; let x = u.id; if ($.c) { includes(\"abc\", \"a\"); } includes(\"abc\", \"b\"); return x == u.id;");
+
+        Assert.assertEquals(2, countPropGet(cfg, "id"));
+    }
+
+    @Test
+    public void shouldKeepArithmeticExpressionAcrossCallBarrier() {
+        Cfg cfg = build("let x = 0; if ($.c) { x = 1; } else { x = 2; } let a = x + 1; if ($.d) { includes(\"abc\", \"a\"); } includes(\"abc\", \"b\"); return a == (x + 1);");
+
+        Assert.assertEquals(1, countBinary(cfg, Binary.Op.PLUS));
+    }
+
+    @Test
     public void shouldKeepDeadExpressionThatMayThrow() {
         Cfg cfg = build("let a = 'x' * true; return 1;");
 
@@ -297,6 +332,30 @@ public class ControlFlowOptimizationTest {
             }
         }
         return false;
+    }
+
+    private static int countBinary(Cfg cfg, Binary.Op op) {
+        int count = 0;
+        for (Block block : cfg.getBlocks()) {
+            for (Instruction instruction : block.getInstructions()) {
+                if (instruction instanceof Binary && ((Binary) instruction).getOp() == op) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    private static int countPropGet(Cfg cfg, String key) {
+        int count = 0;
+        for (Block block : cfg.getBlocks()) {
+            for (Instruction instruction : block.getInstructions()) {
+                if (instruction instanceof PropGet && key.equals(((PropGet) instruction).getKey())) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     private static int countInstruction(Cfg cfg, Class<?> type) {

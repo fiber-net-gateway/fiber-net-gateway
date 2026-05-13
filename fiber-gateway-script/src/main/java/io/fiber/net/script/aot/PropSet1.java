@@ -52,6 +52,18 @@ public class PropSet1 extends Expr {
     }
 
     @Override
+    public Throw canThrow() {
+        switch (owner.getType()) {
+            case OBJECT:
+                return Throw.NOT;
+            case Unknown:
+                return Throw.MAYBE;
+            default:
+                return Throw.ALWAYS;
+        }
+    }
+
+    @Override
     public int effects() {
         return EFFECT_MEMORY_WRITE;
     }

@@ -1,5 +1,7 @@
 package io.fiber.net.script.aot;
 
+import io.fiber.net.common.json.ValueNode;
+
 public class IndexSet extends Expr {
     SsaValue owner;
     SsaValue key;
@@ -58,7 +60,50 @@ public class IndexSet extends Expr {
     }
 
     @Override
+    public Throw canThrow() {
+        switch (owner.getType()) {
+            case OBJECT:
+                return objectKeyThrow(key);
+            case ARRAY:
+                return arrayKeyThrow(key);
+            case Unknown:
+                return Throw.MAYBE;
+            default:
+                return Throw.ALWAYS;
+        }
+    }
+
+    @Override
     public int effects() {
         return EFFECT_MEMORY_WRITE;
+    }
+
+    static Throw objectKeyThrow(SsaValue key) {
+        ValueNode constant = ConstantValues.valueOf(key);
+        if (constant != null) {
+            return constant.isTextual() ? Throw.NOT : Throw.ALWAYS;
+        }
+        switch (key.getType()) {
+            case STRING:
+                return Throw.NOT;
+            case Unknown:
+                return Throw.MAYBE;
+            default:
+                return Throw.ALWAYS;
+        }
+    }
+
+    static Throw arrayKeyThrow(SsaValue key) {
+        ValueNode constant = ConstantValues.valueOf(key);
+        if (constant != null) {
+            return constant.isInt() ? Throw.MAYBE : Throw.ALWAYS;
+        }
+        switch (key.getType()) {
+            case NUMBER:
+            case Unknown:
+                return Throw.MAYBE;
+            default:
+                return Throw.ALWAYS;
+        }
     }
 }

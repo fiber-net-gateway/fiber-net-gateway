@@ -86,6 +86,29 @@ public class ControlFlowOptimizationTest {
     }
 
     @Test
+    public void shouldPruneExceptionEdgeForObjectPropertySet() {
+        Cfg cfg = build("try { let o = {}; o.a = 1; return o; } catch (e) { return 9; }");
+
+        Assert.assertFalse(containsInstruction(cfg, CatchError.class));
+        Assert.assertTrue(containsInstruction(cfg, PropSet.class));
+    }
+
+    @Test
+    public void shouldFoldAlwaysThrowingPropertySet() {
+        Cfg cfg = build("try { let x = 1; x.a = 2; } catch (e) { return 9; } return 1;");
+
+        Assert.assertEquals(IntNode.valueOf(9), returnConst(cfg));
+    }
+
+    @Test
+    public void shouldKeepExceptionEdgeForArrayIndexSetBounds() {
+        Cfg cfg = build("try { let a = [0]; a[0] = 1; return a; } catch (e) { return 9; }");
+
+        Assert.assertTrue(containsInstruction(cfg, CatchError.class));
+        Assert.assertTrue(containsInstruction(cfg, IndexSet.class) || containsInstruction(cfg, IndexSet1.class));
+    }
+
+    @Test
     public void shouldPruneFallthroughAfterAlwaysThrowingBinary() {
         Cfg cfg = build("let a = 0; try { 'x' * true; a = 1; } catch (e) { a = 2; } return a;");
 

@@ -72,12 +72,8 @@ public class ScalarReplacement {
     }
 
     private static Integer constArrayIndex(SsaValue value) {
-        Expr assign = value.getAssign();
-        if (!(assign instanceof LoadConst)) {
-            return null;
-        }
-        ValueNode node = ((LoadConst) assign).getValueNode();
-        return node.isIntegralNumber() ? node.intValue() : null;
+        ValueNode node = ConstantValues.valueOf(value);
+        return node != null && node.isIntegralNumber() ? node.intValue() : null;
     }
 
     private Candidate collectCandidate(NewObj allocation) {

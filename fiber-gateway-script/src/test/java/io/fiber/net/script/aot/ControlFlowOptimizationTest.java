@@ -432,6 +432,19 @@ public class ControlFlowOptimizationTest {
     }
 
     @Test
+    public void shouldKeepFoldedReturnConstantsVirtual() {
+        Cfg plusOne = build("let a = 1;let b = 3;if ($.x) {} else { b = {a}; } return a + 1;");
+        Cfg plusTwo = build("let a = 1;let b = 3;if ($.x) {} else { b = {a}; } return a + 2;");
+
+        Assert.assertEquals(IntNode.valueOf(2), returnConst(plusOne));
+        Assert.assertEquals(IntNode.valueOf(3), returnConst(plusTwo));
+        Assert.assertFalse(containsInstruction(plusOne, LoadConst.class));
+        Assert.assertFalse(containsInstruction(plusTwo, LoadConst.class));
+        Assert.assertEquals(1, countInstruction(plusOne, Ret.class));
+        Assert.assertEquals(1, countInstruction(plusTwo, Ret.class));
+    }
+
+    @Test
     public void shouldKeepEscapingFreshArray() {
         Cfg cfg = build("let a = [1, 2]; return a;");
 

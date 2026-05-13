@@ -8,6 +8,11 @@ import io.fiber.net.script.std.StdLibrary;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
+
 public class ControlFlowOptimizationTest {
 
     @Test
@@ -290,6 +295,41 @@ public class ControlFlowOptimizationTest {
         Assert.assertTrue(containsInstruction(cfg, Binary.class));
     }
 
+    @Test
+    public void shouldHoistLoopInvariantBinaryExpression() {
+        Cfg cfg = build("let x = 0; if ($.c) { x = 1; } else { x = 2; } let s = 0; for(let _, v of [1,2,3]) { s = s + (x + 1); } return s;");
+        Set<Block> loopBlocks = firstLoop(cfg);
+
+        Assert.assertEquals(1, countBinary(loopBlocks, Binary.Op.PLUS));
+        Assert.assertEquals(1, countBinaryOutside(cfg, loopBlocks, Binary.Op.PLUS));
+    }
+
+    @Test
+    public void shouldNotHoistLoopExpressionThatMayThrow() {
+        Cfg cfg = build("let x = $.x; let s = 0; for(let _, v of [1,2,3]) { s = s + (x * 2); } return s;");
+        Set<Block> loopBlocks = firstLoop(cfg);
+
+        Assert.assertEquals(1, countBinary(loopBlocks, Binary.Op.MULTIPLY));
+        Assert.assertEquals(0, countBinaryOutside(cfg, loopBlocks, Binary.Op.MULTIPLY));
+    }
+
+    @Test
+    public void shouldKeepPropertyGetInsideLoop() {
+        Cfg cfg = build("let s = 0; for(let _, v of [1,2,3]) { if ($.config.id) { s = s + 1; } } return s;");
+        Set<Block> loopBlocks = firstLoop(cfg);
+
+        Assert.assertEquals(1, countPropGet(loopBlocks, "id"));
+    }
+
+    @Test
+    public void shouldKeepIteratorOperationsInsideLoop() {
+        Cfg cfg = build("let s = 0; for(let _, v of [1,2,3]) { s = s + v; } return s;");
+        Set<Block> loopBlocks = firstLoop(cfg);
+
+        Assert.assertEquals(1, countUnary(loopBlocks, Unary.Op.ITERATE_NEXT));
+        Assert.assertEquals(1, countUnary(loopBlocks, Unary.Op.ITERATE_VALUE));
+    }
+
     private static Cfg build(String script) {
         Compiled compiled = CompilerNodeVisitor.compileFromScript(script, StdLibrary.getDefInstance());
         return new Cfg.Builder(compiled).build();
@@ -358,6 +398,18 @@ public class ControlFlowOptimizationTest {
         return count;
     }
 
+    private static int countPropGet(Set<Block> blocks, String key) {
+        int count = 0;
+        for (Block block : blocks) {
+            for (Instruction instruction : block.getInstructions()) {
+                if (instruction instanceof PropGet && key.equals(((PropGet) instruction).getKey())) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
     private static int countInstruction(Cfg cfg, Class<?> type) {
         int count = 0;
         for (Block block : cfg.getBlocks()) {
@@ -368,6 +420,78 @@ public class ControlFlowOptimizationTest {
             }
         }
         return count;
+    }
+
+    private static int countBinary(Set<Block> blocks, Binary.Op op) {
+        int count = 0;
+        for (Block block : blocks) {
+            for (Instruction instruction : block.getInstructions()) {
+                if (instruction instanceof Binary && ((Binary) instruction).getOp() == op) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    private static int countBinaryOutside(Cfg cfg, Set<Block> blocks, Binary.Op op) {
+        int count = 0;
+        for (Block block : cfg.getBlocks()) {
+            if (blocks.contains(block)) {
+                continue;
+            }
+            for (Instruction instruction : block.getInstructions()) {
+                if (instruction instanceof Binary && ((Binary) instruction).getOp() == op) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    private static int countUnary(Set<Block> blocks, Unary.Op op) {
+        int count = 0;
+        for (Block block : blocks) {
+            for (Instruction instruction : block.getInstructions()) {
+                if (instruction instanceof Unary && ((Unary) instruction).getOp() == op) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    private static Set<Block> firstLoop(Cfg cfg) {
+        Dominators dominators = Dominators.compute(cfg);
+        for (Block block : dominators.reversePostOrder) {
+            for (Edge edge : block.getSuccessors()) {
+                if (edge.type != Edge.Type.THROW && dominators.dominates(edge.successor, block)) {
+                    return naturalLoop(edge.successor, block);
+                }
+            }
+        }
+        throw new AssertionError("missing loop");
+    }
+
+    private static Set<Block> naturalLoop(Block header, Block latch) {
+        Set<Block> loopBlocks = Collections.newSetFromMap(new IdentityHashMap<Block, Boolean>());
+        ArrayDeque<Block> queue = new ArrayDeque<>();
+        loopBlocks.add(header);
+        loopBlocks.add(latch);
+        queue.add(latch);
+        while (!queue.isEmpty()) {
+            Block block = queue.poll();
+            for (Edge edge : block.getPredecessors()) {
+                if (edge.type == Edge.Type.THROW) {
+                    continue;
+                }
+                Block predecessor = edge.predecessor;
+                if (loopBlocks.add(predecessor) && predecessor != header) {
+                    queue.add(predecessor);
+                }
+            }
+        }
+        return loopBlocks;
     }
 
     private static int countBlocks(Cfg cfg) {

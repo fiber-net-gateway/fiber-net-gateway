@@ -58,6 +58,20 @@ public class IndexSet1 extends Expr {
     }
 
     @Override
+    public Throw canThrow() {
+        switch (owner.getType()) {
+            case OBJECT:
+                return IndexSet.objectKeyThrow(key);
+            case ARRAY:
+                return IndexSet.arrayKeyThrow(key);
+            case Unknown:
+                return Throw.MAYBE;
+            default:
+                return Throw.ALWAYS;
+        }
+    }
+
+    @Override
     public int effects() {
         return EFFECT_MEMORY_WRITE;
     }

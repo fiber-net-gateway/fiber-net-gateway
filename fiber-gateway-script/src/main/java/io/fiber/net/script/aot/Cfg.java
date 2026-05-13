@@ -241,6 +241,7 @@ public class Cfg {
                 changed |= new LocalCse(cfg).optimize();
                 changed |= new GlobalValueNumbering(cfg, context).optimize();
                 changed |= new LoopInvariantCodeMotion(cfg, context).optimize();
+                changed |= new ScalarReplacement(cfg, context).optimize();
                 passChanged = new ExceptionEdgePruning(cfg).optimize();
                 if (passChanged) {
                     context.invalidateControlFlow();

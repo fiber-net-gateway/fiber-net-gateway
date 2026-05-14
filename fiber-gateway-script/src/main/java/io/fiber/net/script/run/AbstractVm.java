@@ -134,8 +134,7 @@ public abstract class AbstractVm implements ExecutionContext, Library.Arguments,
                 rtError = e;
             } catch (Throwable e) {
                 this.state = STAT_ABORT;
-                resultEmitter.onError(e);
-                return;
+                rtError = e;
             }
         }
         state = this.state;
@@ -185,7 +184,9 @@ public abstract class AbstractVm implements ExecutionContext, Library.Arguments,
     }
 
     protected void resumeForIterate() {
-        state = STAT_RUNNING;
+        if (state != STAT_ABORT) {
+            state = STAT_RUNNING;
+        }
     }
 
     public JsonNode getResultNow() throws Throwable {
@@ -194,6 +195,7 @@ public abstract class AbstractVm implements ExecutionContext, Library.Arguments,
                 return rtValue;
             }
             case STAT_END_ERR:
+            case STAT_ABORT:
                 assert rtError != null;
                 throw rtError;
             default:

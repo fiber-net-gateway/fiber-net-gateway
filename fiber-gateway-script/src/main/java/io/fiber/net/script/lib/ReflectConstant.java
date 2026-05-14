@@ -40,7 +40,7 @@ public class ReflectConstant extends ReflectInvoker implements Library.Constant 
         } catch (ScriptExecException e) {
             throw e;
         } catch (Throwable e) {
-            throw ScriptExecException.fromThrowable(e);
+            throw rethrow(e);
         }
     }
 

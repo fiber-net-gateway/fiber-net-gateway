@@ -91,7 +91,7 @@ public class InterpreterVm extends AbstractVm {
             case STAT_THROW:
                 return catchForException(pc - 1);
             case STAT_ABORT:
-                return false;
+                return true;
             default:
                 throw new IllegalStateException("no param in resume");
         }

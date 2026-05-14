@@ -137,6 +137,7 @@ public class ScalarReplacement {
                         }
                         candidate.writes.add(pushArr);
                         candidate.useBlocks.add(pushArr.getBelongTo());
+                        updated |= candidate.aliases.add(pushArr.getResult());
                     } else if (used instanceof IndexGet) {
                         IndexGet indexGet = (IndexGet) used;
                         if (indexGet.getOwner() != alias || constArrayIndex(indexGet.getKey()) == null) {
@@ -373,7 +374,7 @@ public class ScalarReplacement {
                     continue;
                 }
                 state = state.push(pushArr.getAddition());
-                analysis.removeInstruction(pushArr);
+                analysis.remove(pushArr, candidate.allocation.getResult());
             } else if (instruction instanceof IndexSet) {
                 IndexSet indexSet = (IndexSet) instruction;
                 if (!candidate.aliases.contains(indexSet.getOwner())) {

@@ -206,17 +206,17 @@ public class Block {
                     break;
                 case Code.EXP_OBJECT: {
                     SsaValue addition = pop(frame);
-                    emit(new ExpandObj(this, i, peek(frame), addition));
+                    replaceTop(frame, emitExpr(new ExpandObj(this, i, peek(frame), addition)).getResult());
                     break;
                 }
                 case Code.EXP_ARRAY: {
                     SsaValue addition = pop(frame);
-                    emit(new ExpandArr(this, i, peek(frame), addition));
+                    replaceTop(frame, emitExpr(new ExpandArr(this, i, peek(frame), addition)).getResult());
                     break;
                 }
                 case Code.PUSH_ARRAY: {
                     SsaValue addition = pop(frame);
-                    emit(new PushArr(this, i, peek(frame), addition));
+                    replaceTop(frame, emitExpr(new PushArr(this, i, peek(frame), addition)).getResult());
                     break;
                 }
                 case Code.IDX_GET: {
@@ -498,6 +498,11 @@ public class Block {
 
     private SsaValue peek(Frame frame) {
         return frame.stack[frame.sp - 1];
+    }
+
+    private void replaceTop(Frame frame, SsaValue value) {
+        frame.stack[frame.sp - 1] = value;
+        frame.legacy[frame.sp - 1] = false;
     }
 
     private SsaValue[] popArgs(Frame frame, int argCount) {

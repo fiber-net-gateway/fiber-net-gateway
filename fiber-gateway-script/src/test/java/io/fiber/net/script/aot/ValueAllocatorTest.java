@@ -2,6 +2,7 @@ package io.fiber.net.script.aot;
 
 import io.fiber.net.common.json.IntNode;
 import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.TextNode;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.lib.ReflectLib;
 import io.fiber.net.script.lib.ScriptConstant;
@@ -143,6 +144,92 @@ public class ValueAllocatorTest {
 
         Assert.assertEquals(ValueAllocator.Location.Kind.STACK,
                 result.locationOf(propGet.getResult()).getKind());
+    }
+
+    @Test
+    public void shouldUseStackLocationForShortLivedPushArrayResult() {
+        Cfg cfg = new Cfg();
+        cfg.addBlock(0);
+        Block block = cfg.mustGetBlock(0);
+        cfg.setEntryBlock(block);
+        NewArr array = new NewArr(block, 0);
+        LoadConst value = new LoadConst(block, 1, IntNode.valueOf(1));
+        PushArr push = new PushArr(block, 2, array.getResult(), value.getResult());
+        Ret ret = new Ret(block, 3, push.getResult());
+        block.getInstructions().add(array);
+        block.getInstructions().add(value);
+        block.getInstructions().add(push);
+        block.getInstructions().add(ret);
+
+        ValueAllocator.Result result = allocate(cfg);
+
+        Assert.assertEquals(ValueAllocator.Location.Kind.STACK,
+                result.locationOf(push.getResult()).getKind());
+    }
+
+    @Test
+    public void shouldUseStackLocationForShortLivedExpandArrayResult() {
+        Cfg cfg = new Cfg();
+        cfg.addBlock(0);
+        Block block = cfg.mustGetBlock(0);
+        cfg.setEntryBlock(block);
+        NewArr target = new NewArr(block, 0);
+        NewArr addition = new NewArr(block, 1);
+        ExpandArr expand = new ExpandArr(block, 2, target.getResult(), addition.getResult());
+        Ret ret = new Ret(block, 3, expand.getResult());
+        block.getInstructions().add(target);
+        block.getInstructions().add(addition);
+        block.getInstructions().add(expand);
+        block.getInstructions().add(ret);
+
+        ValueAllocator.Result result = allocate(cfg);
+
+        Assert.assertEquals(ValueAllocator.Location.Kind.STACK,
+                result.locationOf(expand.getResult()).getKind());
+    }
+
+    @Test
+    public void shouldUseStackLocationForShortLivedPropSetOwnerResult() {
+        Cfg cfg = new Cfg();
+        cfg.addBlock(0);
+        Block block = cfg.mustGetBlock(0);
+        cfg.setEntryBlock(block);
+        NewObj object = new NewObj(block, 0);
+        LoadConst value = new LoadConst(block, 1, IntNode.valueOf(1));
+        PropSet1 set = new PropSet1(block, 2, object.getResult(), "a", value.getResult());
+        Ret ret = new Ret(block, 3, set.getResult());
+        block.getInstructions().add(object);
+        block.getInstructions().add(value);
+        block.getInstructions().add(set);
+        block.getInstructions().add(ret);
+
+        ValueAllocator.Result result = allocate(cfg);
+
+        Assert.assertEquals(ValueAllocator.Location.Kind.STACK,
+                result.locationOf(set.getResult()).getKind());
+    }
+
+    @Test
+    public void shouldUseStackLocationForShortLivedIndexSetOwnerResult() {
+        Cfg cfg = new Cfg();
+        cfg.addBlock(0);
+        Block block = cfg.mustGetBlock(0);
+        cfg.setEntryBlock(block);
+        NewObj object = new NewObj(block, 0);
+        LoadConst key = new LoadConst(block, 1, TextNode.valueOf("a"));
+        LoadConst value = new LoadConst(block, 2, IntNode.valueOf(1));
+        IndexSet1 set = new IndexSet1(block, 3, object.getResult(), key.getResult(), value.getResult());
+        Ret ret = new Ret(block, 4, set.getResult());
+        block.getInstructions().add(object);
+        block.getInstructions().add(key);
+        block.getInstructions().add(value);
+        block.getInstructions().add(set);
+        block.getInstructions().add(ret);
+
+        ValueAllocator.Result result = allocate(cfg);
+
+        Assert.assertEquals(ValueAllocator.Location.Kind.STACK,
+                result.locationOf(set.getResult()).getKind());
     }
 
     @Test

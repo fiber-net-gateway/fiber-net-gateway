@@ -113,10 +113,16 @@ public class Cfg {
 
         Cfg cfg;
         final Compiled compiled;
+        final boolean optimize;
 
 
         public Builder(Compiled compiled) {
+            this(compiled, true);
+        }
+
+        public Builder(Compiled compiled, boolean optimize) {
             this.compiled = compiled;
+            this.optimize = optimize;
         }
 
         private void addBlock(int pc) {
@@ -218,7 +224,9 @@ public class Cfg {
             }
             resolveSsa();
             simplifyPhis();
-            optimizeCfg();
+            if (optimize) {
+                optimizeCfg();
+            }
             return cfg;
         }
 

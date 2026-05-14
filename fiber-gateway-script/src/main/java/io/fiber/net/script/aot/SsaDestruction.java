@@ -44,6 +44,9 @@ public class SsaDestruction {
         List<Move> moves = new ArrayList<>(phis.size());
         for (Phi phi : phis) {
             SsaValue src = incomingValue(edge, phi);
+            if (src == null) {
+                continue;
+            }
             SsaValue dst = phi.getResult();
             if (src != dst) {
                 moves.add(new Move(dst, src));
@@ -58,8 +61,7 @@ public class SsaDestruction {
                 return aCase.value;
             }
         }
-        throw new IllegalStateException("[bug] missing phi case from predecessor " + edge.predecessor.startPc +
-                " to block " + edge.successor.startPc);
+        return null;
     }
 
     private static boolean needsVirtualBlock(Edge edge) {

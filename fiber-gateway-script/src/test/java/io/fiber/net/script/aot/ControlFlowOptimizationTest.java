@@ -391,6 +391,13 @@ public class ControlFlowOptimizationTest {
     }
 
     @Test
+    public void shouldNotReuseIteratorAcrossLoops() {
+        Cfg cfg = build("let c = [1,2,4,13]; try { for(let k,v of c) { if(k == 1) { v / (v - 2); } } } catch(e) {} for(let _,v of c) {} return 1;");
+
+        Assert.assertEquals(2, countUnary(cfg, Unary.Op.ITERATE_INTO));
+    }
+
+    @Test
     public void shouldReplaceFreshObjectPropertyGet() {
         Cfg cfg = build("let o = {}; o.a = 3; return o.a;");
 
@@ -681,6 +688,18 @@ public class ControlFlowOptimizationTest {
     private static int countUnary(Set<Block> blocks, Unary.Op op) {
         int count = 0;
         for (Block block : blocks) {
+            for (Instruction instruction : block.getInstructions()) {
+                if (instruction instanceof Unary && ((Unary) instruction).getOp() == op) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    private static int countUnary(Cfg cfg, Unary.Op op) {
+        int count = 0;
+        for (Block block : cfg.getBlocks()) {
             for (Instruction instruction : block.getInstructions()) {
                 if (instruction instanceof Unary && ((Unary) instruction).getOp() == op) {
                     count++;

@@ -16,6 +16,10 @@ import io.fiber.net.script.run.AbstractVm;
 import io.fiber.net.script.std.StdLibrary;
 import org.junit.Assert;
 import org.junit.Test;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -72,6 +76,15 @@ public class CfgAotClassGeneratorTest {
         Assert.assertEquals(-1, ((AbstractVm) vm).getCurrentPc());
     }
 
+    @Test
+    public void shouldEmitConstantThrowWithoutCallingBinaryRuntime() throws Exception {
+        byte[] bytes = generate("try { 1 * 'x'; } catch(e) { return e.message; } return 1;");
+        MethodCalls calls = methodCalls(bytes);
+
+        Assert.assertFalse(calls.has("io/fiber/net/script/run/Binaries", "multiply"));
+        Assert.assertTrue(calls.has("io/fiber/net/script/ScriptExecException", "<init>"));
+    }
+
     private static void assertNoDeclaredField(Class<?> clz, String fieldName) throws Exception {
         try {
             clz.getDeclaredField(fieldName);
@@ -101,6 +114,34 @@ public class CfgAotClassGeneratorTest {
         AsyncSpillAnalysis.Result spills = new AsyncSpillAnalysis(cfg, liveness).analyze();
         SsaDestruction.Result destruction = new SsaDestruction(cfg).analyze();
         return new ValueAllocator(cfg, liveness, spills, destruction).allocate();
+    }
+
+    private static byte[] generate(String script) {
+        Compiled compiled = CompilerNodeVisitor.compileFromScript(script, library());
+        Cfg cfg = new Cfg.Builder(compiled).build();
+        LivenessAnalysis.Result liveness = new LivenessAnalysis(cfg).analyze();
+        AsyncSpillAnalysis.Result spills = new AsyncSpillAnalysis(cfg, liveness).analyze();
+        SsaDestruction.Result destruction = new SsaDestruction(cfg).analyze();
+        ValueAllocator.Result allocation = new ValueAllocator(cfg, liveness, spills, destruction).allocate();
+        return new CfgAotClassGenerator(cfg, compiled, spills, destruction, allocation).generateClassData();
+    }
+
+    private static MethodCalls methodCalls(byte[] bytes) {
+        final MethodCalls calls = new MethodCalls();
+        new ClassReader(bytes).accept(new ClassVisitor(Opcodes.ASM7) {
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String descriptor,
+                                             String signature, String[] exceptions) {
+                return new MethodVisitor(Opcodes.ASM7) {
+                    @Override
+                    public void visitMethodInsn(int opcode, String owner, String name,
+                                                String descriptor, boolean isInterface) {
+                        calls.add(owner, name);
+                    }
+                };
+            }
+        }, 0);
+        return calls;
     }
 
     private static StdLibrary library() {
@@ -151,6 +192,18 @@ public class CfgAotClassGeneratorTest {
         @Override
         public boolean isDisposed() {
             return false;
+        }
+    }
+
+    private static class MethodCalls {
+        private final java.util.Set<String> calls = new java.util.HashSet<>();
+
+        void add(String owner, String name) {
+            calls.add(owner + "#" + name);
+        }
+
+        boolean has(String owner, String name) {
+            return calls.contains(owner + "#" + name);
         }
     }
 }

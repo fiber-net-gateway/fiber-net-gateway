@@ -397,6 +397,9 @@ public class CfgAotClassGenerator {
                 || instruction instanceof io.fiber.net.script.aot.Throw) {
             return null;
         }
+        if (ConstantThrow.of(instruction) != null) {
+            return null;
+        }
         Edge edge = throwEdge(instruction.getBelongTo());
         if (edge == null || !isHandledByEdge(instruction, edge)) {
             return null;
@@ -441,6 +444,11 @@ public class CfgAotClassGenerator {
             return;
         }
         if (instruction instanceof Expr && isStackValue(((Expr) instruction).getResult())) {
+            return;
+        }
+        ConstantThrow.Template constantThrow = ConstantThrow.of(instruction);
+        if (constantThrow != null) {
+            emitConstantThrow(context, instruction, constantThrow);
             return;
         }
         if (instruction instanceof NewObj) {
@@ -620,6 +628,17 @@ public class CfgAotClassGenerator {
             return;
         }
         throw new IllegalStateException("unsupported instruction " + instruction.getClass().getName());
+    }
+
+    private void emitConstantThrow(CodegenContext context, Instruction instruction, ConstantThrow.Template template) {
+        newScriptExecException(context.visitor, template);
+        if (throwEdge(instruction.getBelongTo()) == null) {
+            context.visitor.visitInsn(Opcodes.ATHROW);
+            return;
+        }
+        context.visitor.visitVarInsn(Opcodes.ASTORE, context.exceptionLocal());
+        storeRtError(context.visitor, context.exceptionLocal());
+        emitThrowTransfer(context, instruction.getBelongTo());
     }
 
     private void emitBinary(CodegenContext context, Binary binary) {
@@ -1072,6 +1091,16 @@ public class CfgAotClassGenerator {
         visitor.visitVarInsn(Opcodes.ALOAD, 0);
         visitor.visitVarInsn(Opcodes.ALOAD, exceptionLocal);
         visitor.visitFieldInsn(Opcodes.PUTFIELD, SUPER_NAME, "rtError", SCRIPT_EXEC_DESC);
+    }
+
+    private static void newScriptExecException(MethodVisitor visitor, ConstantThrow.Template template) {
+        visitor.visitTypeInsn(Opcodes.NEW, SCRIPT_EXEC_NAME);
+        visitor.visitInsn(Opcodes.DUP);
+        visitor.visitLdcInsn(template.message);
+        pushInt(visitor, template.code);
+        visitor.visitLdcInsn(template.errorName);
+        visitor.visitMethodInsn(Opcodes.INVOKESPECIAL, SCRIPT_EXEC_NAME, "<init>",
+                "(Ljava/lang/String;ILjava/lang/String;)V", false);
     }
 
     private static void endSuccess(MethodVisitor visitor) {

@@ -49,7 +49,14 @@ public class LinearBlockMerging {
         if (hasEdgeConflict(block, outgoing, targetSuccessors)) {
             return false;
         }
+        List<PhiInputMove> phiInputMoves = collectPhiInputMoves(block, target, targetSuccessors);
+        if (phiInputMoves == null) {
+            return false;
+        }
 
+        for (PhiInputMove move : phiInputMoves) {
+            move.apply();
+        }
         removeTerminalJump(block, target);
         cfg.removeEdge(outgoing);
         for (Edge edge : targetSuccessors) {
@@ -94,6 +101,33 @@ public class LinearBlockMerging {
         }
     }
 
+    private static List<PhiInputMove> collectPhiInputMoves(Block block, Block target, List<Edge> targetSuccessors) {
+        List<PhiInputMove> moves = new ArrayList<>();
+        for (Edge targetSuccessor : targetSuccessors) {
+            for (Phi phi : targetSuccessor.successor.getPhiValues()) {
+                Phi.Case targetCase = null;
+                boolean hasBlockCase = false;
+                for (Phi.Case aCase : phi.getCases()) {
+                    if (aCase.from == target) {
+                        if (targetCase != null) {
+                            return null;
+                        }
+                        targetCase = aCase;
+                    } else if (aCase.from == block) {
+                        hasBlockCase = true;
+                    }
+                }
+                if (targetCase != null) {
+                    if (hasBlockCase) {
+                        return null;
+                    }
+                    moves.add(new PhiInputMove(phi, target, block, targetCase.value));
+                }
+            }
+        }
+        return moves;
+    }
+
     private static boolean hasEdgeConflict(Block block, Edge outgoing, List<Edge> targetSuccessors) {
         for (Edge targetSuccessor : targetSuccessors) {
             for (Edge edge : block.getSuccessors()) {
@@ -107,5 +141,24 @@ public class LinearBlockMerging {
             }
         }
         return false;
+    }
+
+    private static final class PhiInputMove {
+        private final Phi phi;
+        private final Block oldFrom;
+        private final Block newFrom;
+        private final SsaValue value;
+
+        private PhiInputMove(Phi phi, Block oldFrom, Block newFrom, SsaValue value) {
+            this.phi = phi;
+            this.oldFrom = oldFrom;
+            this.newFrom = newFrom;
+            this.value = value;
+        }
+
+        private void apply() {
+            phi.removeCase(oldFrom);
+            phi.addCase(newFrom, value);
+        }
     }
 }

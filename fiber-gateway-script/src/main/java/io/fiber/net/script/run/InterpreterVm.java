@@ -1,10 +1,7 @@
 package io.fiber.net.script.run;
 
 import io.fiber.net.common.async.Maybe;
-import io.fiber.net.common.json.ArrayNode;
-import io.fiber.net.common.json.BooleanNode;
-import io.fiber.net.common.json.IteratorNode;
-import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.*;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
@@ -219,15 +216,15 @@ public class InterpreterVm extends AbstractVm {
 
                         case Code.EXP_OBJECT:
                             --sp;
-                            Access.expandObject(stack[sp - 1], stack[sp]);
+                            Access.expandObject((ObjectNode) stack[sp - 1], stack[sp]);
                             break;
                         case Code.EXP_ARRAY:
                             --sp;
-                            Access.expandArray(stack[sp - 1], stack[sp]);
+                            Access.expandArray((ArrayNode) stack[sp - 1], stack[sp]);
                             break;
                         case Code.PUSH_ARRAY:
                             --sp;
-                            Access.pushArray(stack[sp - 1], stack[sp]);
+                            Access.pushArray((ArrayNode) stack[sp - 1], stack[sp]);
                             break;
 
 

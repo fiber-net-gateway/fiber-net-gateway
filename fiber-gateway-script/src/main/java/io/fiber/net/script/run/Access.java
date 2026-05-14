@@ -5,29 +5,26 @@ import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.parse.SpelMessage;
 
 public class Access {
-    public static JsonNode expandObject(JsonNode target, JsonNode addition) {
+    public static ObjectNode expandObject(ObjectNode target, JsonNode addition) {
         if (target.isObject() && addition.isObject()) {
-            ((ObjectNode) target).setAll((ObjectNode) addition);
+            target.setAll((ObjectNode) addition);
         }
         return target;
     }
 
-    public static JsonNode expandArray(JsonNode target, JsonNode addition) {
-        if (target.isArray() && addition.isContainerNode()) {
-            ArrayNode targetArr = (ArrayNode) target;
+    public static ArrayNode expandArray(ArrayNode target, JsonNode addition) {
+        if (addition.isContainerNode()) {
             if (addition.isArray()) {
-                targetArr.addAll((ArrayNode) addition);
+                target.addAll((ArrayNode) addition);
             } else {
-                addition.elements().forEachRemaining(targetArr::add);
+                addition.elements().forEachRemaining(target::add);
             }
         }
         return target;
     }
 
-    public static JsonNode pushArray(JsonNode target, JsonNode addition) {
-        if (target.isArray()) {
-            ((ArrayNode) target).add(addition);
-        }
+    public static ArrayNode pushArray(ArrayNode target, JsonNode addition) {
+        target.add(addition);
         return target;
     }
 

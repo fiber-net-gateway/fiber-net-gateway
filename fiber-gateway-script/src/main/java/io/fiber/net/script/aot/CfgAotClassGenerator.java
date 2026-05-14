@@ -1044,12 +1044,7 @@ public class CfgAotClassGenerator {
         }
 
         Label label(Block block) {
-            Label label = labels.get(block);
-            if (label == null) {
-                label = new Label();
-                labels.put(block, label);
-            }
-            return label;
+            return labels.computeIfAbsent(block, k -> new Label());
         }
 
         int copyTempLocal(int idx) {

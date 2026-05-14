@@ -28,6 +28,7 @@ public class Binary extends Expr {
     final Op op;
     SsaValue left;
     SsaValue right;
+    private boolean resolvingType;
 
     public Binary(Block belongTo, int pc, Op op, SsaValue left, SsaValue right) {
         super(belongTo, pc);
@@ -72,23 +73,31 @@ public class Binary extends Expr {
 
     @Override
     public SsaValue.Type getResultType() {
-        assert op != null;
-        if (op == Op.PLUS) {
-            if (left.getType() == SsaValue.Type.STRING ||
-                    right.getType() == SsaValue.Type.STRING) {
-                return SsaValue.Type.STRING;
-            }
-            if (left.getType() == SsaValue.Type.NUMBER &&
-                    right.getType() == SsaValue.Type.NUMBER) {
-                return SsaValue.Type.NUMBER;
-            }
+        if (resolvingType) {
             return SsaValue.Type.Unknown;
         }
+        assert op != null;
+        resolvingType = true;
+        try {
+            if (op == Op.PLUS) {
+                if (left.getType() == SsaValue.Type.STRING ||
+                        right.getType() == SsaValue.Type.STRING) {
+                    return SsaValue.Type.STRING;
+                }
+                if (left.getType() == SsaValue.Type.NUMBER &&
+                        right.getType() == SsaValue.Type.NUMBER) {
+                    return SsaValue.Type.NUMBER;
+                }
+                return SsaValue.Type.Unknown;
+            }
 
-        if (op.ordinal() < Op.MATCH.ordinal()) {
-            return SsaValue.Type.NUMBER;
+            if (op.ordinal() < Op.MATCH.ordinal()) {
+                return SsaValue.Type.NUMBER;
+            }
+            return SsaValue.Type.BOOLEAN;
+        } finally {
+            resolvingType = false;
         }
-        return SsaValue.Type.BOOLEAN;
     }
 
     @Override

@@ -103,6 +103,26 @@ public class ValueAllocatorTest {
         Assert.assertEquals(3, result.maxLocal());
     }
 
+    @Test
+    public void shouldUseStackLocationForShortLivedBranchCompare() {
+        Cfg cfg = build("if ($.x < 2) { return 1; } return 2;");
+        ValueAllocator.Result result = allocate(cfg);
+        Binary binary = findAssign(cfg, Binary.class);
+
+        Assert.assertEquals(ValueAllocator.Location.Kind.STACK,
+                result.locationOf(binary.getResult()).getKind());
+    }
+
+    @Test
+    public void shouldUseStackLocationForShortLivedIterateNext() {
+        Cfg cfg = build("for (let _, item of $.items) { return item; } return 0;");
+        ValueAllocator.Result result = allocate(cfg);
+        Unary iterateNext = findUnary(cfg, Unary.Op.ITERATE_NEXT);
+
+        Assert.assertEquals(ValueAllocator.Location.Kind.STACK,
+                result.locationOf(iterateNext.getResult()).getKind());
+    }
+
     private static ValueAllocator.Result allocate(Cfg cfg) {
         LivenessAnalysis.Result liveness = new LivenessAnalysis(cfg).analyze();
         AsyncSpillAnalysis.Result spills = new AsyncSpillAnalysis(cfg, liveness).analyze();
@@ -160,6 +180,17 @@ public class ValueAllocatorTest {
             }
         }
         throw new AssertionError("missing " + type.getSimpleName());
+    }
+
+    private static Unary findUnary(Cfg cfg, Unary.Op op) {
+        for (Block block : cfg.getBlocks()) {
+            for (Instruction instruction : block.getInstructions()) {
+                if (instruction instanceof Unary && ((Unary) instruction).getOp() == op) {
+                    return (Unary) instruction;
+                }
+            }
+        }
+        throw new AssertionError("missing unary " + op);
     }
 
     @ScriptLib(namespace = "$test")

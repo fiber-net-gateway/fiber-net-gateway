@@ -210,6 +210,6 @@ public abstract class AbstractVm implements ExecutionContext, Library.Arguments,
     }
 
     public int getCurrentPc() {
-        return 0;
+        return -1;
     }
 }

@@ -40,6 +40,7 @@ public class ValueAllocator {
         Map<SsaValue, Location> locations = new IdentityHashMap<>();
         List<SsaValue> localValues = new ArrayList<>();
         List<SsaValue> asyncFieldValues = new ArrayList<>();
+        Set<SsaValue> stackValues = collectStackValues();
 
         Map<SsaValue, Integer> asyncFieldIds = assignAsyncFieldIds(orderedValues);
         for (SsaValue value : orderedValues) {
@@ -48,6 +49,8 @@ public class ValueAllocator {
                 locations.put(value, RootFieldLocation.INSTANCE);
             } else if (assign instanceof LoadConst) {
                 locations.put(value, staticOperands.locationOf((LoadConst) assign));
+            } else if (stackValues.contains(value)) {
+                locations.put(value, StackLocation.INSTANCE);
             } else if (asyncFieldIds.containsKey(value)) {
                 int fieldId = asyncFieldIds.get(value);
                 locations.put(value, new AsyncFieldLocation(fieldId, asyncFieldName(fieldId)));
@@ -69,6 +72,46 @@ public class ValueAllocator {
 
         int maxLocal = colorCount + 1;
         return new Result(locations, orderedValues, localValues, asyncFieldValues, maxLocal, staticOperands);
+    }
+
+    private Set<SsaValue> collectStackValues() {
+        Set<SsaValue> values = newSet();
+        for (Block block : cfg.getBlocks()) {
+            List<Instruction> instructions = block.getInstructions();
+            for (int i = 1; i < instructions.size(); i++) {
+                Instruction instruction = instructions.get(i);
+                SsaValue cond = jumpCondition(instruction);
+                if (cond == null || cond.getUsedCount() != 1 || cond.getUsed().get(0) != instruction) {
+                    continue;
+                }
+                Instruction producer = instructions.get(i - 1);
+                if (producer == cond.getAssign() && stackableConditionProducer(producer)) {
+                    values.add(cond);
+                }
+            }
+        }
+        return values;
+    }
+
+    private static SsaValue jumpCondition(Instruction instruction) {
+        if (instruction instanceof JumpIfTrue) {
+            return ((JumpIfTrue) instruction).getCond();
+        }
+        if (instruction instanceof JumpIfFalse) {
+            return ((JumpIfFalse) instruction).getCond();
+        }
+        return null;
+    }
+
+    private static boolean stackableConditionProducer(Instruction instruction) {
+        if (instruction instanceof Binary) {
+            return ((Binary) instruction).getOp().ordinal() >= Binary.Op.MATCH.ordinal();
+        }
+        if (instruction instanceof Unary) {
+            Unary.Op op = ((Unary) instruction).getOp();
+            return op == Unary.Op.ITERATE_NEXT || op == Unary.Op.NEG;
+        }
+        return false;
     }
 
     private List<SsaValue> collectValues() {
@@ -262,6 +305,7 @@ public class ValueAllocator {
     public abstract static class Location {
         public enum Kind {
             LOCAL,
+            STACK,
             ASYNC_FIELD,
             STATIC_LITERAL,
             ROOT_FIELD,
@@ -288,6 +332,14 @@ public class ValueAllocator {
 
         public int getSlot() {
             return slot;
+        }
+    }
+
+    public static final class StackLocation extends Location {
+        private static final StackLocation INSTANCE = new StackLocation();
+
+        private StackLocation() {
+            super(Kind.STACK);
         }
     }
 

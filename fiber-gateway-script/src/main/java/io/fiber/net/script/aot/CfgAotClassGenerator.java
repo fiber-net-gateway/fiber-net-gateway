@@ -70,7 +70,6 @@ public class CfgAotClassGenerator {
     private static final String ASYNC_STATE_FIELD = "asyncState";
     private static final String FUNC_ARGS_FIELD = "funcArgs";
     private static final String SPREAD_ARGS_FIELD = "spreadArgs";
-    private static final String CURRENT_PC_FIELD = "currentPc";
 
     private final Cfg cfg;
     private final Compiled compiled;
@@ -78,6 +77,7 @@ public class CfgAotClassGenerator {
     private final SsaDestruction.Result ssaDestruction;
     private final ValueAllocator.Result allocation;
     private final String internalClassName;
+    private final boolean hasCatchEdges;
     private final Map<SsaValue, Integer> runtimeLocalSlots = new IdentityHashMap<>();
     private final int firstTempLocal;
     private byte[] classData;
@@ -111,6 +111,7 @@ public class CfgAotClassGenerator {
         this.ssaDestruction = ssaDestruction;
         this.allocation = allocation;
         this.internalClassName = internalClassName;
+        this.hasCatchEdges = hasThrowEdges(cfg);
         int slot = 1;
         for (SsaValue value : allocation.orderedValues()) {
             if (allocation.locationOf(value).getKind() == ValueAllocator.Location.Kind.LOCAL) {
@@ -118,6 +119,20 @@ public class CfgAotClassGenerator {
             }
         }
         this.firstTempLocal = slot;
+    }
+
+    private static boolean hasThrowEdges(Cfg cfg) {
+        if (cfg == null) {
+            return false;
+        }
+        for (Block block : cfg.getBlocks()) {
+            for (Edge edge : block.getSuccessors()) {
+                if (edge.getType() == Edge.Type.THROW) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public String getInternalClassName() {
@@ -147,7 +162,6 @@ public class CfgAotClassGenerator {
         emitConstructor(writer);
         emitGetArgVal(writer);
         emitGetArgCnt(writer);
-        emitGetCurrentPc(writer);
         emitRun(writer);
         writer.visitEnd();
         return classData = writer.toByteArray();
@@ -193,7 +207,6 @@ public class CfgAotClassGenerator {
         writer.visitField(Opcodes.ACC_PRIVATE, ASYNC_STATE_FIELD, "I", null, null).visitEnd();
         writer.visitField(Opcodes.ACC_PRIVATE, FUNC_ARGS_FIELD, JSON_ARRAY_DESC, null, null).visitEnd();
         writer.visitField(Opcodes.ACC_PRIVATE, SPREAD_ARGS_FIELD, ARRAY_NODE_DESC, null, null).visitEnd();
-        writer.visitField(Opcodes.ACC_PRIVATE, CURRENT_PC_FIELD, "I", null, null).visitEnd();
     }
 
     private void emitStaticField(ClassWriter writer, String name, String desc) {
@@ -310,20 +323,6 @@ public class CfgAotClassGenerator {
         visitor.visitEnd();
     }
 
-    private void emitGetCurrentPc(ClassWriter writer) {
-        MethodVisitor visitor = writer.visitMethod(Opcodes.ACC_PUBLIC,
-                "getCurrentPc",
-                "()I",
-                null,
-                null);
-        visitor.visitCode();
-        visitor.visitVarInsn(Opcodes.ALOAD, 0);
-        visitor.visitFieldInsn(Opcodes.GETFIELD, internalClassName, CURRENT_PC_FIELD, "I");
-        visitor.visitInsn(Opcodes.IRETURN);
-        visitor.visitMaxs(0, 0);
-        visitor.visitEnd();
-    }
-
     private void emitRun(ClassWriter writer) {
         MethodVisitor visitor = writer.visitMethod(Opcodes.ACC_PROTECTED,
                 "run",
@@ -377,8 +376,8 @@ public class CfgAotClassGenerator {
     private void emitInstructionWithCatch(CodegenContext context, Instruction instruction) {
         MethodVisitor visitor = context.visitor;
         emitLineNumber(context, instruction.getPc());
-        setCurrentPc(visitor, instruction.getPc());
-        if (instruction.canThrow() == Instruction.Throw.NOT || instruction instanceof io.fiber.net.script.aot.Throw) {
+        if (!hasCatchEdges || instruction.canThrow() == Instruction.Throw.NOT
+                || instruction instanceof io.fiber.net.script.aot.Throw) {
             emitInstruction(context, instruction);
             return;
         }
@@ -400,6 +399,9 @@ public class CfgAotClassGenerator {
 
     private void emitInstruction(CodegenContext context, Instruction instruction) {
         if (instruction instanceof LoadRoot || instruction instanceof LoadConst || instruction instanceof Phi) {
+            return;
+        }
+        if (instruction instanceof Expr && isStackValue(((Expr) instruction).getResult())) {
             return;
         }
         if (instruction instanceof NewObj) {
@@ -560,6 +562,14 @@ public class CfgAotClassGenerator {
             return;
         }
         if (instruction instanceof io.fiber.net.script.aot.Throw) {
+            if (!hasCatchEdges) {
+                context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
+                loadValue(context.visitor, ((io.fiber.net.script.aot.Throw) instruction).value);
+                context.visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SUPER_NAME, "objToError",
+                        "(" + JSON_NODE_DESC + ")" + SCRIPT_EXEC_DESC, false);
+                context.visitor.visitInsn(Opcodes.ATHROW);
+                return;
+            }
             loadValue(context.visitor, ((io.fiber.net.script.aot.Throw) instruction).value);
             context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
             context.visitor.visitInsn(Opcodes.SWAP);
@@ -703,14 +713,47 @@ public class CfgAotClassGenerator {
     }
 
     private void emitConditional(CodegenContext context, Block block, Block target, SsaValue cond, boolean trueJump) {
-        loadValue(context.visitor, cond);
-        context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, COMPARES_NAME, "logic",
-                "(" + JSON_NODE_DESC + ")Z", false);
+        if (isStackValue(cond)) {
+            emitStackCondition(context, cond);
+        } else {
+            loadValue(context.visitor, cond);
+            context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, COMPARES_NAME, "logic",
+                    "(" + JSON_NODE_DESC + ")Z", false);
+        }
         Label taken = new Label();
         context.visitor.visitJumpInsn(trueJump ? Opcodes.IFNE : Opcodes.IFEQ, taken);
         emitEdgeTransfer(context, otherNormalEdgeOrOnly(block, target));
         context.visitor.visitLabel(taken);
         emitEdgeTransfer(context, normalEdgeTo(block, target));
+    }
+
+    private void emitStackCondition(CodegenContext context, SsaValue cond) {
+        Expr assign = cond.getAssign();
+        if (assign instanceof Binary) {
+            Binary binary = (Binary) assign;
+            loadValue(context.visitor, binary.getLeft());
+            loadValue(context.visitor, binary.getRight());
+            context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, COMPARES_NAME, binaryMethod(binary.getOp()),
+                    "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")Z", false);
+            return;
+        }
+        if (assign instanceof Unary) {
+            Unary unary = (Unary) assign;
+            loadValue(context.visitor, unary.getMaterial());
+            switch (unary.getOp()) {
+                case NEG:
+                    context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, COMPARES_NAME, "neg",
+                            "(" + JSON_NODE_DESC + ")Z", false);
+                    return;
+                case ITERATE_NEXT:
+                    context.visitor.visitTypeInsn(Opcodes.CHECKCAST, ITERATOR_NODE_NAME);
+                    context.visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, ITERATOR_NODE_NAME, "next", "()Z", false);
+                    return;
+                default:
+                    break;
+            }
+        }
+        throw new IllegalStateException("[bug] unsupported stack condition");
     }
 
     private void emitImplicitTransfer(CodegenContext context, Block block) {
@@ -738,6 +781,12 @@ public class CfgAotClassGenerator {
     }
 
     private void emitThrowTransfer(CodegenContext context, Block block) {
+        if (!hasCatchEdges) {
+            context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
+            context.visitor.visitFieldInsn(Opcodes.GETFIELD, SUPER_NAME, "rtError", SCRIPT_EXEC_DESC);
+            context.visitor.visitInsn(Opcodes.ATHROW);
+            return;
+        }
         Edge edge = throwEdge(block);
         if (edge == null) {
             context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
@@ -801,6 +850,8 @@ public class CfgAotClassGenerator {
             case LOCAL:
                 visitor.visitVarInsn(Opcodes.ALOAD, runtimeLocalSlot(value));
                 return;
+            case STACK:
+                throw new IllegalStateException("[bug] stack value cannot be loaded as local value");
             case ASYNC_FIELD:
                 visitor.visitVarInsn(Opcodes.ALOAD, 0);
                 visitor.visitFieldInsn(Opcodes.GETFIELD, internalClassName,
@@ -833,6 +884,8 @@ public class CfgAotClassGenerator {
             case LOCAL:
                 visitor.visitVarInsn(Opcodes.ASTORE, runtimeLocalSlot(value));
                 return;
+            case STACK:
+                throw new IllegalStateException("[bug] stack value cannot be stored as local value");
             case ASYNC_FIELD:
                 visitor.visitVarInsn(Opcodes.ALOAD, 0);
                 visitor.visitInsn(Opcodes.SWAP);
@@ -846,12 +899,6 @@ public class CfgAotClassGenerator {
             default:
                 throw new IllegalStateException("[bug] unknown location");
         }
-    }
-
-    private void setCurrentPc(MethodVisitor visitor, int pc) {
-        visitor.visitVarInsn(Opcodes.ALOAD, 0);
-        pushInt(visitor, pc);
-        visitor.visitFieldInsn(Opcodes.PUTFIELD, internalClassName, CURRENT_PC_FIELD, "I");
     }
 
     private void emitLineNumber(CodegenContext context, int pc) {
@@ -874,6 +921,10 @@ public class CfgAotClassGenerator {
             throw new IllegalStateException("[bug] missing runtime local slot");
         }
         return slot;
+    }
+
+    private boolean isStackValue(SsaValue value) {
+        return allocation.locationOf(value).getKind() == ValueAllocator.Location.Kind.STACK;
     }
 
     private static void emitNullNode(MethodVisitor visitor) {

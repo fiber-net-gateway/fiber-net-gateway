@@ -36,6 +36,8 @@ public class CfgAotClassGeneratorTest {
         Method run = clz.getDeclaredMethod("run");
         Assert.assertEquals(void.class, run.getReturnType());
         Assert.assertNotNull(clz.getDeclaredMethod(CfgAotClassGenerator.INIT_OPERAND_METHOD, Object[].class));
+        assertNoDeclaredField(clz, "currentPc");
+        assertNoDeclaredMethod(clz, "getCurrentPc");
     }
 
     @Test
@@ -67,6 +69,23 @@ public class CfgAotClassGeneratorTest {
         Constructor<?> constructor = clz.getDeclaredConstructor(JsonNode.class, Object.class, Maybe.Emitter.class);
         Object vm = constructor.newInstance(NullNode.getInstance(), null, new NoopEmitter());
         Assert.assertTrue(vm instanceof AbstractVm);
+        Assert.assertEquals(-1, ((AbstractVm) vm).getCurrentPc());
+    }
+
+    private static void assertNoDeclaredField(Class<?> clz, String fieldName) throws Exception {
+        try {
+            clz.getDeclaredField(fieldName);
+            Assert.fail("unexpected field " + fieldName);
+        } catch (NoSuchFieldException ignored) {
+        }
+    }
+
+    private static void assertNoDeclaredMethod(Class<?> clz, String methodName) throws Exception {
+        try {
+            clz.getDeclaredMethod(methodName);
+            Assert.fail("unexpected method " + methodName);
+        } catch (NoSuchMethodException ignored) {
+        }
     }
 
     private static void assertStaticSame(Class<?> clz, String fieldName, Object expected) throws Exception {

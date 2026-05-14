@@ -50,8 +50,20 @@ public class LocalCse {
         }
         return expr instanceof LoadConst
                 || expr instanceof LoadRoot
-                || expr instanceof Unary
+                || expr instanceof Unary && isCseUnary((Unary) expr)
                 || expr instanceof Binary;
+    }
+
+    private static boolean isCseUnary(Unary unary) {
+        switch (unary.getOp()) {
+            case PLUS:
+            case MINUS:
+            case NEG:
+            case TYPEOF:
+                return true;
+            default:
+                return false;
+        }
     }
 
     private static final class Key {

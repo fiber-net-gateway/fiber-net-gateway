@@ -72,7 +72,7 @@ public class AotCompiledScript implements Script {
         MethodHandle handle;
         CfgAotClassGenerator generator = null;
         try {
-            Cfg cfg = new Cfg.Builder(compiled, false).build();
+            Cfg cfg = new Cfg.Builder(compiled).build();
             LivenessAnalysis.Result liveness = new LivenessAnalysis(cfg).analyze();
             AsyncSpillAnalysis.Result asyncSpills = new AsyncSpillAnalysis(cfg, liveness).analyze();
             SsaDestruction.Result ssaDestruction = new SsaDestruction(cfg).analyze();

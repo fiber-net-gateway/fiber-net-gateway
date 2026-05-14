@@ -99,7 +99,21 @@ public class Unary extends Expr {
 
     @Override
     public int effects() {
-        return EFFECT_PURE;
+        switch (op) {
+            case PLUS:
+            case MINUS:
+            case NEG:
+            case TYPEOF:
+            case ITERATE_INTO:
+                return EFFECT_PURE;
+            case ITERATE_NEXT:
+                return EFFECT_MEMORY_WRITE;
+            case ITERATE_KEY:
+            case ITERATE_VALUE:
+                return EFFECT_MEMORY_READ;
+            default:
+                throw new IllegalStateException("[bug] not hit");
+        }
     }
 
     private static Throw numericThrow(SsaValue value) {

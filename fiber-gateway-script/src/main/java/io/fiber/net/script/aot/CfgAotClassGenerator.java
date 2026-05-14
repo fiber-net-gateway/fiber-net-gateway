@@ -24,6 +24,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -341,11 +342,10 @@ public class CfgAotClassGenerator {
         emitAsyncDispatch(context);
         for (Block block : cfg.getBlocks()) {
             visitor.visitLabel(context.label(block));
-            for (Instruction instruction : block.getInstructions()) {
-                emitInstructionWithCatch(context, instruction);
-            }
+            emitBlock(context, block);
             emitImplicitTransfer(context, block);
         }
+        emitCatchHandlers(context);
         visitor.visitMaxs(0, 0);
         visitor.visitEnd();
     }
@@ -373,28 +373,67 @@ public class CfgAotClassGenerator {
         visitor.visitLabel(start);
     }
 
-    private void emitInstructionWithCatch(CodegenContext context, Instruction instruction) {
-        MethodVisitor visitor = context.visitor;
-        emitLineNumber(context, instruction.getPc());
+    private void emitBlock(CodegenContext context, Block block) {
+        ActiveTry activeTry = null;
+        for (Instruction instruction : block.getInstructions()) {
+            CatchHandler handler = catchHandlerFor(context, instruction);
+            if (activeTry != null && shouldCloseTry(activeTry.handler, handler, instruction)) {
+                context.visitor.visitLabel(activeTry.end);
+                activeTry = null;
+            }
+            if (activeTry == null && handler != null) {
+                activeTry = startTry(context, handler);
+            }
+            emitLineNumber(context, instruction.getPc());
+            emitInstruction(context, instruction);
+        }
+        if (activeTry != null) {
+            context.visitor.visitLabel(activeTry.end);
+        }
+    }
+
+    private CatchHandler catchHandlerFor(CodegenContext context, Instruction instruction) {
         if (!hasCatchEdges || instruction.canThrow() == Instruction.Throw.NOT
                 || instruction instanceof io.fiber.net.script.aot.Throw) {
-            emitInstruction(context, instruction);
-            return;
+            return null;
         }
+        Edge edge = throwEdge(instruction.getBelongTo());
+        if (edge == null || !isHandledByEdge(instruction, edge)) {
+            return null;
+        }
+        return context.catchHandler(edge);
+    }
+
+    private boolean isHandledByEdge(Instruction instruction, Edge edge) {
+        if (compiled == null || compiled.getExpIns() == null) {
+            return true;
+        }
+        int handlerPc = Compiled.searchExpHandle(instruction.getPc(), compiled.getExpIns());
+        return handlerPc >= 0 && edge.getSuccessor().startPc == handlerPc;
+    }
+
+    private static boolean shouldCloseTry(CatchHandler active, CatchHandler next, Instruction instruction) {
+        if (next != null) {
+            return active != next;
+        }
+        return instruction.canThrow() != Instruction.Throw.NOT;
+    }
+
+    private ActiveTry startTry(CodegenContext context, CatchHandler handler) {
         Label begin = new Label();
         Label end = new Label();
-        Label handler = new Label();
-        Label after = new Label();
-        visitor.visitTryCatchBlock(begin, end, handler, SCRIPT_EXEC_NAME);
-        visitor.visitLabel(begin);
-        emitInstruction(context, instruction);
-        visitor.visitLabel(end);
-        visitor.visitJumpInsn(Opcodes.GOTO, after);
-        visitor.visitLabel(handler);
-        visitor.visitVarInsn(Opcodes.ASTORE, context.exceptionLocal());
-        storeRtError(visitor, context.exceptionLocal());
-        emitThrowTransfer(context, instruction.getBelongTo());
-        visitor.visitLabel(after);
+        context.visitor.visitTryCatchBlock(begin, end, handler.label, SCRIPT_EXEC_NAME);
+        context.visitor.visitLabel(begin);
+        return new ActiveTry(end, handler);
+    }
+
+    private void emitCatchHandlers(CodegenContext context) {
+        for (CatchHandler handler : context.catchHandlers) {
+            context.visitor.visitLabel(handler.label);
+            context.visitor.visitVarInsn(Opcodes.ASTORE, context.exceptionLocal());
+            storeRtError(context.visitor, context.exceptionLocal());
+            emitEdgeTransfer(context, handler.edge);
+        }
     }
 
     private void emitInstruction(CodegenContext context, Instruction instruction) {
@@ -562,7 +601,7 @@ public class CfgAotClassGenerator {
             return;
         }
         if (instruction instanceof io.fiber.net.script.aot.Throw) {
-            if (!hasCatchEdges) {
+            if (throwEdge(instruction.getBelongTo()) == null) {
                 context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
                 loadValue(context.visitor, ((io.fiber.net.script.aot.Throw) instruction).value);
                 context.visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SUPER_NAME, "objToError",
@@ -781,18 +820,11 @@ public class CfgAotClassGenerator {
     }
 
     private void emitThrowTransfer(CodegenContext context, Block block) {
-        if (!hasCatchEdges) {
-            context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
-            context.visitor.visitFieldInsn(Opcodes.GETFIELD, SUPER_NAME, "rtError", SCRIPT_EXEC_DESC);
-            context.visitor.visitInsn(Opcodes.ATHROW);
-            return;
-        }
         Edge edge = throwEdge(block);
         if (edge == null) {
             context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
-            pushInt(context.visitor, AbstractVm.STAT_END_ERR);
-            context.visitor.visitFieldInsn(Opcodes.PUTFIELD, SUPER_NAME, "state", "I");
-            context.visitor.visitInsn(Opcodes.RETURN);
+            context.visitor.visitFieldInsn(Opcodes.GETFIELD, SUPER_NAME, "rtError", SCRIPT_EXEC_DESC);
+            context.visitor.visitInsn(Opcodes.ATHROW);
             return;
         }
         emitEdgeTransfer(context, edge);
@@ -1079,6 +1111,8 @@ public class CfgAotClassGenerator {
         final Map<Block, Label> labels = new IdentityHashMap<>();
         final Map<Instruction, Label> resumeLabels = new IdentityHashMap<>();
         final Map<Instruction, Integer> asyncIds = new IdentityHashMap<>();
+        final Map<Object, CatchHandler> catchHandlersByKey = new IdentityHashMap<>();
+        final List<CatchHandler> catchHandlers = new ArrayList<>();
         final int tempBase;
         final int exceptionLocal;
 
@@ -1106,6 +1140,44 @@ public class CfgAotClassGenerator {
             return exceptionLocal;
         }
 
+        CatchHandler catchHandler(Edge edge) {
+            Object key = catchHandlerKey(edge);
+            CatchHandler handler = catchHandlersByKey.get(key);
+            if (handler == null) {
+                handler = new CatchHandler(edge);
+                catchHandlersByKey.put(key, handler);
+                catchHandlers.add(handler);
+            }
+            return handler;
+        }
+
+        private Object catchHandlerKey(Edge edge) {
+            SsaDestruction.EdgeCopy edgeCopy = ssaDestruction == null ? null : ssaDestruction.getEdgeCopy(edge);
+            if (edgeCopy == null || edgeCopy.getMoves().isEmpty()) {
+                return edge.getSuccessor();
+            }
+            return edge;
+        }
+
         int lastLineNumber = -1;
+    }
+
+    private static class ActiveTry {
+        final Label end;
+        final CatchHandler handler;
+
+        ActiveTry(Label end, CatchHandler handler) {
+            this.end = end;
+            this.handler = handler;
+        }
+    }
+
+    private static class CatchHandler {
+        final Edge edge;
+        final Label label = new Label();
+
+        CatchHandler(Edge edge) {
+            this.edge = edge;
+        }
     }
 }

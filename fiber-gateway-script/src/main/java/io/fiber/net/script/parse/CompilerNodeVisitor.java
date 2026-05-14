@@ -6,6 +6,7 @@ import io.fiber.net.common.json.MissingNode;
 import io.fiber.net.common.json.TextNode;
 import io.fiber.net.common.json.ValueNode;
 import io.fiber.net.common.utils.Assert;
+import io.fiber.net.common.utils.Predictions;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ast.*;
 import io.fiber.net.script.run.Code;
@@ -164,6 +165,7 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
     }
 
     private void pushLoadConst(int position, JsonNode ct) {
+        Predictions.assertTrue(!ct.isContainerNode(), "const must be value node");
         push((pushExt(ct.deepCopy()) << 8) | Code.LOAD_CONST, position, 1);
     }
 

@@ -1,6 +1,8 @@
 package io.fiber.net.script.parse;
 
 import io.fiber.net.common.async.Maybe;
+import io.fiber.net.common.async.Scheduler;
+import io.fiber.net.common.json.ArrayNode;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.NullNode;
 import io.fiber.net.common.json.ValueNode;
@@ -114,7 +116,7 @@ public class OptimiserNodeVisitor implements NodeVisitor<Node> {
         throw new ParseException("variable not exists:" + name);
     }
 
-    private Literal optimise(ExpressionNode node) {
+    private ExpressionNode optimise(ExpressionNode node) {
         if (node instanceof Literal) {
             return (Literal) node;
         }
@@ -132,7 +134,36 @@ public class OptimiserNodeVisitor implements NodeVisitor<Node> {
         }
         StringBuilder sb = new StringBuilder();
         node.toStringAST(sb);
-        return new Literal("<optimised:" + sb + ">", node.getPos(), jsonNode);
+        return inline(sb, node.getPos(), jsonNode);
+    }
+
+    private static ExpressionNode inline(StringBuilder sb, int pos, JsonNode node) {
+        if (node.isValueNode()) {
+            return new Literal("<optimised:" + sb + ">", pos, node);
+        }
+
+        if (node.isArray()) {
+            ExpressionNode[] nodes = new ExpressionNode[node.size()];
+            for (int i = 0; i < nodes.length; i++) {
+                nodes[i] = inline(sb, pos, node.get(i));
+            }
+            return new InlineList(pos, nodes);
+        }
+
+        if (node.isObject()) {
+            String[] strings = new String[node.size()];
+            ExpressionNode[] expressionNodes = new ExpressionNode[node.size()];
+            int i = 0;
+            Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> next = fields.next();
+                strings[i] = next.getKey();
+                expressionNodes[i] = inline(sb, pos, next.getValue());
+                i++;
+            }
+            return new InlineObject(pos, strings, expressionNodes);
+        }
+        throw new IllegalStateException("[bug] other type ???");
     }
 
     @Override
@@ -319,9 +350,6 @@ public class OptimiserNodeVisitor implements NodeVisitor<Node> {
 
     @Override
     public ExpressionNode visit(InlineObject node) {
-        if (node.isConstant()) {
-            return optimise(node);
-        }
         ExpressionNode[] children = node.getValueChildren();
         for (int i = 0; i < children.length; i++) {
             children[i] = (ExpressionNode) children[i].accept(this);

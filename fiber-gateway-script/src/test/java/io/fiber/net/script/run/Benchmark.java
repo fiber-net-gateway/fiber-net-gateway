@@ -2,10 +2,16 @@ package io.fiber.net.script.run;
 
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.NullNode;
+import io.fiber.net.common.async.Maybe;
+import io.fiber.net.script.aot.AsyncSpillAnalysis;
+import io.fiber.net.script.aot.Cfg;
+import io.fiber.net.script.aot.CfgAotClassGenerator;
+import io.fiber.net.script.aot.LivenessAnalysis;
+import io.fiber.net.script.aot.SsaDestruction;
+import io.fiber.net.script.aot.ValueAllocator;
 import io.fiber.net.script.parse.Compiled;
 import io.fiber.net.script.parse.CompilerNodeVisitor;
 import io.fiber.net.script.parse.OptimiserNodeVisitor;
-import io.fiber.net.script.parse.ir.AotClassGenerator;
 import lua.test.MyLib;
 import org.apache.commons.io.IOUtils;
 
@@ -22,8 +28,7 @@ public class Benchmark {
             String string = IOUtils.toString(resource);
             Compiled compiled = CompilerNodeVisitor.compileFromScript(string, new MyLib());
 
-            AotClassGenerator generator = new AotClassGenerator(compiled);
-            Class<?> clz = generator.generateClz();
+            Class<?> clz = buildGenerator(compiled).loadAsClass();
 
             long l = System.currentTimeMillis();
             run(compiled);
@@ -44,10 +49,22 @@ public class Benchmark {
 
     private static void aotRun(Class<?> clz) throws Throwable {
         MethodHandles.Lookup lookup = MethodHandles.lookup();
-        MethodHandle handle = lookup.findConstructor(clz, MethodType.methodType(void.class, JsonNode.class, Object.class));
+        MethodHandle handle = lookup.findConstructor(clz,
+                MethodType.methodType(void.class, JsonNode.class, Object.class, Maybe.Emitter.class));
         for (int i = 0; i < 1000000000; i++) {
-            AbstractVm abstractVm = (AbstractVm) handle.invoke((JsonNode) NullNode.getInstance(), (Object) null);
+            AbstractVm abstractVm = (AbstractVm) handle.invoke((JsonNode) NullNode.getInstance(),
+                    (Object) null,
+                    OptimiserNodeVisitor.noopEmitter());
             abstractVm.exec();
         }
+    }
+
+    private static CfgAotClassGenerator buildGenerator(Compiled compiled) {
+        Cfg cfg = new Cfg.Builder(compiled).build();
+        LivenessAnalysis.Result liveness = new LivenessAnalysis(cfg).analyze();
+        AsyncSpillAnalysis.Result asyncSpills = new AsyncSpillAnalysis(cfg, liveness).analyze();
+        SsaDestruction.Result ssaDestruction = new SsaDestruction(cfg).analyze();
+        ValueAllocator.Result allocation = new ValueAllocator(cfg, liveness, asyncSpills, ssaDestruction).allocate();
+        return new CfgAotClassGenerator(cfg, compiled, asyncSpills, ssaDestruction, allocation);
     }
 }

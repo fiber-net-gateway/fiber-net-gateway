@@ -76,42 +76,51 @@ public class ValueAllocator {
 
     private Set<SsaValue> collectStackValues() {
         Set<SsaValue> values = newSet();
+        Set<SsaValue> edgeCopyValues = collectEdgeCopyValues();
         for (Block block : cfg.getBlocks()) {
             List<Instruction> instructions = block.getInstructions();
             for (int i = 1; i < instructions.size(); i++) {
                 Instruction instruction = instructions.get(i);
-                SsaValue cond = jumpCondition(instruction);
-                if (cond == null || cond.getUsedCount() != 1 || cond.getUsed().get(0) != instruction) {
+                Instruction producer = instructions.get(i - 1);
+                if (!(producer instanceof Expr)) {
                     continue;
                 }
-                Instruction producer = instructions.get(i - 1);
-                if (producer == cond.getAssign() && stackableConditionProducer(producer)) {
-                    values.add(cond);
+                SsaValue value = ((Expr) producer).getResult();
+                if (value.getUsedCount() != 1
+                        || value.getUsed().get(0) != instruction
+                        || edgeCopyValues.contains(value)
+                        || asyncSpills.isSpilled(value)
+                        || !stackableProducer(producer)) {
+                    continue;
                 }
+                values.add(value);
             }
         }
         return values;
     }
 
-    private static SsaValue jumpCondition(Instruction instruction) {
-        if (instruction instanceof JumpIfTrue) {
-            return ((JumpIfTrue) instruction).getCond();
+    private Set<SsaValue> collectEdgeCopyValues() {
+        Set<SsaValue> values = newSet();
+        if (ssaDestruction == null) {
+            return values;
         }
-        if (instruction instanceof JumpIfFalse) {
-            return ((JumpIfFalse) instruction).getCond();
+        for (SsaDestruction.EdgeCopy edgeCopy : ssaDestruction.getEdgeCopies()) {
+            for (SsaDestruction.Move move : edgeCopy.getMoves()) {
+                values.add(move.getSrc());
+                values.add(move.getDst());
+            }
         }
-        return null;
+        return values;
     }
 
-    private static boolean stackableConditionProducer(Instruction instruction) {
-        if (instruction instanceof Binary) {
-            return ((Binary) instruction).getOp().ordinal() >= Binary.Op.MATCH.ordinal();
-        }
-        if (instruction instanceof Unary) {
-            Unary.Op op = ((Unary) instruction).getOp();
-            return op == Unary.Op.ITERATE_NEXT || op == Unary.Op.NEG;
-        }
-        return false;
+    private static boolean stackableProducer(Instruction instruction) {
+        return instruction.canThrow() == Instruction.Throw.NOT
+                && (instruction instanceof NewObj
+                || instruction instanceof NewArr
+                || instruction instanceof Binary
+                || instruction instanceof Unary
+                || instruction instanceof IndexGet
+                || instruction instanceof PropGet);
     }
 
     private List<SsaValue> collectValues() {

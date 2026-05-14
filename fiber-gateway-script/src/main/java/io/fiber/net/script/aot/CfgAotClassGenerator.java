@@ -465,8 +465,8 @@ public class CfgAotClassGenerator {
         }
         if (instruction instanceof IndexGet) {
             IndexGet indexGet = (IndexGet) instruction;
-            loadValue(context.visitor, indexGet.getOwner());
-            loadValue(context.visitor, indexGet.getKey());
+            loadValue(context, indexGet.getOwner());
+            loadValue(context, indexGet.getKey());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "indexGet",
                     "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
             storeExprResult(context, indexGet);
@@ -474,9 +474,9 @@ public class CfgAotClassGenerator {
         }
         if (instruction instanceof IndexSet) {
             IndexSet indexSet = (IndexSet) instruction;
-            loadValue(context.visitor, indexSet.getOwner());
-            loadValue(context.visitor, indexSet.getKey());
-            loadValue(context.visitor, indexSet.getAlien());
+            loadValue(context, indexSet.getOwner());
+            loadValue(context, indexSet.getKey());
+            loadValue(context, indexSet.getAlien());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "indexSet",
                     "(" + JSON_NODE_DESC + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
             storeExprResult(context, indexSet);
@@ -484,9 +484,9 @@ public class CfgAotClassGenerator {
         }
         if (instruction instanceof IndexSet1) {
             IndexSet1 indexSet = (IndexSet1) instruction;
-            loadValue(context.visitor, indexSet.getOwner());
-            loadValue(context.visitor, indexSet.getKey());
-            loadValue(context.visitor, indexSet.getAlien());
+            loadValue(context, indexSet.getOwner());
+            loadValue(context, indexSet.getKey());
+            loadValue(context, indexSet.getAlien());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "indexSet1",
                     "(" + JSON_NODE_DESC + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
             storeExprResult(context, indexSet);
@@ -494,7 +494,7 @@ public class CfgAotClassGenerator {
         }
         if (instruction instanceof PropGet) {
             PropGet propGet = (PropGet) instruction;
-            loadValue(context.visitor, propGet.getOwner());
+            loadValue(context, propGet.getOwner());
             context.visitor.visitLdcInsn(propGet.getKey());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "propGet",
                     "(" + JSON_NODE_DESC + "Ljava/lang/String;)" + JSON_NODE_DESC, false);
@@ -503,8 +503,8 @@ public class CfgAotClassGenerator {
         }
         if (instruction instanceof PropSet) {
             PropSet propSet = (PropSet) instruction;
-            loadValue(context.visitor, propSet.getOwner());
-            loadValue(context.visitor, propSet.getAlien());
+            loadValue(context, propSet.getOwner());
+            loadValue(context, propSet.getAlien());
             context.visitor.visitLdcInsn(propSet.getKey());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "propSet",
                     "(" + JSON_NODE_DESC + JSON_NODE_DESC + "Ljava/lang/String;)" + JSON_NODE_DESC, false);
@@ -513,8 +513,8 @@ public class CfgAotClassGenerator {
         }
         if (instruction instanceof PropSet1) {
             PropSet1 propSet = (PropSet1) instruction;
-            loadValue(context.visitor, propSet.getOwner());
-            loadValue(context.visitor, propSet.getAlien());
+            loadValue(context, propSet.getOwner());
+            loadValue(context, propSet.getAlien());
             context.visitor.visitLdcInsn(propSet.getKey());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "propSet1",
                     "(" + JSON_NODE_DESC + JSON_NODE_DESC + "Ljava/lang/String;)" + JSON_NODE_DESC, false);
@@ -523,8 +523,8 @@ public class CfgAotClassGenerator {
         }
         if (instruction instanceof ExpandObj) {
             ExpandObj expandObj = (ExpandObj) instruction;
-            loadValue(context.visitor, expandObj.getTarget());
-            loadValue(context.visitor, expandObj.getAddition());
+            loadValue(context, expandObj.getTarget());
+            loadValue(context, expandObj.getAddition());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "expandObject",
                     "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
             context.visitor.visitInsn(Opcodes.POP);
@@ -532,8 +532,8 @@ public class CfgAotClassGenerator {
         }
         if (instruction instanceof ExpandArr) {
             ExpandArr expandArr = (ExpandArr) instruction;
-            loadValue(context.visitor, expandArr.getTarget());
-            loadValue(context.visitor, expandArr.getAddition());
+            loadValue(context, expandArr.getTarget());
+            loadValue(context, expandArr.getAddition());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "expandArray",
                     "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
             context.visitor.visitInsn(Opcodes.POP);
@@ -541,8 +541,8 @@ public class CfgAotClassGenerator {
         }
         if (instruction instanceof PushArr) {
             PushArr pushArr = (PushArr) instruction;
-            loadValue(context.visitor, pushArr.getTarget());
-            loadValue(context.visitor, pushArr.getAddition());
+            loadValue(context, pushArr.getTarget());
+            loadValue(context, pushArr.getAddition());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "pushArray",
                     "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
             context.visitor.visitInsn(Opcodes.POP);
@@ -586,7 +586,7 @@ public class CfgAotClassGenerator {
             return;
         }
         if (instruction instanceof Ret) {
-            loadValue(context.visitor, ((Ret) instruction).getValue());
+            loadValue(context, ((Ret) instruction).getValue());
             context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
             context.visitor.visitInsn(Opcodes.SWAP);
             context.visitor.visitFieldInsn(Opcodes.PUTFIELD, SUPER_NAME, "rtValue", JSON_NODE_DESC);
@@ -603,13 +603,13 @@ public class CfgAotClassGenerator {
         if (instruction instanceof io.fiber.net.script.aot.Throw) {
             if (throwEdge(instruction.getBelongTo()) == null) {
                 context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
-                loadValue(context.visitor, ((io.fiber.net.script.aot.Throw) instruction).value);
+                loadValue(context, ((io.fiber.net.script.aot.Throw) instruction).value);
                 context.visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SUPER_NAME, "objToError",
                         "(" + JSON_NODE_DESC + ")" + SCRIPT_EXEC_DESC, false);
                 context.visitor.visitInsn(Opcodes.ATHROW);
                 return;
             }
-            loadValue(context.visitor, ((io.fiber.net.script.aot.Throw) instruction).value);
+            loadValue(context, ((io.fiber.net.script.aot.Throw) instruction).value);
             context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
             context.visitor.visitInsn(Opcodes.SWAP);
             context.visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SUPER_NAME, "objToError",
@@ -623,15 +623,24 @@ public class CfgAotClassGenerator {
     }
 
     private void emitBinary(CodegenContext context, Binary binary) {
-        loadValue(context.visitor, binary.getLeft());
-        loadValue(context.visitor, binary.getRight());
-        context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, BINARIES_NAME, binaryMethod(binary.getOp()),
-                binaryDesc(binary.getOp()), false);
+        emitBinaryValue(context, binary);
         storeExprResult(context, binary);
     }
 
+    private void emitBinaryValue(CodegenContext context, Binary binary) {
+        loadValue(context, binary.getLeft());
+        loadValue(context, binary.getRight());
+        context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, BINARIES_NAME, binaryMethod(binary.getOp()),
+                binaryDesc(binary.getOp()), false);
+    }
+
     private void emitUnary(CodegenContext context, Unary unary) {
-        loadValue(context.visitor, unary.getMaterial());
+        emitUnaryValue(context, unary);
+        storeExprResult(context, unary);
+    }
+
+    private void emitUnaryValue(CodegenContext context, Unary unary) {
+        loadValue(context, unary.getMaterial());
         switch (unary.getOp()) {
             case PLUS:
                 context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, UNARIES_NAME, "plus",
@@ -672,7 +681,6 @@ public class CfgAotClassGenerator {
             default:
                 throw new IllegalStateException("[bug] unknown unary op");
         }
-        storeExprResult(context, unary);
     }
 
     private void emitCallConst(CodegenContext context, CallConst call) {
@@ -755,7 +763,7 @@ public class CfgAotClassGenerator {
         if (isStackValue(cond)) {
             emitStackCondition(context, cond);
         } else {
-            loadValue(context.visitor, cond);
+            loadValue(context, cond);
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, COMPARES_NAME, "logic",
                     "(" + JSON_NODE_DESC + ")Z", false);
         }
@@ -770,15 +778,15 @@ public class CfgAotClassGenerator {
         Expr assign = cond.getAssign();
         if (assign instanceof Binary) {
             Binary binary = (Binary) assign;
-            loadValue(context.visitor, binary.getLeft());
-            loadValue(context.visitor, binary.getRight());
+            loadValue(context, binary.getLeft());
+            loadValue(context, binary.getRight());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, COMPARES_NAME, binaryMethod(binary.getOp()),
                     "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")Z", false);
             return;
         }
         if (assign instanceof Unary) {
             Unary unary = (Unary) assign;
-            loadValue(context.visitor, unary.getMaterial());
+            loadValue(context, unary.getMaterial());
             switch (unary.getOp()) {
                 case NEG:
                     context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, COMPARES_NAME, "neg",
@@ -792,7 +800,47 @@ public class CfgAotClassGenerator {
                     break;
             }
         }
-        throw new IllegalStateException("[bug] unsupported stack condition");
+        loadValue(context, cond);
+        context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, COMPARES_NAME, "logic",
+                "(" + JSON_NODE_DESC + ")Z", false);
+    }
+
+    private void emitStackExpr(CodegenContext context, Expr expr) {
+        if (expr instanceof NewObj) {
+            context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, JSON_UTIL_NAME, "createObjectNode",
+                    "()Lio/fiber/net/common/json/ObjectNode;", false);
+            return;
+        }
+        if (expr instanceof NewArr) {
+            context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, JSON_UTIL_NAME, "createArrayNode",
+                    "()Lio/fiber/net/common/json/ArrayNode;", false);
+            return;
+        }
+        if (expr instanceof Binary) {
+            emitBinaryValue(context, (Binary) expr);
+            return;
+        }
+        if (expr instanceof Unary) {
+            emitUnaryValue(context, (Unary) expr);
+            return;
+        }
+        if (expr instanceof IndexGet) {
+            IndexGet indexGet = (IndexGet) expr;
+            loadValue(context, indexGet.getOwner());
+            loadValue(context, indexGet.getKey());
+            context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "indexGet",
+                    "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
+            return;
+        }
+        if (expr instanceof PropGet) {
+            PropGet propGet = (PropGet) expr;
+            loadValue(context, propGet.getOwner());
+            context.visitor.visitLdcInsn(propGet.getKey());
+            context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "propGet",
+                    "(" + JSON_NODE_DESC + "Ljava/lang/String;)" + JSON_NODE_DESC, false);
+            return;
+        }
+        throw new IllegalStateException("[bug] unsupported stack expr " + expr.getClass().getName());
     }
 
     private void emitImplicitTransfer(CodegenContext context, Block block) {
@@ -840,7 +888,7 @@ public class CfgAotClassGenerator {
         }
         int idx = 0;
         for (SsaDestruction.Move move : edgeCopy.getMoves()) {
-            loadValue(context.visitor, move.getSrc());
+            loadValue(context, move.getSrc());
             context.visitor.visitVarInsn(Opcodes.ASTORE, context.copyTempLocal(idx++));
         }
         idx = 0;
@@ -853,7 +901,7 @@ public class CfgAotClassGenerator {
     private void prepareArgs(CodegenContext context, boolean spread, SsaValue[] args) {
         if (spread) {
             context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
-            loadValue(context.visitor, args[0]);
+            loadValue(context, args[0]);
             context.visitor.visitTypeInsn(Opcodes.CHECKCAST, ARRAY_NODE_NAME);
             context.visitor.visitFieldInsn(Opcodes.PUTFIELD, internalClassName, SPREAD_ARGS_FIELD, ARRAY_NODE_DESC);
             context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
@@ -870,10 +918,18 @@ public class CfgAotClassGenerator {
         for (int i = 0; i < args.length; i++) {
             context.visitor.visitInsn(Opcodes.DUP);
             pushInt(context.visitor, i);
-            loadValue(context.visitor, args[i]);
+            loadValue(context, args[i]);
             context.visitor.visitInsn(Opcodes.AASTORE);
         }
         context.visitor.visitFieldInsn(Opcodes.PUTFIELD, internalClassName, FUNC_ARGS_FIELD, JSON_ARRAY_DESC);
+    }
+
+    private void loadValue(CodegenContext context, SsaValue value) {
+        if (isStackValue(value)) {
+            emitStackExpr(context, value.getAssign());
+            return;
+        }
+        loadValue(context.visitor, value);
     }
 
     private void loadValue(MethodVisitor visitor, SsaValue value) {

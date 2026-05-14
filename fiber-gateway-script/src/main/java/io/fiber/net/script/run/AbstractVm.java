@@ -29,7 +29,7 @@ public abstract class AbstractVm implements ExecutionContext, Library.Arguments,
     protected final Object attach;
 
     protected int state;
-    protected ScriptExecException rtError;
+    protected Throwable rtError;
     protected JsonNode rtValue;
 
     protected AbstractVm(JsonNode root, Object attach, Maybe.Emitter<JsonNode> resultEmitter) {
@@ -44,7 +44,7 @@ public abstract class AbstractVm implements ExecutionContext, Library.Arguments,
 
     public final boolean isEnd() {
         int state = this.state;
-        return state == STAT_END_SEC || state == STAT_END_ERR;
+        return state == STAT_END_SEC || state == STAT_END_ERR || state == STAT_ABORT;
     }
 
     protected final boolean callAsyncFunc(Library.AsyncFunction function) {
@@ -94,12 +94,21 @@ public abstract class AbstractVm implements ExecutionContext, Library.Arguments,
 
     @Override
     public final void throwErr(ScriptExecException node) {
+        error(STAT_THROW, node);
+    }
+
+    @Override
+    public void abort(Throwable error) {
+        error(STAT_ABORT, error);
+    }
+
+    private void error(int nState, Throwable node) {
         int s = state;
         if (s != STAT_INVOKING && s != STAT_ASYNC) {
             throw new IllegalStateException("vm not in resume");
         }
 
-        state = STAT_THROW;
+        state = nState;
         rtError = node;
         rtValue = null;
 
@@ -129,21 +138,22 @@ public abstract class AbstractVm implements ExecutionContext, Library.Arguments,
                 return;
             }
         }
-        if (this.state == STAT_END_SEC) {
+        state = this.state;
+        if (state == STAT_END_SEC) {
             JsonNode v = rtValue;
             if (v != null) {
                 resultEmitter.onSuccess(v);
             } else {
                 resultEmitter.onComplete();
             }
-        } else if (this.state == STAT_END_ERR) {
+        } else if (state == STAT_END_ERR || state == STAT_ABORT) {
             assert rtError != null;
             resultEmitter.onError(rtError);
         }
     }
 
     protected final JsonNode errorToObj() {
-        ScriptExecException e = rtError;
+        ScriptExecException e = (ScriptExecException) rtError;
         assert e != null;
         rtError = null;
         JsonNode errorNode = e.getErrorNode();
@@ -191,7 +201,7 @@ public abstract class AbstractVm implements ExecutionContext, Library.Arguments,
         }
     }
 
-    protected abstract void run() throws ScriptExecException;
+    protected abstract void run() throws Throwable;
 
 
     @Override

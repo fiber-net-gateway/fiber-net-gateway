@@ -82,17 +82,18 @@ public class InterpreterVm extends AbstractVm {
      * @return 异常结果 true
      */
     private boolean fillParamForResume() {
-        int s = state;
-        if (s != STAT_RETURN && s != STAT_THROW) {
-            throw new IllegalStateException("no param in resume");
-        }
         spreadArgs = null;
-        if (s == STAT_RETURN) {
-            stack[sp++] = rtValue;
-            state = STAT_RUNNING;
-            return false;
-        } else {
-            return catchForException(pc - 1);
+        switch (state) {
+            case STAT_RETURN:
+                stack[sp++] = rtValue;
+                state = STAT_RUNNING;
+                return false;
+            case STAT_THROW:
+                return catchForException(pc - 1);
+            case STAT_ABORT:
+                return false;
+            default:
+                throw new IllegalStateException("no param in resume");
         }
     }
 
@@ -401,7 +402,7 @@ public class InterpreterVm extends AbstractVm {
 
     private boolean catchForException(int epc) {
         assert rtError != null;
-        rtError.setPos(pos[epc]);
+        ((ScriptExecException) rtError).setPos(pos[epc]);
         sp = 0;
         int cpc;
         if ((cpc = Compiled.searchExpHandle(epc, expIns)) < 0) {

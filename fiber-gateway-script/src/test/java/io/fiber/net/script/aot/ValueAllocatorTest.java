@@ -93,9 +93,11 @@ public class ValueAllocatorTest {
         NewObj obj = new NewObj(block, 0);
         NewArr arr = new NewArr(block, 1);
         ExpandObj expand = new ExpandObj(block, 2, obj.getResult(), arr.getResult());
+        ExpandArr expandArr = new ExpandArr(block, 3, arr.getResult(), obj.getResult());
         block.getInstructions().add(obj);
         block.getInstructions().add(arr);
         block.getInstructions().add(expand);
+        block.getInstructions().add(expandArr);
 
         ValueAllocator.Result result = allocate(cfg);
 
@@ -121,6 +123,36 @@ public class ValueAllocatorTest {
 
         Assert.assertEquals(ValueAllocator.Location.Kind.STACK,
                 result.locationOf(iterateNext.getResult()).getKind());
+    }
+
+    @Test
+    public void shouldUseStackLocationForShortLivedReturnValue() {
+        Cfg cfg = build("return $.x;");
+        ValueAllocator.Result result = allocate(cfg);
+        PropGet propGet = find(cfg, PropGet.class);
+
+        Assert.assertEquals(ValueAllocator.Location.Kind.STACK,
+                result.locationOf(propGet.getResult()).getKind());
+    }
+
+    @Test
+    public void shouldUseStackLocationForShortLivedCallArgument() {
+        Cfg cfg = build("return syncAdd($.x, 2);");
+        ValueAllocator.Result result = allocate(cfg);
+        PropGet propGet = find(cfg, PropGet.class);
+
+        Assert.assertEquals(ValueAllocator.Location.Kind.STACK,
+                result.locationOf(propGet.getResult()).getKind());
+    }
+
+    @Test
+    public void shouldKeepThrowingShortLivedValuesAsLocals() {
+        Cfg cfg = build("return $.x + 1;");
+        ValueAllocator.Result result = allocate(cfg);
+        Binary binary = findAssign(cfg, Binary.class);
+
+        Assert.assertEquals(ValueAllocator.Location.Kind.LOCAL,
+                result.locationOf(binary.getResult()).getKind());
     }
 
     private static ValueAllocator.Result allocate(Cfg cfg) {

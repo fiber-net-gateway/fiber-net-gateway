@@ -53,10 +53,11 @@ public class CfgAotClassGeneratorTest {
         Class<?> clz = generator.loadAsClass();
 
         assertStaticSame(clz, "_LITERAL_0", allocation.staticOperands().getLiterals().get(0).getValue());
-        assertStaticSame(clz, "_CONST_0", allocation.staticOperands().getConstants().get(0).getValue());
-        assertStaticSame(clz, "_ASYNC_CONST_0", allocation.staticOperands().getAsyncConstants().get(0).getValue());
-        assertStaticSame(clz, "_FUNC_0", allocation.staticOperands().getFunctions().get(0).getValue());
-        assertStaticSame(clz, "_ASYNC_FUNC_0", allocation.staticOperands().getAsyncFunctions().get(0).getValue());
+        assertStaticSame(clz, "_DIRECT_OWNER_0", allocation.staticOperands().getDirectOwners().get(0).getValue());
+        assertNoDeclaredField(clz, "_CONST_0");
+        assertNoDeclaredField(clz, "_ASYNC_CONST_0");
+        assertNoDeclaredField(clz, "_FUNC_0");
+        assertNoDeclaredField(clz, "_ASYNC_FUNC_0");
     }
 
     @Test
@@ -83,6 +84,25 @@ public class CfgAotClassGeneratorTest {
 
         Assert.assertFalse(calls.has("io/fiber/net/script/run/Binaries", "multiply"));
         Assert.assertTrue(calls.has("io/fiber/net/script/ScriptExecException", "<init>"));
+    }
+
+    @Test
+    public void shouldDirectCallReflectFunction() throws Exception {
+        byte[] bytes = generate("return syncAdd(1, 2);");
+        MethodCalls calls = methodCalls(bytes);
+
+        Assert.assertFalse(calls.has("io/fiber/net/script/Library$Function", "call"));
+        Assert.assertTrue(calls.has("io/fiber/net/script/aot/CfgAotClassGeneratorTest$Exports", "syncAdd"));
+    }
+
+    @Test
+    public void shouldDirectCallReflectAsyncFunction() throws Exception {
+        byte[] bytes = generate("return asyncAdd(1, 2);");
+        MethodCalls calls = methodCalls(bytes);
+
+        Assert.assertFalse(calls.has("io/fiber/net/script/run/AbstractVm", "callAsyncFunc"));
+        Assert.assertFalse(calls.has("io/fiber/net/script/Library$AsyncFunction", "call"));
+        Assert.assertTrue(calls.has("io/fiber/net/script/aot/CfgAotClassGeneratorTest$Exports", "asyncAdd"));
     }
 
     private static void assertNoDeclaredField(Class<?> clz, String fieldName) throws Exception {

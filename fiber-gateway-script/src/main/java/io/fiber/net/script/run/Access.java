@@ -6,7 +6,7 @@ import io.fiber.net.script.parse.SpelMessage;
 
 public class Access {
     public static ObjectNode expandObject(ObjectNode target, JsonNode addition) {
-        if (target.isObject() && addition.isObject()) {
+        if (addition.isObject()) {
             target.setAll((ObjectNode) addition);
         }
         return target;

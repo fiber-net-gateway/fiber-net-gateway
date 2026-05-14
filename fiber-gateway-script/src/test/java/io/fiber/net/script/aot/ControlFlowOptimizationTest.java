@@ -263,6 +263,43 @@ public class ControlFlowOptimizationTest {
     }
 
     @Test
+    public void shouldRewriteLoopPhiWhenMergingLinearBackedgeBlock() {
+        Cfg cfg = new Cfg();
+        cfg.addBlock(0);
+        cfg.addBlock(1);
+        cfg.addBlock(2);
+        cfg.addBlock(3);
+        cfg.addBlock(4);
+        Block entry = cfg.mustGetBlock(0);
+        Block header = cfg.mustGetBlock(1);
+        Block body = cfg.mustGetBlock(2);
+        Block latch = cfg.mustGetBlock(3);
+        Block exit = cfg.mustGetBlock(4);
+        cfg.setEntryBlock(entry);
+
+        LoadConst initial = new LoadConst(entry, 0, IntNode.valueOf(100));
+        LoadConst updated = new LoadConst(body, 1, IntNode.valueOf(101));
+        entry.getInstructions().add(initial);
+        body.getInstructions().add(updated);
+        Phi phi = header.newPhi();
+        phi.addCase(entry, initial.getResult());
+        phi.addCase(latch, updated.getResult());
+        header.addPhi(phi);
+        cfg.addEdge(Edge.Type.FALLTHROUGH, entry, header);
+        cfg.addEdge(Edge.Type.FALLTHROUGH, header, body);
+        cfg.addEdge(Edge.Type.JUMP, header, exit);
+        cfg.addEdge(Edge.Type.FALLTHROUGH, body, latch);
+        cfg.addEdge(Edge.Type.JUMP, latch, header);
+
+        Assert.assertTrue(new LinearBlockMerging(cfg).optimize());
+
+        Assert.assertFalse(cfg.getBlocks().contains(latch));
+        Assert.assertEquals(2, phi.getCases().size());
+        Assert.assertTrue(hasPhiCase(phi, entry, initial.getResult()));
+        Assert.assertTrue(hasPhiCase(phi, body, updated.getResult()));
+    }
+
+    @Test
     public void shouldSimplifyAlgebraWithPropagatedNumberType() {
         Cfg cfg = build("let a = 0; if ($.x) { a = 2; } else { a = 3; } return a + 0;");
 

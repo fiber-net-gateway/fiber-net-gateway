@@ -54,17 +54,15 @@ public class ValueAllocatorTest {
         ValueAllocator.Result result = allocate(cfg);
 
         Object[] init = result.staticOperands().initOperands();
-        Assert.assertEquals(6, init.length);
+        Assert.assertEquals(3, init.length);
         Assert.assertEquals(2, result.staticOperands().getLiterals().size());
-        Assert.assertEquals(1, result.staticOperands().getConstants().size());
-        Assert.assertEquals(1, result.staticOperands().getAsyncConstants().size());
-        Assert.assertEquals(1, result.staticOperands().getFunctions().size());
-        Assert.assertEquals(1, result.staticOperands().getAsyncFunctions().size());
+        Assert.assertEquals(0, result.staticOperands().getConstants().size());
+        Assert.assertEquals(0, result.staticOperands().getAsyncConstants().size());
+        Assert.assertEquals(0, result.staticOperands().getFunctions().size());
+        Assert.assertEquals(0, result.staticOperands().getAsyncFunctions().size());
+        Assert.assertEquals(1, result.staticOperands().getDirectOwners().size());
         Assert.assertSame(result.staticOperands().getLiterals().get(0).getValue(), init[0]);
-        Assert.assertSame(result.staticOperands().getConstants().get(0).getValue(), init[2]);
-        Assert.assertSame(result.staticOperands().getAsyncConstants().get(0).getValue(), init[3]);
-        Assert.assertSame(result.staticOperands().getFunctions().get(0).getValue(), init[4]);
-        Assert.assertSame(result.staticOperands().getAsyncFunctions().get(0).getValue(), init[5]);
+        Assert.assertSame(result.staticOperands().getDirectOwners().get(0).getValue(), init[2]);
     }
 
     @Test

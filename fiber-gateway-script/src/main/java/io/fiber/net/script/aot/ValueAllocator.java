@@ -3,6 +3,7 @@ package io.fiber.net.script.aot;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.ValueNode;
 import io.fiber.net.script.Library;
+import io.fiber.net.script.lib.DirectReflectInvoker;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -421,6 +422,7 @@ public class ValueAllocator {
         private final List<OperandField<Library.AsyncConstant>> asyncConstants;
         private final List<OperandField<Library.Function>> functions;
         private final List<OperandField<Library.AsyncFunction>> asyncFunctions;
+        private final List<OperandField<Object>> directOwners;
         private final Map<JsonNode, LiteralField> literalByValue;
 
         private StaticOperands(List<LiteralField> literals,
@@ -428,12 +430,14 @@ public class ValueAllocator {
                                List<OperandField<Library.AsyncConstant>> asyncConstants,
                                List<OperandField<Library.Function>> functions,
                                List<OperandField<Library.AsyncFunction>> asyncFunctions,
+                               List<OperandField<Object>> directOwners,
                                Map<JsonNode, LiteralField> literalByValue) {
             this.literals = Collections.unmodifiableList(new ArrayList<>(literals));
             this.constants = Collections.unmodifiableList(new ArrayList<>(constants));
             this.asyncConstants = Collections.unmodifiableList(new ArrayList<>(asyncConstants));
             this.functions = Collections.unmodifiableList(new ArrayList<>(functions));
             this.asyncFunctions = Collections.unmodifiableList(new ArrayList<>(asyncFunctions));
+            this.directOwners = Collections.unmodifiableList(new ArrayList<>(directOwners));
             this.literalByValue = new IdentityHashMap<>(literalByValue);
         }
 
@@ -457,9 +461,13 @@ public class ValueAllocator {
             return asyncFunctions;
         }
 
+        public List<OperandField<Object>> getDirectOwners() {
+            return directOwners;
+        }
+
         public Object[] initOperands() {
             Object[] operands = new Object[literals.size() + constants.size() + asyncConstants.size()
-                    + functions.size() + asyncFunctions.size()];
+                    + functions.size() + asyncFunctions.size() + directOwners.size()];
             int idx = 0;
             for (LiteralField field : literals) {
                 operands[idx++] = field.getValue();
@@ -474,6 +482,9 @@ public class ValueAllocator {
                 operands[idx++] = field.getValue();
             }
             for (OperandField<Library.AsyncFunction> field : asyncFunctions) {
+                operands[idx++] = field.getValue();
+            }
+            for (OperandField<Object> field : directOwners) {
                 operands[idx++] = field.getValue();
             }
             return operands;
@@ -493,11 +504,13 @@ public class ValueAllocator {
             private final List<OperandField<Library.AsyncConstant>> asyncConstants = new ArrayList<>();
             private final List<OperandField<Library.Function>> functions = new ArrayList<>();
             private final List<OperandField<Library.AsyncFunction>> asyncFunctions = new ArrayList<>();
+            private final List<OperandField<Object>> directOwners = new ArrayList<>();
             private final Map<JsonNode, LiteralField> literalByValue = new IdentityHashMap<>();
             private final Map<Library.Constant, OperandField<Library.Constant>> constantByValue = new IdentityHashMap<>();
             private final Map<Library.AsyncConstant, OperandField<Library.AsyncConstant>> asyncConstantByValue = new IdentityHashMap<>();
             private final Map<Library.Function, OperandField<Library.Function>> functionByValue = new IdentityHashMap<>();
             private final Map<Library.AsyncFunction, OperandField<Library.AsyncFunction>> asyncFunctionByValue = new IdentityHashMap<>();
+            private final Map<Object, OperandField<Object>> directOwnerByValue = new IdentityHashMap<>();
 
             private void addLiteral(ValueNode value) {
                 if (literalByValue.containsKey(value)) {
@@ -513,19 +526,42 @@ public class ValueAllocator {
             }
 
             private void addConstant(Library.Constant value) {
+                if (addDirect(value)) {
+                    return;
+                }
                 addOperand(value, constantByValue, constants, "_CONST_");
             }
 
             private void addAsyncConstant(Library.AsyncConstant value) {
+                if (addDirect(value)) {
+                    return;
+                }
                 addOperand(value, asyncConstantByValue, asyncConstants, "_ASYNC_CONST_");
             }
 
             private void addFunction(Library.Function value) {
+                if (addDirect(value)) {
+                    return;
+                }
                 addOperand(value, functionByValue, functions, "_FUNC_");
             }
 
             private void addAsyncFunction(Library.AsyncFunction value) {
+                if (addDirect(value)) {
+                    return;
+                }
                 addOperand(value, asyncFunctionByValue, asyncFunctions, "_ASYNC_FUNC_");
+            }
+
+            private boolean addDirect(Object value) {
+                if (!(value instanceof DirectReflectInvoker)) {
+                    return false;
+                }
+                Object owner = ((DirectReflectInvoker) value).directOwner();
+                if (owner != null) {
+                    addOperand(owner, directOwnerByValue, directOwners, "_DIRECT_OWNER_");
+                }
+                return true;
             }
 
             private <T> void addOperand(T value, Map<T, OperandField<T>> byValue, List<OperandField<T>> fields, String prefix) {
@@ -539,7 +575,8 @@ public class ValueAllocator {
             }
 
             private StaticOperands build() {
-                return new StaticOperands(literals, constants, asyncConstants, functions, asyncFunctions, literalByValue);
+                return new StaticOperands(literals, constants, asyncConstants, functions, asyncFunctions,
+                        directOwners, literalByValue);
             }
         }
     }

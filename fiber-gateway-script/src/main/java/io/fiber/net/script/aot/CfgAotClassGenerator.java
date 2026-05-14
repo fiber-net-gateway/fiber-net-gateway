@@ -13,6 +13,7 @@ import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.ast.AstUtils;
 import io.fiber.net.script.parse.Compiled;
+import io.fiber.net.script.lib.DirectReflectInvoker;
 import io.fiber.net.script.run.AbstractVm;
 import io.fiber.net.script.run.Access;
 import io.fiber.net.script.run.Binaries;
@@ -25,6 +26,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -38,12 +40,15 @@ public class CfgAotClassGenerator {
     private static final AtomicLong ID = new AtomicLong();
     private static final String CLASS_PREFIX = "io/fiber/net/script/run/CfgGeneratedVm_";
     private static final String SUPER_NAME = Type.getInternalName(AbstractVm.class);
+    private static final String OBJECT_NAME = Type.getInternalName(Object.class);
+    private static final String THROWABLE_NAME = Type.getInternalName(Throwable.class);
     private static final String JSON_NODE_NAME = Type.getInternalName(JsonNode.class);
     private static final String OBJECT_NODE_NAME = Type.getInternalName(ObjectNode.class);
     private static final String ARRAY_NODE_NAME = Type.getInternalName(ArrayNode.class);
     private static final String ITERATOR_NODE_NAME = Type.getInternalName(IteratorNode.class);
     private static final String BOOLEAN_NODE_NAME = Type.getInternalName(BooleanNode.class);
     private static final String VALUE_NODE_NAME = Type.getInternalName(ValueNode.class);
+    private static final String DIRECT_REFLECT_INVOKER_NAME = Type.getInternalName(DirectReflectInvoker.class);
     private static final String CONSTANT_NAME = Type.getInternalName(Library.Constant.class);
     private static final String ASYNC_CONSTANT_NAME = Type.getInternalName(Library.AsyncConstant.class);
     private static final String FUNCTION_NAME = Type.getInternalName(Library.Function.class);
@@ -56,9 +61,12 @@ public class CfgAotClassGenerator {
     private static final String ACCESS_NAME = Type.getInternalName(Access.class);
 
     private static final String JSON_NODE_DESC = Type.getDescriptor(JsonNode.class);
+    private static final String OBJECT_DESC = Type.getDescriptor(Object.class);
+    private static final String THROWABLE_DESC = Type.getDescriptor(Throwable.class);
     private static final String OBJECT_NODE_DESC = Type.getDescriptor(ObjectNode.class);
     private static final String ARRAY_NODE_DESC = Type.getDescriptor(ArrayNode.class);
     private static final String VALUE_NODE_DESC = Type.getDescriptor(ValueNode.class);
+    private static final String ARGUMENTS_DESC = Type.getDescriptor(Library.Arguments.class);
     private static final String CONSTANT_DESC = Type.getDescriptor(Library.Constant.class);
     private static final String ASYNC_CONSTANT_DESC = Type.getDescriptor(Library.AsyncConstant.class);
     private static final String FUNCTION_DESC = Type.getDescriptor(Library.Function.class);
@@ -199,6 +207,9 @@ public class CfgAotClassGenerator {
         for (ValueAllocator.OperandField<Library.AsyncFunction> field : operands.getAsyncFunctions()) {
             emitStaticField(writer, field.getFieldName(), ASYNC_FUNCTION_DESC);
         }
+        for (ValueAllocator.OperandField<Object> field : operands.getDirectOwners()) {
+            emitStaticField(writer, field.getFieldName(), OBJECT_DESC);
+        }
         for (SsaValue value : allocation.asyncFieldValues()) {
             ValueAllocator.AsyncFieldLocation location =
                     (ValueAllocator.AsyncFieldLocation) allocation.locationOf(value);
@@ -240,6 +251,9 @@ public class CfgAotClassGenerator {
         }
         for (ValueAllocator.OperandField<Library.AsyncFunction> field : allocation.staticOperands().getAsyncFunctions()) {
             emitInitField(visitor, index++, field.getFieldName(), ASYNC_FUNCTION_NAME, ASYNC_FUNCTION_DESC);
+        }
+        for (ValueAllocator.OperandField<Object> field : allocation.staticOperands().getDirectOwners()) {
+            emitInitField(visitor, index++, field.getFieldName(), OBJECT_NAME, OBJECT_DESC);
         }
         visitor.visitInsn(Opcodes.RETURN);
         visitor.visitMaxs(0, 0);
@@ -709,6 +723,11 @@ public class CfgAotClassGenerator {
     }
 
     private void emitCallConst(CodegenContext context, CallConst call) {
+        DirectReflectInvoker direct = directInvoker(call.getConstant());
+        if (direct != null) {
+            emitDirectSyncCall(context, call, direct, new SsaValue[0], false);
+            return;
+        }
         ValueAllocator.OperandField<Library.Constant> field = findOperandField(allocation.staticOperands().getConstants(), call.getConstant());
         context.visitor.visitFieldInsn(Opcodes.GETSTATIC, internalClassName, field.getFieldName(), CONSTANT_DESC);
         context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
@@ -719,6 +738,11 @@ public class CfgAotClassGenerator {
     }
 
     private void emitCallFunc(CodegenContext context, CallFunc call) {
+        DirectReflectInvoker direct = directInvoker(call.getFunction());
+        if (direct != null) {
+            emitDirectSyncCall(context, call, direct, call.getArgs(), call.isSpread());
+            return;
+        }
         prepareArgs(context, call.isSpread(), call.getArgs());
         ValueAllocator.OperandField<Library.Function> field = findOperandField(allocation.staticOperands().getFunctions(), call.getFunction());
         context.visitor.visitFieldInsn(Opcodes.GETSTATIC, internalClassName, field.getFieldName(), FUNCTION_DESC);
@@ -732,6 +756,11 @@ public class CfgAotClassGenerator {
     }
 
     private void emitCallAsyncConst(CodegenContext context, CallAsyncConst call) {
+        DirectReflectInvoker direct = directInvoker(call.getConstant());
+        if (direct != null) {
+            emitDirectAsyncCall(context, call, direct, new SsaValue[0], false);
+            return;
+        }
         ValueAllocator.OperandField<Library.AsyncConstant> field =
                 findOperandField(allocation.staticOperands().getAsyncConstants(), call.getConstant());
         context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
@@ -742,6 +771,11 @@ public class CfgAotClassGenerator {
     }
 
     private void emitCallAsyncFunc(CodegenContext context, CallAsyncFunc call) {
+        DirectReflectInvoker direct = directInvoker(call.getFunction());
+        if (direct != null) {
+            emitDirectAsyncCall(context, call, direct, call.getArgs(), call.isSpread());
+            return;
+        }
         prepareArgs(context, call.isSpread(), call.getArgs());
         ValueAllocator.OperandField<Library.AsyncFunction> field =
                 findOperandField(allocation.staticOperands().getAsyncFunctions(), call.getFunction());
@@ -750,6 +784,170 @@ public class CfgAotClassGenerator {
         context.visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SUPER_NAME, "callAsyncFunc",
                 "(" + ASYNC_FUNCTION_DESC + ")Z", false);
         emitAsyncReturnOrResume(context, call);
+    }
+
+    private void emitDirectSyncCall(CodegenContext context, Expr call, DirectReflectInvoker direct,
+                                    SsaValue[] args, boolean spread) {
+        if (needsPreparedArgs(direct.directArgPlan(), spread)) {
+            prepareArgs(context, spread, args);
+        }
+        Label begin = new Label();
+        Label end = new Label();
+        Label handler = new Label();
+        Label done = new Label();
+        context.visitor.visitTryCatchBlock(begin, end, handler, THROWABLE_NAME);
+        context.visitor.visitLabel(begin);
+        emitDirectInvocation(context, direct, args, spread);
+        context.visitor.visitLabel(end);
+        emitNullNode(context.visitor);
+        storeExprResult(context, call);
+        context.visitor.visitJumpInsn(Opcodes.GOTO, done);
+        context.visitor.visitLabel(handler);
+        context.visitor.visitVarInsn(Opcodes.ASTORE, context.exceptionLocal());
+        emitScriptExecFromThrowable(context.visitor, context.exceptionLocal());
+        context.visitor.visitInsn(Opcodes.ATHROW);
+        context.visitor.visitLabel(done);
+    }
+
+    private void emitDirectAsyncCall(CodegenContext context, Expr call, DirectReflectInvoker direct,
+                                     SsaValue[] args, boolean spread) {
+        if (needsPreparedArgs(direct.directArgPlan(), spread)) {
+            prepareArgs(context, spread, args);
+        }
+        context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        pushInt(context.visitor, AbstractVm.STAT_INVOKING);
+        context.visitor.visitFieldInsn(Opcodes.PUTFIELD, SUPER_NAME, "state", "I");
+
+        Label begin = new Label();
+        Label end = new Label();
+        Label handler = new Label();
+        Label afterInvoke = new Label();
+        context.visitor.visitTryCatchBlock(begin, end, handler, THROWABLE_NAME);
+        context.visitor.visitLabel(begin);
+        emitDirectInvocation(context, direct, args, spread);
+        context.visitor.visitLabel(end);
+        context.visitor.visitJumpInsn(Opcodes.GOTO, afterInvoke);
+        context.visitor.visitLabel(handler);
+        context.visitor.visitVarInsn(Opcodes.ASTORE, context.exceptionLocal());
+        context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        emitScriptExecFromThrowable(context.visitor, context.exceptionLocal());
+        context.visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SUPER_NAME, "throwErr",
+                "(" + SCRIPT_EXEC_DESC + ")V", false);
+
+        context.visitor.visitLabel(afterInvoke);
+        Label immediate = new Label();
+        Label done = new Label();
+        context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        context.visitor.visitFieldInsn(Opcodes.GETFIELD, SUPER_NAME, "state", "I");
+        pushInt(context.visitor, AbstractVm.STAT_INVOKING);
+        context.visitor.visitJumpInsn(Opcodes.IF_ICMPNE, immediate);
+        context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        pushInt(context.visitor, AbstractVm.STAT_ASYNC);
+        context.visitor.visitFieldInsn(Opcodes.PUTFIELD, SUPER_NAME, "state", "I");
+        context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        context.visitor.visitInsn(Opcodes.ACONST_NULL);
+        context.visitor.visitFieldInsn(Opcodes.PUTFIELD, SUPER_NAME, "rtValue", JSON_NODE_DESC);
+        context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        context.visitor.visitInsn(Opcodes.ACONST_NULL);
+        context.visitor.visitFieldInsn(Opcodes.PUTFIELD, SUPER_NAME, "rtError", SCRIPT_EXEC_DESC);
+        context.visitor.visitInsn(Opcodes.ICONST_1);
+        context.visitor.visitJumpInsn(Opcodes.GOTO, done);
+        context.visitor.visitLabel(immediate);
+        context.visitor.visitInsn(Opcodes.ICONST_0);
+        context.visitor.visitLabel(done);
+        emitAsyncReturnOrResume(context, call);
+    }
+
+    private void emitDirectInvocation(CodegenContext context, DirectReflectInvoker direct,
+                                      SsaValue[] args, boolean spread) {
+        Method method = direct.directMethod();
+        boolean isStatic = Modifier.isStatic(method.getModifiers());
+        if (!isStatic) {
+            emitDirectOwner(context, direct, method);
+        }
+        int argIndex = 0;
+        int[] plan = direct.directArgPlan();
+        for (int item : plan) {
+            switch (item) {
+                case DirectReflectInvoker.CTX:
+                case DirectReflectInvoker.HANDLE:
+                case DirectReflectInvoker.ARGS:
+                    context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
+                    break;
+                case DirectReflectInvoker.ARG:
+                    if (spread) {
+                        emitPreparedArg(context, argIndex);
+                    } else {
+                        loadValue(context, args[argIndex]);
+                    }
+                    argIndex++;
+                    break;
+                case DirectReflectInvoker.REST:
+                    if (spread) {
+                        context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
+                        pushInt(context.visitor, argIndex);
+                        context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, DIRECT_REFLECT_INVOKER_NAME, "restArgs",
+                                "(" + ARGUMENTS_DESC + "I)" + JSON_ARRAY_DESC, true);
+                    } else {
+                        emitRestArgs(context, args, argIndex);
+                    }
+                    argIndex = args.length;
+                    break;
+                default:
+                    throw new IllegalStateException("[bug] unknown direct argument plan");
+            }
+        }
+        Class<?> owner = method.getDeclaringClass();
+        int opcode = isStatic ? Opcodes.INVOKESTATIC
+                : owner.isInterface() ? Opcodes.INVOKEINTERFACE : Opcodes.INVOKEVIRTUAL;
+        context.visitor.visitMethodInsn(opcode, Type.getInternalName(owner), method.getName(),
+                Type.getMethodDescriptor(method), owner.isInterface());
+    }
+
+    private void emitDirectOwner(CodegenContext context, DirectReflectInvoker direct, Method method) {
+        Object owner = direct.directOwner();
+        if (owner == null) {
+            throw new IllegalStateException("[bug] missing direct call owner");
+        }
+        ValueAllocator.OperandField<Object> field =
+                findOperandField(allocation.staticOperands().getDirectOwners(), owner);
+        context.visitor.visitFieldInsn(Opcodes.GETSTATIC, internalClassName, field.getFieldName(), OBJECT_DESC);
+        context.visitor.visitTypeInsn(Opcodes.CHECKCAST, Type.getInternalName(method.getDeclaringClass()));
+    }
+
+    private void emitPreparedArg(CodegenContext context, int argIndex) {
+        context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        pushInt(context.visitor, argIndex);
+        context.visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, internalClassName, "getArgVal",
+                "(I)" + JSON_NODE_DESC, false);
+    }
+
+    private void emitRestArgs(CodegenContext context, SsaValue[] args, int off) {
+        int count = Math.max(0, args.length - off);
+        pushInt(context.visitor, count);
+        context.visitor.visitTypeInsn(Opcodes.ANEWARRAY, JSON_NODE_NAME);
+        for (int i = 0; i < count; i++) {
+            context.visitor.visitInsn(Opcodes.DUP);
+            pushInt(context.visitor, i);
+            loadValue(context, args[off + i]);
+            context.visitor.visitInsn(Opcodes.AASTORE);
+        }
+    }
+
+    private static boolean needsPreparedArgs(int[] plan, boolean spread) {
+        if (spread) {
+            return true;
+        }
+        for (int item : plan) {
+            if (item == DirectReflectInvoker.ARGS) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static DirectReflectInvoker directInvoker(Object value) {
+        return value instanceof DirectReflectInvoker ? (DirectReflectInvoker) value : null;
     }
 
     private void emitAsyncReturnOrResume(CodegenContext context, Expr asyncExpr) {
@@ -1110,6 +1308,12 @@ public class CfgAotClassGenerator {
         visitor.visitLdcInsn(template.errorName);
         visitor.visitMethodInsn(Opcodes.INVOKESPECIAL, SCRIPT_EXEC_NAME, "<init>",
                 "(Ljava/lang/String;ILjava/lang/String;)V", false);
+    }
+
+    private static void emitScriptExecFromThrowable(MethodVisitor visitor, int throwableLocal) {
+        visitor.visitVarInsn(Opcodes.ALOAD, throwableLocal);
+        visitor.visitMethodInsn(Opcodes.INVOKESTATIC, SCRIPT_EXEC_NAME, "fromThrowable",
+                "(" + THROWABLE_DESC + ")" + SCRIPT_EXEC_DESC, false);
     }
 
     private static void endSuccess(MethodVisitor visitor) {

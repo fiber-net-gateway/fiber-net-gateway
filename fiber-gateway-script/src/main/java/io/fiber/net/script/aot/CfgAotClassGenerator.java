@@ -5,6 +5,7 @@ import io.fiber.net.common.json.ArrayNode;
 import io.fiber.net.common.json.BooleanNode;
 import io.fiber.net.common.json.IteratorNode;
 import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.ObjectNode;
 import io.fiber.net.common.json.ValueNode;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.script.ExecutionContext;
@@ -38,6 +39,7 @@ public class CfgAotClassGenerator {
     private static final String CLASS_PREFIX = "io/fiber/net/script/run/CfgGeneratedVm_";
     private static final String SUPER_NAME = Type.getInternalName(AbstractVm.class);
     private static final String JSON_NODE_NAME = Type.getInternalName(JsonNode.class);
+    private static final String OBJECT_NODE_NAME = Type.getInternalName(ObjectNode.class);
     private static final String ARRAY_NODE_NAME = Type.getInternalName(ArrayNode.class);
     private static final String ITERATOR_NODE_NAME = Type.getInternalName(IteratorNode.class);
     private static final String BOOLEAN_NODE_NAME = Type.getInternalName(BooleanNode.class);
@@ -54,6 +56,7 @@ public class CfgAotClassGenerator {
     private static final String ACCESS_NAME = Type.getInternalName(Access.class);
 
     private static final String JSON_NODE_DESC = Type.getDescriptor(JsonNode.class);
+    private static final String OBJECT_NODE_DESC = Type.getDescriptor(ObjectNode.class);
     private static final String ARRAY_NODE_DESC = Type.getDescriptor(ArrayNode.class);
     private static final String VALUE_NODE_DESC = Type.getDescriptor(ValueNode.class);
     private static final String CONSTANT_DESC = Type.getDescriptor(Library.Constant.class);
@@ -532,27 +535,30 @@ public class CfgAotClassGenerator {
         if (instruction instanceof ExpandObj) {
             ExpandObj expandObj = (ExpandObj) instruction;
             loadValue(context, expandObj.getTarget());
+            context.visitor.visitTypeInsn(Opcodes.CHECKCAST, OBJECT_NODE_NAME);
             loadValue(context, expandObj.getAddition());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "expandObject",
-                    "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
+                    "(" + OBJECT_NODE_DESC + JSON_NODE_DESC + ")" + OBJECT_NODE_DESC, false);
             storeExprResult(context, expandObj);
             return;
         }
         if (instruction instanceof ExpandArr) {
             ExpandArr expandArr = (ExpandArr) instruction;
             loadValue(context, expandArr.getTarget());
+            context.visitor.visitTypeInsn(Opcodes.CHECKCAST, ARRAY_NODE_NAME);
             loadValue(context, expandArr.getAddition());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "expandArray",
-                    "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
+                    "(" + ARRAY_NODE_DESC + JSON_NODE_DESC + ")" + ARRAY_NODE_DESC, false);
             storeExprResult(context, expandArr);
             return;
         }
         if (instruction instanceof PushArr) {
             PushArr pushArr = (PushArr) instruction;
             loadValue(context, pushArr.getTarget());
+            context.visitor.visitTypeInsn(Opcodes.CHECKCAST, ARRAY_NODE_NAME);
             loadValue(context, pushArr.getAddition());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "pushArray",
-                    "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
+                    "(" + ARRAY_NODE_DESC + JSON_NODE_DESC + ")" + ARRAY_NODE_DESC, false);
             storeExprResult(context, pushArr);
             return;
         }
@@ -880,25 +886,28 @@ public class CfgAotClassGenerator {
         if (expr instanceof ExpandObj) {
             ExpandObj expandObj = (ExpandObj) expr;
             loadValue(context, expandObj.getTarget());
+            context.visitor.visitTypeInsn(Opcodes.CHECKCAST, OBJECT_NODE_NAME);
             loadValue(context, expandObj.getAddition());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "expandObject",
-                    "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
+                    "(" + OBJECT_NODE_DESC + JSON_NODE_DESC + ")" + OBJECT_NODE_DESC, false);
             return;
         }
         if (expr instanceof ExpandArr) {
             ExpandArr expandArr = (ExpandArr) expr;
             loadValue(context, expandArr.getTarget());
+            context.visitor.visitTypeInsn(Opcodes.CHECKCAST, ARRAY_NODE_NAME);
             loadValue(context, expandArr.getAddition());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "expandArray",
-                    "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
+                    "(" + ARRAY_NODE_DESC + JSON_NODE_DESC + ")" + ARRAY_NODE_DESC, false);
             return;
         }
         if (expr instanceof PushArr) {
             PushArr pushArr = (PushArr) expr;
             loadValue(context, pushArr.getTarget());
+            context.visitor.visitTypeInsn(Opcodes.CHECKCAST, ARRAY_NODE_NAME);
             loadValue(context, pushArr.getAddition());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "pushArray",
-                    "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
+                    "(" + ARRAY_NODE_DESC + JSON_NODE_DESC + ")" + ARRAY_NODE_DESC, false);
             return;
         }
         throw new IllegalStateException("[bug] unsupported stack expr " + expr.getClass().getName());

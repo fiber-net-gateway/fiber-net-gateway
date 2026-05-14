@@ -55,7 +55,7 @@ public class MyGeneratedVm extends AbstractVm {
         return !this.spread ? this.funcArgc : ObjectNodeUnsafeUtil.getJsonNodeObject(this, STACK_OFFSET + JSON_NODE_OCCUPY * (long) this.funcParamSP).size();
     }
 
-    protected void run() throws ScriptExecException {
+    protected void run() throws Throwable {
         switch (this.asyncState) {
             case 0:
                 long a = 1;

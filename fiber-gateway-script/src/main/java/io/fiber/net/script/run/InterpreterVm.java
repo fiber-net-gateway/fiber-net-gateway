@@ -1,10 +1,7 @@
 package io.fiber.net.script.run;
 
 import io.fiber.net.common.async.Maybe;
-import io.fiber.net.common.json.ArrayNode;
-import io.fiber.net.common.json.BooleanNode;
-import io.fiber.net.common.json.IteratorNode;
-import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.*;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
@@ -85,17 +82,18 @@ public class InterpreterVm extends AbstractVm {
      * @return 异常结果 true
      */
     private boolean fillParamForResume() {
-        int s = state;
-        if (s != STAT_RETURN && s != STAT_THROW) {
-            throw new IllegalStateException("no param in resume");
-        }
         spreadArgs = null;
-        if (s == STAT_RETURN) {
-            stack[sp++] = rtValue;
-            state = STAT_RUNNING;
-            return false;
-        } else {
-            return catchForException(pc - 1);
+        switch (state) {
+            case STAT_RETURN:
+                stack[sp++] = rtValue;
+                state = STAT_RUNNING;
+                return false;
+            case STAT_THROW:
+                return catchForException(pc - 1);
+            case STAT_ABORT:
+                return true;
+            default:
+                throw new IllegalStateException("no param in resume");
         }
     }
 
@@ -219,15 +217,15 @@ public class InterpreterVm extends AbstractVm {
 
                         case Code.EXP_OBJECT:
                             --sp;
-                            Access.expandObject(stack[sp - 1], stack[sp]);
+                            Access.expandObject((ObjectNode) stack[sp - 1], stack[sp]);
                             break;
                         case Code.EXP_ARRAY:
                             --sp;
-                            Access.expandArray(stack[sp - 1], stack[sp]);
+                            Access.expandArray((ArrayNode) stack[sp - 1], stack[sp]);
                             break;
                         case Code.PUSH_ARRAY:
                             --sp;
-                            Access.pushArray(stack[sp - 1], stack[sp]);
+                            Access.pushArray((ArrayNode) stack[sp - 1], stack[sp]);
                             break;
 
 
@@ -402,41 +400,12 @@ public class InterpreterVm extends AbstractVm {
         throw new IllegalStateException("[BUG] no return ???");
     }
 
-
-    private int searchCatch(int epc) {
-        int[] expIns;
-        int len, l, r;
-        if ((expIns = this.expIns) == null || epc < expIns[l = 0] || expIns[(r = len = expIns.length >> 1) - 1] <= epc) {
-            return -1;
-        }
-
-        if (len <= 8) { // too small ，linear search
-            for (int i = 1; i < len; i++) {
-                if (expIns[i] >= epc) {
-                    return expIns[i - 1 + len];
-                }
-            }
-        }
-        while (l < r) {// binary search
-            int m;
-            int mv;
-            if (epc < (mv = expIns[m = (l + r) >> 1])) {
-                r = m;
-            } else if (epc > mv) {
-                l = m + 1;
-            } else {
-                return expIns[epc + len];
-            }
-        }
-        return expIns[l - 1 + len];
-    }
-
     private boolean catchForException(int epc) {
         assert rtError != null;
-        rtError.setPos(pos[epc]);
+        ((ScriptExecException) rtError).setPos(pos[epc]);
         sp = 0;
         int cpc;
-        if ((cpc = searchCatch(epc)) < 0) {
+        if ((cpc = Compiled.searchExpHandle(epc, expIns)) < 0) {
             state = STAT_END_ERR;
             return true;
         }

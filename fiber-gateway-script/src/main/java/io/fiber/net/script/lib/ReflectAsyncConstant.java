@@ -29,8 +29,10 @@ public class ReflectAsyncConstant extends ReflectInvoker implements Library.Asyn
         Object[] invokeArgs = fillArgs(context, null, asyncHandle);
         try {
             invoke(invokeArgs);
+        } catch (ScriptExecException e) {
+            asyncHandle.throwErr(e);
         } catch (Throwable e) {
-            asyncHandle.throwErr(ScriptExecException.fromThrowable(e));
+            asyncHandle.abort(e);
         }
     }
 }

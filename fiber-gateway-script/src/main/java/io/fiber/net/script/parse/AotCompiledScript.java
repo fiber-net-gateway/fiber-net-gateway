@@ -5,8 +5,13 @@ import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.utils.SystemPropertyUtil;
 import io.fiber.net.script.Library;
 import io.fiber.net.script.Script;
+import io.fiber.net.script.aot.AsyncSpillAnalysis;
+import io.fiber.net.script.aot.Cfg;
+import io.fiber.net.script.aot.CfgAotClassGenerator;
+import io.fiber.net.script.aot.LivenessAnalysis;
+import io.fiber.net.script.aot.SsaDestruction;
+import io.fiber.net.script.aot.ValueAllocator;
 import io.fiber.net.script.ast.Block;
-import io.fiber.net.script.parse.ir.AotClassGenerator;
 import io.fiber.net.script.run.AbstractVm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,19 +70,27 @@ public class AotCompiledScript implements Script {
 
     public static AotCompiledScript of(Compiled compiled) throws ParseException {
         MethodHandle handle;
-        AotClassGenerator generator = new AotClassGenerator(compiled);
+        CfgAotClassGenerator generator = null;
         try {
-            Class<?> aotClz = generator.generateClz();
+            Cfg cfg = new Cfg.Builder(compiled).build();
+            LivenessAnalysis.Result liveness = new LivenessAnalysis(cfg).analyze();
+            AsyncSpillAnalysis.Result asyncSpills = new AsyncSpillAnalysis(cfg, liveness).analyze();
+            SsaDestruction.Result ssaDestruction = new SsaDestruction(cfg).analyze();
+            ValueAllocator.Result allocation = new ValueAllocator(cfg, liveness, asyncSpills, ssaDestruction).allocate();
+            generator = new CfgAotClassGenerator(cfg, compiled, asyncSpills, ssaDestruction, allocation);
+            Class<?> aotClz = generator.loadAsClass();
             handle = MethodHandles.lookup().findConstructor(aotClz, METHOD_TYPE);
         } catch (Throwable e) {
-            String clzName = generator.getClzName();
+            String clzName = generator == null ? "unknown" : generator.getInternalClassName();
             log.error("error create aot VM: clz->{}", clzName, e);
             int fsp = clzName.lastIndexOf('/');
-            File file = new File(ERROR_PATH, clzName.substring(0, fsp));
+            File file = new File(ERROR_PATH, fsp < 0 ? "" : clzName.substring(0, fsp));
             try {
                 file.mkdirs();
                 File clzFile = new File(file, clzName.substring(fsp + 1) + ".class");
-                Files.write(clzFile.toPath(), generator.generateClzData());
+                if (generator != null) {
+                    Files.write(clzFile.toPath(), generator.generateClassData());
+                }
                 log.info("dumped class file:{}", clzFile.getAbsolutePath());
             } catch (IOException ex) {
                 log.warn("error write class data", ex);

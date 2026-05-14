@@ -191,6 +191,21 @@ abstract class ReflectInvoker implements DirectReflectInvoker {
         }
     }
 
+    static RuntimeException rethrow(Throwable e) {
+        if (e instanceof RuntimeException) {
+            throw (RuntimeException) e;
+        }
+        if (e instanceof Error) {
+            throw (Error) e;
+        }
+        return ReflectInvoker.<RuntimeException>sneakyThrow(e);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <E extends Throwable> RuntimeException sneakyThrow(Throwable e) throws E {
+        throw (E) e;
+    }
+
     private static MethodHandle bind(MethodHandle handle, Method method, Object owner) {
         if (Modifier.isStatic(method.getModifiers())) {
             return handle;

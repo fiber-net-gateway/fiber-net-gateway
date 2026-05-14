@@ -21,6 +21,8 @@ public interface Library {
         void returnVal(JsonNode value);
 
         void throwErr(ScriptExecException error);
+
+        void abort(Throwable error);
     }
 
     interface Constant {

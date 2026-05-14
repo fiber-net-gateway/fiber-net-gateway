@@ -3,9 +3,14 @@ package io.fiber.net.script.parse;
 import io.fiber.net.common.async.Maybe;
 import io.fiber.net.common.json.JsonNode;
 import io.fiber.net.common.json.NullNode;
+import io.fiber.net.script.aot.AsyncSpillAnalysis;
+import io.fiber.net.script.aot.Cfg;
+import io.fiber.net.script.aot.CfgAotClassGenerator;
+import io.fiber.net.script.aot.LivenessAnalysis;
+import io.fiber.net.script.aot.SsaDestruction;
+import io.fiber.net.script.aot.ValueAllocator;
 import io.fiber.net.script.ComparedMayBeObserver;
 import io.fiber.net.script.Script;
-import io.fiber.net.script.parse.ir.AotClassGenerator;
 import io.fiber.net.test.TestInIOThreadParent;
 import lua.test.MyLib;
 import org.junit.Assert;
@@ -142,9 +147,9 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
     }
 
     private static void generateFile(String name, Compiled compiled) throws Throwable {
-        AotClassGenerator generator = new AotClassGenerator(compiled);
-        byte[] bytes = generator.generateClzData();
-        String clzFile = generator.getGeneratedClzName();
+        CfgAotClassGenerator generator = buildGenerator(compiled);
+        byte[] bytes = generator.generateClassData();
+        String clzFile = generator.getInternalClassName();
         System.out.println(name + "->: " + clzFile.replace('/', '.'));
 
         int i = clzFile.lastIndexOf('/');
@@ -159,6 +164,15 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
         generateFile(name, interpreterScript.getCompiled());
         interpreterScript.createAotCompiledScript().exec(NullNode.getInstance(), null).subscribe(observer.getOb());
         interpreterScript.exec(NullNode.getInstance(), null).subscribe(observer.getOb());
+    }
+
+    private static CfgAotClassGenerator buildGenerator(Compiled compiled) {
+        Cfg cfg = new Cfg.Builder(compiled).build();
+        LivenessAnalysis.Result liveness = new LivenessAnalysis(cfg).analyze();
+        AsyncSpillAnalysis.Result asyncSpills = new AsyncSpillAnalysis(cfg, liveness).analyze();
+        SsaDestruction.Result ssaDestruction = new SsaDestruction(cfg).analyze();
+        ValueAllocator.Result allocation = new ValueAllocator(cfg, liveness, asyncSpills, ssaDestruction).allocate();
+        return new CfgAotClassGenerator(cfg, compiled, asyncSpills, ssaDestruction, allocation);
     }
 
 }

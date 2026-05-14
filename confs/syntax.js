@@ -1,5 +1,7 @@
 // 变量定义，函数调用。req 不是变量，readJson 不是方法。req.readJson 是一个函数。
 let jsonBody = req.readJson();
+// 字符串
+let des = `describe ... ${length(jsonBody)}`;
 // 对象
 let result = {
     jsonBody,
@@ -38,5 +40,6 @@ try {
     result.err = e;
     result.errorType = typeof e;
 }
+result.des = des;
 
 return result;

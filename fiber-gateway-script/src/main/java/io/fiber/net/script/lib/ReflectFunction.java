@@ -59,7 +59,7 @@ public class ReflectFunction extends ReflectInvoker implements Library.Function 
         } catch (ScriptExecException e) {
             throw e;
         } catch (Throwable e) {
-            throw ScriptExecException.fromThrowable(e);
+            throw rethrow(e);
         }
     }
 

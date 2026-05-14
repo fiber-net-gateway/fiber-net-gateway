@@ -346,7 +346,7 @@ public class CfgAotClassGenerator {
                 "run",
                 "()V",
                 null,
-                new String[]{SCRIPT_EXEC_NAME});
+                new String[]{THROWABLE_NAME});
         visitor.visitCode();
         if (cfg == null) {
             visitor.visitInsn(Opcodes.RETURN);
@@ -791,22 +791,9 @@ public class CfgAotClassGenerator {
         if (needsPreparedArgs(direct.directArgPlan(), spread)) {
             prepareArgs(context, spread, args);
         }
-        Label begin = new Label();
-        Label end = new Label();
-        Label handler = new Label();
-        Label done = new Label();
-        context.visitor.visitTryCatchBlock(begin, end, handler, THROWABLE_NAME);
-        context.visitor.visitLabel(begin);
         emitDirectInvocation(context, direct, args, spread);
-        context.visitor.visitLabel(end);
         emitNullNode(context.visitor);
         storeExprResult(context, call);
-        context.visitor.visitJumpInsn(Opcodes.GOTO, done);
-        context.visitor.visitLabel(handler);
-        context.visitor.visitVarInsn(Opcodes.ASTORE, context.exceptionLocal());
-        emitScriptExecFromThrowable(context.visitor, context.exceptionLocal());
-        context.visitor.visitInsn(Opcodes.ATHROW);
-        context.visitor.visitLabel(done);
     }
 
     private void emitDirectAsyncCall(CodegenContext context, Expr call, DirectReflectInvoker direct,
@@ -818,23 +805,8 @@ public class CfgAotClassGenerator {
         pushInt(context.visitor, AbstractVm.STAT_INVOKING);
         context.visitor.visitFieldInsn(Opcodes.PUTFIELD, SUPER_NAME, "state", "I");
 
-        Label begin = new Label();
-        Label end = new Label();
-        Label handler = new Label();
-        Label afterInvoke = new Label();
-        context.visitor.visitTryCatchBlock(begin, end, handler, THROWABLE_NAME);
-        context.visitor.visitLabel(begin);
         emitDirectInvocation(context, direct, args, spread);
-        context.visitor.visitLabel(end);
-        context.visitor.visitJumpInsn(Opcodes.GOTO, afterInvoke);
-        context.visitor.visitLabel(handler);
-        context.visitor.visitVarInsn(Opcodes.ASTORE, context.exceptionLocal());
-        context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
-        emitScriptExecFromThrowable(context.visitor, context.exceptionLocal());
-        context.visitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SUPER_NAME, "throwErr",
-                "(" + SCRIPT_EXEC_DESC + ")V", false);
 
-        context.visitor.visitLabel(afterInvoke);
         Label immediate = new Label();
         Label done = new Label();
         context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
@@ -849,7 +821,7 @@ public class CfgAotClassGenerator {
         context.visitor.visitFieldInsn(Opcodes.PUTFIELD, SUPER_NAME, "rtValue", JSON_NODE_DESC);
         context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
         context.visitor.visitInsn(Opcodes.ACONST_NULL);
-        context.visitor.visitFieldInsn(Opcodes.PUTFIELD, SUPER_NAME, "rtError", SCRIPT_EXEC_DESC);
+        context.visitor.visitFieldInsn(Opcodes.PUTFIELD, SUPER_NAME, "rtError", THROWABLE_DESC);
         context.visitor.visitInsn(Opcodes.ICONST_1);
         context.visitor.visitJumpInsn(Opcodes.GOTO, done);
         context.visitor.visitLabel(immediate);
@@ -964,15 +936,17 @@ public class CfgAotClassGenerator {
         context.visitor.visitInsn(Opcodes.RETURN);
 
         context.visitor.visitLabel(immediate);
+        emitReturnIfAbort(context.visitor);
         emitSetRunning(context.visitor);
         context.visitor.visitLabel(resume);
         context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
         context.visitor.visitInsn(Opcodes.ICONST_0);
         context.visitor.visitFieldInsn(Opcodes.PUTFIELD, internalClassName, ASYNC_STATE_FIELD, "I");
+        emitReturnIfAbort(context.visitor);
         emitSetRunning(context.visitor);
 
         context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
-        context.visitor.visitFieldInsn(Opcodes.GETFIELD, SUPER_NAME, "rtError", SCRIPT_EXEC_DESC);
+        context.visitor.visitFieldInsn(Opcodes.GETFIELD, SUPER_NAME, "rtError", THROWABLE_DESC);
         Label success = new Label();
         context.visitor.visitJumpInsn(Opcodes.IFNULL, success);
         emitThrowTransfer(context, asyncExpr.getBelongTo());
@@ -1139,7 +1113,7 @@ public class CfgAotClassGenerator {
         Edge edge = throwEdge(block);
         if (edge == null) {
             context.visitor.visitVarInsn(Opcodes.ALOAD, 0);
-            context.visitor.visitFieldInsn(Opcodes.GETFIELD, SUPER_NAME, "rtError", SCRIPT_EXEC_DESC);
+            context.visitor.visitFieldInsn(Opcodes.GETFIELD, SUPER_NAME, "rtError", THROWABLE_DESC);
             context.visitor.visitInsn(Opcodes.ATHROW);
             return;
         }
@@ -1294,10 +1268,20 @@ public class CfgAotClassGenerator {
         visitor.visitFieldInsn(Opcodes.PUTFIELD, SUPER_NAME, "state", "I");
     }
 
+    private static void emitReturnIfAbort(MethodVisitor visitor) {
+        Label notAbort = new Label();
+        visitor.visitVarInsn(Opcodes.ALOAD, 0);
+        visitor.visitFieldInsn(Opcodes.GETFIELD, SUPER_NAME, "state", "I");
+        pushInt(visitor, AbstractVm.STAT_ABORT);
+        visitor.visitJumpInsn(Opcodes.IF_ICMPNE, notAbort);
+        visitor.visitInsn(Opcodes.RETURN);
+        visitor.visitLabel(notAbort);
+    }
+
     private static void storeRtError(MethodVisitor visitor, int exceptionLocal) {
         visitor.visitVarInsn(Opcodes.ALOAD, 0);
         visitor.visitVarInsn(Opcodes.ALOAD, exceptionLocal);
-        visitor.visitFieldInsn(Opcodes.PUTFIELD, SUPER_NAME, "rtError", SCRIPT_EXEC_DESC);
+        visitor.visitFieldInsn(Opcodes.PUTFIELD, SUPER_NAME, "rtError", THROWABLE_DESC);
     }
 
     private static void newScriptExecException(MethodVisitor visitor, ConstantThrow.Template template) {
@@ -1308,12 +1292,6 @@ public class CfgAotClassGenerator {
         visitor.visitLdcInsn(template.errorName);
         visitor.visitMethodInsn(Opcodes.INVOKESPECIAL, SCRIPT_EXEC_NAME, "<init>",
                 "(Ljava/lang/String;ILjava/lang/String;)V", false);
-    }
-
-    private static void emitScriptExecFromThrowable(MethodVisitor visitor, int throwableLocal) {
-        visitor.visitVarInsn(Opcodes.ALOAD, throwableLocal);
-        visitor.visitMethodInsn(Opcodes.INVOKESTATIC, SCRIPT_EXEC_NAME, "fromThrowable",
-                "(" + THROWABLE_DESC + ")" + SCRIPT_EXEC_DESC, false);
     }
 
     private static void endSuccess(MethodVisitor visitor) {

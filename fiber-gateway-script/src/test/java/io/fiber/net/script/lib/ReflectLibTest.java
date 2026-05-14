@@ -50,26 +50,29 @@ public class ReflectLibTest {
     }
 
     @Test
-    public void shouldWrapDirectAotRuntimeExceptions() throws Throwable {
+    public void shouldAbortReflectRuntimeExceptions() throws Throwable {
         StdLibrary library = new StdLibrary();
         ReflectLib.register(library, new Exports(""));
 
-        try {
-            Script.aotCompileWithoutOptimization("return boom();", library, true)
-                    .execForSync(NullNode.getInstance(), null);
-            Assert.fail("expected sync script error");
-        } catch (ScriptExecException expected) {
-            Assert.assertTrue(expected.getMessage().contains("sync boom"));
-        }
+        assertSyncAbort(Script.compileWithoutOptimization("try { boom(); } catch(e) { return 'caught'; } return 'ok';", library, true),
+                "sync boom");
+        assertSyncAbort(Script.aotCompileWithoutOptimization("try { boom(); } catch(e) { return 'caught'; } return 'ok';", library, true),
+                "sync boom");
 
-        TestObserver observer = new TestObserver();
-        Script.aotCompileWithoutOptimization("return asyncBoom();", library, true)
-                .exec(NullNode.getInstance(), null)
-                .subscribe(observer);
+        assertAsyncAbort(Script.compileWithoutOptimization("return asyncBoom();", library, true),
+                "async boom");
+        assertAsyncAbort(Script.aotCompileWithoutOptimization("return asyncBoom();", library, true),
+                "async boom");
+    }
 
-        Assert.assertNull(observer.value);
-        Assert.assertTrue(observer.error instanceof ScriptExecException);
-        Assert.assertTrue(observer.error.getMessage().contains("async boom"));
+    @Test
+    public void shouldCatchReflectScriptExecExceptions() throws Throwable {
+        StdLibrary library = new StdLibrary();
+        ReflectLib.register(library, new Exports(""));
+
+        JsonNode value = exec("try { scriptBoom(); } catch(e) { return 1; } return 0;", library);
+
+        Assert.assertEquals(1, value.asInt());
     }
 
     @Test
@@ -142,6 +145,25 @@ public class ReflectLibTest {
         }
     }
 
+    private static void assertSyncAbort(Script script, String message) throws Throwable {
+        try {
+            script.execForSync(NullNode.getInstance(), null);
+            Assert.fail("expected aborted script");
+        } catch (ScriptExecException e) {
+            Assert.fail("runtime exception should not be converted to ScriptExecException");
+        } catch (IllegalStateException expected) {
+            Assert.assertTrue(expected.getMessage().contains(message));
+        }
+    }
+
+    private static void assertAsyncAbort(Script script, String message) {
+        TestObserver observer = new TestObserver();
+        script.exec(NullNode.getInstance(), null).subscribe(observer);
+        Assert.assertNull(observer.value);
+        Assert.assertTrue(observer.error instanceof IllegalStateException);
+        Assert.assertTrue(observer.error.getMessage().contains(message));
+    }
+
     @ScriptLib(namespace = "$test")
     public static class Exports {
         private final String prefix;
@@ -174,6 +196,11 @@ public class ReflectLibTest {
         @ScriptFunction(name = "boom")
         public JsonNode boom() {
             throw new IllegalStateException("sync boom");
+        }
+
+        @ScriptFunction(name = "scriptBoom")
+        public JsonNode scriptBoom() throws ScriptExecException {
+            throw new ScriptExecException("script boom");
         }
 
         @ScriptFunction(name = "asyncBoom")

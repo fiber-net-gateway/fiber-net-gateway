@@ -1,6 +1,6 @@
 package io.fiber.net.script.aot;
 
-public class ExpandArr extends Instruction {
+public class ExpandArr extends Expr {
 
     SsaValue target;
     SsaValue addition;
@@ -11,6 +11,11 @@ public class ExpandArr extends Instruction {
         this.addition = addition;
         target.addUsed(this);
         addition.addUsed(this);
+    }
+
+    @Override
+    public SsaValue.Type getResultType() {
+        return target.getType();
     }
 
     public SsaValue getTarget() {

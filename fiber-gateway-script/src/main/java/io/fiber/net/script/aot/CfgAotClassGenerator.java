@@ -527,7 +527,7 @@ public class CfgAotClassGenerator {
             loadValue(context, expandObj.getAddition());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "expandObject",
                     "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
-            context.visitor.visitInsn(Opcodes.POP);
+            storeExprResult(context, expandObj);
             return;
         }
         if (instruction instanceof ExpandArr) {
@@ -536,7 +536,7 @@ public class CfgAotClassGenerator {
             loadValue(context, expandArr.getAddition());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "expandArray",
                     "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
-            context.visitor.visitInsn(Opcodes.POP);
+            storeExprResult(context, expandArr);
             return;
         }
         if (instruction instanceof PushArr) {
@@ -545,7 +545,7 @@ public class CfgAotClassGenerator {
             loadValue(context, pushArr.getAddition());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "pushArray",
                     "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
-            context.visitor.visitInsn(Opcodes.POP);
+            storeExprResult(context, pushArr);
             return;
         }
         if (instruction instanceof CallConst) {
@@ -838,6 +838,48 @@ public class CfgAotClassGenerator {
             context.visitor.visitLdcInsn(propGet.getKey());
             context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "propGet",
                     "(" + JSON_NODE_DESC + "Ljava/lang/String;)" + JSON_NODE_DESC, false);
+            return;
+        }
+        if (expr instanceof IndexSet1) {
+            IndexSet1 indexSet = (IndexSet1) expr;
+            loadValue(context, indexSet.getOwner());
+            loadValue(context, indexSet.getKey());
+            loadValue(context, indexSet.getAlien());
+            context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "indexSet1",
+                    "(" + JSON_NODE_DESC + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
+            return;
+        }
+        if (expr instanceof PropSet1) {
+            PropSet1 propSet = (PropSet1) expr;
+            loadValue(context, propSet.getOwner());
+            loadValue(context, propSet.getAlien());
+            context.visitor.visitLdcInsn(propSet.getKey());
+            context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "propSet1",
+                    "(" + JSON_NODE_DESC + JSON_NODE_DESC + "Ljava/lang/String;)" + JSON_NODE_DESC, false);
+            return;
+        }
+        if (expr instanceof ExpandObj) {
+            ExpandObj expandObj = (ExpandObj) expr;
+            loadValue(context, expandObj.getTarget());
+            loadValue(context, expandObj.getAddition());
+            context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "expandObject",
+                    "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
+            return;
+        }
+        if (expr instanceof ExpandArr) {
+            ExpandArr expandArr = (ExpandArr) expr;
+            loadValue(context, expandArr.getTarget());
+            loadValue(context, expandArr.getAddition());
+            context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "expandArray",
+                    "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
+            return;
+        }
+        if (expr instanceof PushArr) {
+            PushArr pushArr = (PushArr) expr;
+            loadValue(context, pushArr.getTarget());
+            loadValue(context, pushArr.getAddition());
+            context.visitor.visitMethodInsn(Opcodes.INVOKESTATIC, ACCESS_NAME, "pushArray",
+                    "(" + JSON_NODE_DESC + JSON_NODE_DESC + ")" + JSON_NODE_DESC, false);
             return;
         }
         throw new IllegalStateException("[bug] unsupported stack expr " + expr.getClass().getName());

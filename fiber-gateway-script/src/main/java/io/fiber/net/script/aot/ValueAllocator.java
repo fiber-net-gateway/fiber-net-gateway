@@ -120,7 +120,12 @@ public class ValueAllocator {
                 || instruction instanceof Binary
                 || instruction instanceof Unary
                 || instruction instanceof IndexGet
-                || instruction instanceof PropGet);
+                || instruction instanceof PropGet
+                || instruction instanceof IndexSet1
+                || instruction instanceof PropSet1
+                || instruction instanceof ExpandObj
+                || instruction instanceof ExpandArr
+                || instruction instanceof PushArr);
     }
 
     private List<SsaValue> collectValues() {

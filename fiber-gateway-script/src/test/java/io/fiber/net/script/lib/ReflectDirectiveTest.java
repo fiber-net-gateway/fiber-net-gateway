@@ -36,6 +36,13 @@ public class ReflectDirectiveTest {
     }
 
     @Test
+    public void shouldDistinguishDirectiveMissingFunctionFromArgumentMismatch() {
+        assertCompileError("directive c = calc 'p-';\nreturn c.missing(1);", "could not be found");
+        assertCompileError("directive c = calc 'p-';\nreturn c.argc();",
+                "directive function argument mismatch: c.argc, candidates: c.argc(arg0,arg1=2)");
+    }
+
+    @Test
     public void shouldRejectStaticDirectiveFunction() {
         try {
             ReflectDirective.of(new StaticDirective());
@@ -64,6 +71,15 @@ public class ReflectDirectiveTest {
         JsonNode aotValue = aot.execForSync(root, null);
         Assert.assertEquals(interpreterValue, aotValue);
         return interpreterValue;
+    }
+
+    private static void assertCompileError(String source, String message) {
+        try {
+            Script.compileWithoutOptimization(source, new DirectiveLibrary(), true);
+            Assert.fail("expected compile error");
+        } catch (RuntimeException expected) {
+            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(message));
+        }
     }
 
     private static class DirectiveLibrary extends StdLibrary {

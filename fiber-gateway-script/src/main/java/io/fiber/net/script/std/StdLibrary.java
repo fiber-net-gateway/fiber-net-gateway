@@ -121,7 +121,22 @@ public class StdLibrary implements Library {
                 matched = func;
             }
         }
+        if (matched == null) {
+            throw new IllegalStateException("function argument mismatch: " + name
+                    + ", candidates: " + displaySignatures(funcs));
+        }
         return matched;
+    }
+
+    private static String displaySignatures(List<ResolvedFunc> funcs) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < funcs.size(); i++) {
+            if (i > 0) {
+                sb.append(" / ");
+            }
+            sb.append(funcs.get(i).getSignature().display());
+        }
+        return sb.toString();
     }
 
     @Override

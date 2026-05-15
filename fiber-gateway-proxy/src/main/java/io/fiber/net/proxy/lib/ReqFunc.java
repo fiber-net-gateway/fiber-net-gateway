@@ -7,7 +7,6 @@ import io.fiber.net.script.Library;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.lib.ScriptFunction;
 import io.fiber.net.script.lib.ScriptLib;
-import io.fiber.net.script.lib.ScriptParam;
 import io.fiber.net.server.HttpExchange;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufUtil;
@@ -96,7 +95,7 @@ public class ReqFunc {
     }
 
     @ScriptFunction(name = "getHeader", constExpr = false)
-    public static JsonNode getHeader(ExecutionContext context, @ScriptParam("name") JsonNode name) {
+    public static JsonNode getHeader(ExecutionContext context, JsonNode name) {
         String texted = name.textValue();
         if (StringUtils.isEmpty(texted)) {
             return NullNode.getInstance();
@@ -114,7 +113,7 @@ public class ReqFunc {
     }
 
     @ScriptFunction(name = "getQuery", constExpr = false)
-    public static JsonNode getQuery(ExecutionContext context, @ScriptParam("name") JsonNode name) {
+    public static JsonNode getQuery(ExecutionContext context, JsonNode name) {
         String texted = name.textValue();
         if (StringUtils.isEmpty(texted)) {
             return null;
@@ -221,7 +220,7 @@ public class ReqFunc {
     }
 
     @ScriptFunction(name = "getCookie", constExpr = false)
-    public static JsonNode getCookie(ExecutionContext context, @ScriptParam("name") JsonNode name) {
+    public static JsonNode getCookie(ExecutionContext context, JsonNode name) {
         return getOrCreateCtx(context).getCookies().path(name.asText());
     }
 }

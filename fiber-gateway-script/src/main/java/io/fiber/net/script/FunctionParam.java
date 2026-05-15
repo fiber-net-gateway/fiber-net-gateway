@@ -1,14 +1,15 @@
 package io.fiber.net.script;
 
 import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.ValueNode;
 
 public final class FunctionParam {
     private final String name;
-    private final JsonNode defaultValue;
+    private final ValueNode defaultValue;
     private final boolean hasDefault;
     private final boolean variadic;
 
-    private FunctionParam(String name, JsonNode defaultValue, boolean hasDefault, boolean variadic) {
+    private FunctionParam(String name, ValueNode defaultValue, boolean hasDefault, boolean variadic) {
         this.name = name;
         this.defaultValue = defaultValue;
         this.hasDefault = hasDefault;
@@ -22,7 +23,7 @@ public final class FunctionParam {
         return new FunctionParam(name, null, false, false);
     }
 
-    public static FunctionParam optional(String name, JsonNode defaultValue) {
+    public static FunctionParam optional(String name, ValueNode defaultValue) {
         return new FunctionParam(name, defaultValue, true, false);
     }
 
@@ -38,7 +39,7 @@ public final class FunctionParam {
         return name;
     }
 
-    public JsonNode getDefaultValue() {
+    public ValueNode getDefaultValue() {
         return defaultValue;
     }
 

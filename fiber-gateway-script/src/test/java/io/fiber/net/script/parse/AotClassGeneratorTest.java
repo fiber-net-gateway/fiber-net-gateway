@@ -20,6 +20,11 @@ import java.io.File;
 import java.nio.file.Files;
 
 public class AotClassGeneratorTest extends TestInIOThreadParent {
+    @Test
+    public void t2() throws Throwable {
+        testScript("/p.js");
+    }
+
 
     @Test
     public void vv() throws Throwable {
@@ -71,6 +76,7 @@ public class AotClassGeneratorTest extends TestInIOThreadParent {
     public void bb() throws Throwable {
         testScript("/a.js");
     }
+
     @Test
     public void b3b() throws Throwable {
         testScript("/cd.js");

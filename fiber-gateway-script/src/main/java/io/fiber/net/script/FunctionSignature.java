@@ -1,6 +1,7 @@
 package io.fiber.net.script;
 
 import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.ValueNode;
 
 import java.util.Arrays;
 
@@ -84,7 +85,7 @@ public final class FunctionSignature {
         return requiredCount <= otherMax && other.requiredCount <= max;
     }
 
-    public JsonNode getDefaultValue(int idx) {
+    public ValueNode getDefaultValue(int idx) {
         if (idx >= 0 && idx < fixedCount) {
             FunctionParam param = params[idx];
             if (param.hasDefault()) {

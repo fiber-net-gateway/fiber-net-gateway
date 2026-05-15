@@ -35,7 +35,6 @@ public class InterpreterVm extends AbstractVm {
     }
 
     private void setArgsForCtx(ArrayNode args) {
-        sp--;
         spreadArgs = args;
     }
 
@@ -269,8 +268,8 @@ public class InterpreterVm extends AbstractVm {
                         }
                         case Code.CALL_FUNC_SPREAD: {
                             Library.Function function = (Library.Function) extVal[i >>> 8];
-                            setArgsForCtx((ArrayNode) stack[sp - 1]);
-                            stack[sp - 1] = nullNode(function.call(this, this));
+                            setArgsForCtx((ArrayNode) stack[sp]);
+                            stack[sp] = nullNode(function.call(this, this));
                             setArgsForCtx(null);
                             break;
                         }

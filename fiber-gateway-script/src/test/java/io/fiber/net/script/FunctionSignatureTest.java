@@ -33,6 +33,14 @@ public class FunctionSignatureTest {
     }
 
     @Test
+    public void shouldDistinguishMissingFunctionFromArgumentMismatch() {
+        StdLibrary library = testLibrary();
+
+        assertMessage("return missingFunc(1);", library, "could not be found");
+        assertMessage("return def();", library, "function argument mismatch: def, candidates: def(a,b=7,c=\"x\")");
+    }
+
+    @Test
     public void shouldRejectUnsupportedDefaultLiteral() {
         try {
             FunctionParam.optional("bad", MissingNode.getInstance());
@@ -56,8 +64,17 @@ public class FunctionSignatureTest {
         try {
             Script.compileWithoutOptimization(script, library, true);
             Assert.fail("expected function argument mismatch");
-        } catch (ParseException expected) {
+        } catch (RuntimeException expected) {
             // expected
+        }
+    }
+
+    private static void assertMessage(String script, Library library, String message) {
+        try {
+            Script.compileWithoutOptimization(script, library, true);
+            Assert.fail("expected compile error");
+        } catch (RuntimeException expected) {
+            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(message));
         }
     }
 

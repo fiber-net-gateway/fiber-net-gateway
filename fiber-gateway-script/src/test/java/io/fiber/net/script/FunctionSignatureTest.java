@@ -1,9 +1,6 @@
 package io.fiber.net.script;
 
-import io.fiber.net.common.json.IntNode;
-import io.fiber.net.common.json.JsonNode;
-import io.fiber.net.common.json.NullNode;
-import io.fiber.net.common.json.TextNode;
+import io.fiber.net.common.json.*;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.script.parse.ParseException;
 import io.fiber.net.script.std.StdLibrary;
@@ -38,7 +35,7 @@ public class FunctionSignatureTest {
     @Test
     public void shouldRejectUnsupportedDefaultLiteral() {
         try {
-            FunctionParam.optional("bad", JsonUtil.createObjectNode());
+            FunctionParam.optional("bad", MissingNode.getInstance());
             Assert.fail("expected illegal default value");
         } catch (IllegalArgumentException expected) {
             // expected

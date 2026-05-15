@@ -1,6 +1,7 @@
 package io.fiber.net.script.lib;
 
 import io.fiber.net.common.json.JsonNode;
+import io.fiber.net.common.json.ValueNode;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.script.*;
 import io.fiber.net.script.run.AbstractVm;
@@ -167,12 +168,19 @@ abstract class ReflectInvoker implements DirectReflectInvoker {
         return FunctionParam.required(param.value());
     }
 
-    static JsonNode defaultValue(ScriptParam param) {
+    static ValueNode defaultValue(ScriptParam param) {
+        JsonNode jsonNode;
         try {
-            return JsonUtil.readTree(param.defaultValue());
+            jsonNode = JsonUtil.readTree(param.defaultValue());
         } catch (IOException e) {
             throw new IllegalArgumentException("bad default value: " + param.value(), e);
         }
+
+        if (jsonNode instanceof ValueNode) {
+            return (ValueNode) jsonNode;
+        }
+        throw new IllegalArgumentException("default Value must be value type in " + param.value() + ": " + param.defaultValue());
+
     }
 
     static IllegalArgumentException invalid(Method method, String msg) {

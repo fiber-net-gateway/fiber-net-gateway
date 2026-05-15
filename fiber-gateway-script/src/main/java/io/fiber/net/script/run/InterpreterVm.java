@@ -268,8 +268,9 @@ public class InterpreterVm extends AbstractVm {
                         }
                         case Code.CALL_FUNC_SPREAD: {
                             Library.Function function = (Library.Function) extVal[i >>> 8];
+                            sp--;
                             setArgsForCtx((ArrayNode) stack[sp]);
-                            stack[sp] = nullNode(function.call(this, this));
+                            stack[sp++] = nullNode(function.call(this, this));
                             setArgsForCtx(null);
                             break;
                         }

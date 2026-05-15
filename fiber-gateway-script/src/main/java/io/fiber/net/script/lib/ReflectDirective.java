@@ -95,7 +95,7 @@ public final class ReflectDirective implements Library.DirectiveDef {
                 if (Modifier.isStatic(method.getModifiers())) {
                     throw ReflectInvoker.invalid(method, "directive function cannot be static");
                 }
-                String name = function.name();
+                String name = ReflectFunction.functionName(method, function);
                 if (!FUNCTION_NAME.matcher(name).matches()) {
                     throw ReflectInvoker.invalid(method, "invalid directive function name: " + name);
                 }

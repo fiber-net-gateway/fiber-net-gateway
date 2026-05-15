@@ -5,7 +5,6 @@ import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.lib.ScriptFunction;
 import io.fiber.net.script.lib.ScriptLib;
-import io.fiber.net.script.lib.ScriptParam;
 
 @ScriptLib(functionPrefix = "JSON")
 public final class JsonFunc {
@@ -13,7 +12,7 @@ public final class JsonFunc {
     }
 
     @ScriptFunction(name = "parse")
-    public static JsonNode parse(@ScriptParam("text") JsonNode arg) throws ScriptExecException {
+    public static JsonNode parse(JsonNode arg) throws ScriptExecException {
         if (!arg.isTextual()) {
             throw new ScriptExecException("parseJson not support " + arg.getNodeType());
         }
@@ -25,7 +24,7 @@ public final class JsonFunc {
     }
 
     @ScriptFunction(name = "stringify")
-    public static JsonNode stringify(@ScriptParam("value") JsonNode value) throws ScriptExecException {
+    public static JsonNode stringify(JsonNode value) throws ScriptExecException {
         try {
             return JsonUtil.createTextNode(JsonUtil.MAPPER.writeValueAsString(value));
         } catch (Exception e) {

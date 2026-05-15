@@ -9,7 +9,6 @@ import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.lib.ScriptFunction;
 import io.fiber.net.script.lib.ScriptLib;
-import io.fiber.net.script.lib.ScriptParam;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -21,7 +20,7 @@ public final class BinaryFunc {
     }
 
     @ScriptFunction(name = "base64Encode")
-    public static JsonNode base64Encode(@ScriptParam("value") JsonNode arg) {
+    public static JsonNode base64Encode(JsonNode arg) {
         if (!arg.isBinary()) {
             return MissingNode.getInstance();
         }
@@ -33,7 +32,7 @@ public final class BinaryFunc {
     }
 
     @ScriptFunction(name = "base64Decode")
-    public static JsonNode base64Decode(@ScriptParam("value") JsonNode arg) {
+    public static JsonNode base64Decode(JsonNode arg) {
         if (!arg.isTextual()) {
             return MissingNode.getInstance();
         }
@@ -41,7 +40,7 @@ public final class BinaryFunc {
     }
 
     @ScriptFunction(name = "hex")
-    public static JsonNode hex(@ScriptParam("value") JsonNode arg) throws ScriptExecException {
+    public static JsonNode hex(JsonNode arg) throws ScriptExecException {
         if (!arg.isBinary()) {
             throw new ScriptExecException(arg.getNodeType() + " is not support hex");
         }
@@ -53,7 +52,7 @@ public final class BinaryFunc {
     }
 
     @ScriptFunction(name = "fromHex")
-    public static JsonNode fromHex(@ScriptParam("value") JsonNode arg) throws ScriptExecException {
+    public static JsonNode fromHex(JsonNode arg) throws ScriptExecException {
         if (!arg.isTextual()) {
             throw new ScriptExecException(arg.getNodeType() + " is not support hex");
         }
@@ -61,7 +60,7 @@ public final class BinaryFunc {
     }
 
     @ScriptFunction(name = "getUtf8Bytes")
-    public static JsonNode getUtf8Bytes(@ScriptParam("value") JsonNode arg) {
+    public static JsonNode getUtf8Bytes(JsonNode arg) {
         return BinaryNode.valueOf(JsonUtil.toString(arg).getBytes(StandardCharsets.UTF_8));
     }
 }

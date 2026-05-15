@@ -7,7 +7,6 @@ import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.lib.ScriptFunction;
 import io.fiber.net.script.lib.ScriptLib;
-import io.fiber.net.script.lib.ScriptParam;
 
 import java.util.Iterator;
 
@@ -17,9 +16,9 @@ public final class ObjectsFuncs {
     }
 
     @ScriptFunction(name = "assign")
-    public static JsonNode assign(@ScriptParam("target") JsonNode target,
-                                  @ScriptParam("source") JsonNode source,
-                                  @ScriptParam(value = "sources", variadic = true) JsonNode... sources)
+    public static JsonNode assign(JsonNode target,
+                                  JsonNode source,
+                                  JsonNode... sources)
             throws ScriptExecException {
         ObjectNode t = firstObj(target);
         copyObject(t, source);
@@ -30,7 +29,7 @@ public final class ObjectsFuncs {
     }
 
     @ScriptFunction(name = "keys")
-    public static JsonNode keys(@ScriptParam("obj") JsonNode obj) throws ScriptExecException {
+    public static JsonNode keys(JsonNode obj) throws ScriptExecException {
         ObjectNode t = firstObj(obj);
         ArrayNode arrayNode = JsonUtil.createArrayNode(t.size());
         for (Iterator<String> ks = t.fieldNames(); ks.hasNext(); ) {
@@ -40,7 +39,7 @@ public final class ObjectsFuncs {
     }
 
     @ScriptFunction(name = "values")
-    public static JsonNode values(@ScriptParam("obj") JsonNode obj) throws ScriptExecException {
+    public static JsonNode values(JsonNode obj) throws ScriptExecException {
         ObjectNode t = firstObj(obj);
         ArrayNode arrayNode = JsonUtil.createArrayNode(t.size());
         for (JsonNode jsonNode : t) {
@@ -50,9 +49,9 @@ public final class ObjectsFuncs {
     }
 
     @ScriptFunction(name = "deleteProperties")
-    public static JsonNode deleteProperties(@ScriptParam("obj") JsonNode obj,
-                                            @ScriptParam("key") JsonNode key,
-                                            @ScriptParam(value = "keys", variadic = true) JsonNode... keys)
+    public static JsonNode deleteProperties(JsonNode obj,
+                                            JsonNode key,
+                                            JsonNode... keys)
             throws ScriptExecException {
         ObjectNode target = firstObj(obj);
         remove(target, key);

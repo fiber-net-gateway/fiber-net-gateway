@@ -10,7 +10,6 @@ import io.fiber.net.common.json.ShortNode;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.lib.ScriptFunction;
 import io.fiber.net.script.lib.ScriptLib;
-import io.fiber.net.script.lib.ScriptParam;
 
 @ScriptLib(functionPrefix = "math")
 public final class MathFuncs {
@@ -18,7 +17,7 @@ public final class MathFuncs {
     }
 
     @ScriptFunction(name = "floor")
-    public static JsonNode floor(@ScriptParam("value") JsonNode value) throws ScriptExecException {
+    public static JsonNode floor(JsonNode value) throws ScriptExecException {
         NumericNode numNode = assertNumNode(value);
         if (numNode.isIntegralNumber()) {
             return numNode;
@@ -36,7 +35,7 @@ public final class MathFuncs {
     }
 
     @ScriptFunction(name = "abs")
-    public static JsonNode abs(@ScriptParam("value") JsonNode value) throws ScriptExecException {
+    public static JsonNode abs(JsonNode value) throws ScriptExecException {
         NumericNode numNode = assertNumNode(value);
         if (numNode.isInt()) {
             return IntNode.valueOf(Math.abs(numNode.intValue()));

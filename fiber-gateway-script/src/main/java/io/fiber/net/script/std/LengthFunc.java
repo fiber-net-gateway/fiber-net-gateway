@@ -12,10 +12,8 @@ public final class LengthFunc {
     private LengthFunc() {
     }
 
-    @ScriptFunction(name = "length", params = {
-            @ScriptParam(value = "value", optional = true, defaultValue = "null")
-    })
-    public static JsonNode length(JsonNode val) {
+    @ScriptFunction(name = "length")
+    public static JsonNode length(@ScriptParam(defaultValue = "null") JsonNode val) {
         if (JsonUtil.isNull(val)) {
             return IntNode.valueOf(0);
         }

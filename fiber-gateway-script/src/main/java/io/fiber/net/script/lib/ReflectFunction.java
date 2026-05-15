@@ -19,7 +19,7 @@ public class ReflectFunction extends ReflectInvoker implements Library.Function 
     }
 
     ReflectFunction(Method method, Object owner, ScriptFunction function) {
-        this(method, owner, function, function == null ? null : function.name());
+        this(method, owner, function, function == null ? null : functionName(method, function));
     }
 
     ReflectFunction(Method method, Object owner, ScriptFunction function, String name) {
@@ -79,7 +79,7 @@ public class ReflectFunction extends ReflectInvoker implements Library.Function 
     }
 
     static FunctionSignature functionSignature(Method method, ScriptFunction function, boolean constExpr) {
-        return functionSignature(method, function, constExpr, function.name());
+        return functionSignature(method, function, constExpr, functionName(method, function));
     }
 
     static FunctionSignature functionSignature(Method method, ScriptFunction function, boolean constExpr, String name) {
@@ -101,14 +101,18 @@ public class ReflectFunction extends ReflectInvoker implements Library.Function 
         int out = 0;
         for (int i = layout.firstScriptArg; i < method.getParameterTypes().length; i++) {
             Class<?> type = method.getParameterTypes()[i];
-            ScriptParam param = findParam(annotations[i], method);
+            ScriptParam param = findParam(annotations[i]);
             if (type == JsonNode.class) {
-                if (param.variadic()) {
+                if (param != null && param.variadic()) {
                     throw invalid(method, "JsonNode parameter cannot be variadic");
                 }
-                params[out++] = toParam(param);
+                params[out] = param == null ? requiredParam(out) : toParam(param, out);
+                out++;
             } else {
-                params[out++] = FunctionParam.variadic(param.value());
+                if (param != null && param.defaultValue().length() != 0) {
+                    throw invalid(method, "JsonNode[] cannot have default value");
+                }
+                params[out++] = variadicParam();
             }
         }
         return new FunctionSignature(name, constExpr, params);
@@ -191,13 +195,18 @@ public class ReflectFunction extends ReflectInvoker implements Library.Function 
         return new FuncLayout(firstScriptArg, paramCount, arguments);
     }
 
-    private static ScriptParam findParam(Annotation[] annotations, Method method) {
+    static String functionName(Method method, ScriptFunction function) {
+        String name = function.name();
+        return name.length() == 0 ? method.getName() : name;
+    }
+
+    private static ScriptParam findParam(Annotation[] annotations) {
         for (Annotation annotation : annotations) {
             if (annotation instanceof ScriptParam) {
                 return (ScriptParam) annotation;
             }
         }
-        throw invalid(method, "JsonNode parameter requires ScriptParam");
+        return null;
     }
 
     private static void validateDeclaredParams(Method method, FuncLayout layout, ScriptParam[] declared) {

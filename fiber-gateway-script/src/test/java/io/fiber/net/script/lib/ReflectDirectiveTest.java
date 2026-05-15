@@ -85,22 +85,22 @@ public class ReflectDirectiveTest {
             this.prefix = prefix;
         }
 
-        @ScriptFunction(name = "join")
-        public JsonNode join(@ScriptParam("a") JsonNode a,
-                             @ScriptParam("b") JsonNode b) {
+        @ScriptFunction
+        public JsonNode join(JsonNode a,
+                             JsonNode b) {
             return TextNode.valueOf(prefix + a.asText() + b.asText());
         }
 
         @ScriptFunction(name = "argc", params = {
-                @ScriptParam("a"),
-                @ScriptParam(value = "b", optional = true, defaultValue = "2")
+                @ScriptParam,
+                @ScriptParam(defaultValue = "2")
         })
         public JsonNode argc(Library.Arguments args) {
             return IntNode.valueOf(args.getArgCnt() + args.getArgVal(1).asInt());
         }
 
-        @ScriptFunction(name = "sum")
-        public JsonNode sum(@ScriptParam("values") JsonNode... values) {
+        @ScriptFunction
+        public JsonNode sum(JsonNode... values) {
             int sum = 0;
             for (JsonNode value : values) {
                 sum += value.asInt();
@@ -108,10 +108,10 @@ public class ReflectDirectiveTest {
             return IntNode.valueOf(sum);
         }
 
-        @ScriptFunction(name = "asyncAdd")
+        @ScriptFunction
         public void asyncAdd(Library.AsyncHandle handle,
-                             @ScriptParam("a") JsonNode a,
-                             @ScriptParam("b") JsonNode b) {
+                             JsonNode a,
+                             JsonNode b) {
             handle.returnVal(IntNode.valueOf(a.asInt() + b.asInt()));
         }
     }

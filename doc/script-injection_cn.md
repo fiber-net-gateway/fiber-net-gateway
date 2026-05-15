@@ -77,9 +77,8 @@ lib.putAsyncFunc("sleep",
 ```java
 @ScriptLib(functionPrefix = "util", namespace = "$env")
 public final class EnvExports {
-    @ScriptFunction(name = "join")
-    public static JsonNode join(@ScriptParam("a") JsonNode a,
-                                @ScriptParam(value = "items", variadic = true) JsonNode... items) {
+    @ScriptFunction
+    public static JsonNode join(JsonNode a, JsonNode... items) {
         StringBuilder sb = new StringBuilder(a.asText());
         for (JsonNode item : items) {
             sb.append(item.asText());
@@ -87,17 +86,16 @@ public final class EnvExports {
         return TextNode.valueOf(sb.toString());
     }
 
-    @ScriptFunction(name = "timeout", constExpr = false, params = {
-            @ScriptParam("route"),
-            @ScriptParam(value = "fallback", optional = true, defaultValue = "3000")
+    @ScriptFunction(constExpr = false, params = {
+            @ScriptParam,
+            @ScriptParam(defaultValue = "3000")
     })
     public static JsonNode timeout(Library.Arguments args) {
         return args.getArgVal(1);
     }
 
-    @ScriptFunction(name = "asyncEcho")
-    public static void asyncEcho(Library.AsyncHandle handle,
-                                 @ScriptParam("value") JsonNode value) {
+    @ScriptFunction
+    public static void asyncEcho(Library.AsyncHandle handle, JsonNode value) {
         handle.returnVal(value);
     }
 
@@ -116,9 +114,9 @@ ReflectLib.registerStatic(lib, EnvExports.class);
 - 函数所在类和方法必须是 `public`；静态注册只能注册 static 方法，实例注册需要传入 owner。
 - 同步函数返回 `JsonNode`；异步函数返回 `void`，并在参数列表中声明 `Library.AsyncHandle`。
 - 方法参数顺序必须是 `ExecutionContext`、`Library.AsyncHandle`、脚本参数。`ExecutionContext` 和 `AsyncHandle` 都是可选的，但如果出现，必须在所有脚本参数之前。
-- 脚本参数可以是带 `@ScriptParam` 的 `JsonNode`、最后一个 `JsonNode[]` 可变参数，或者唯一且最后一个 `Library.Arguments`。
+- 普通必填 `JsonNode` 脚本参数不需要 `@ScriptParam`；带默认值的参数使用 `@ScriptParam(defaultValue = "...")`。
 - `Library.Arguments` 形式需要在 `@ScriptFunction(params = {...})` 上显式声明签名，否则会被视为 `(...args)`。
-- `@ScriptParam(optional = true, defaultValue = "...")` 声明默认值；`@ScriptParam(variadic = true)` 只能用于最后一个 `JsonNode[]`。
+- `JsonNode...` 或 `JsonNode[]` 会被识别为最后一个可变参数。
 - `@ScriptLib(functionPrefix = "util")` 会把 `join` 注册为 `util.join`；`@ScriptLib(namespace = "$env")` 为常量提供默认命名空间。
 
 ## 示例

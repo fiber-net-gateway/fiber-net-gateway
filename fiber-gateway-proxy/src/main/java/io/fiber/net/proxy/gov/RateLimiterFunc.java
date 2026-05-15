@@ -76,14 +76,14 @@ public class RateLimiterFunc {
     }
 
     @ScriptFunction(name = "acquire", constExpr = false, params = {
-            @ScriptParam(value = "timeoutMs", optional = true, defaultValue = "0")
+            @ScriptParam(defaultValue = "0")
     })
     public void acquire(Library.AsyncHandle handle, JsonNode timeoutMs) {
         acquire(timeoutMs.asLong(0L), handle, false);
     }
 
     @ScriptFunction(name = "mustAcquire", constExpr = false, params = {
-            @ScriptParam(value = "timeoutMs", optional = true, defaultValue = "0")
+            @ScriptParam(defaultValue = "0")
     })
     public void mustAcquire(Library.AsyncHandle handle, JsonNode timeoutMs) {
         acquire(timeoutMs.asLong(0L), handle, true);

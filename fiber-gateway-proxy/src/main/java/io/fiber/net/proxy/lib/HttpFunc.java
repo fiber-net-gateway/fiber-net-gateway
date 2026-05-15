@@ -40,7 +40,7 @@ public class HttpFunc {
     }
 
     @ScriptFunction(name = "request", constExpr = false, params = {
-            @ScriptParam(value = "options", optional = true, defaultValue = "null")
+            @ScriptParam(defaultValue = "null")
     })
     public void request(ExecutionContext context, Library.AsyncHandle handle, JsonNode param) {
         ClientExchange exchange = httpClient.refer(httpHost);
@@ -251,7 +251,7 @@ public class HttpFunc {
     }
 
     @ScriptFunction(name = "proxyPass", constExpr = false, params = {
-            @ScriptParam(value = "options", optional = true, defaultValue = "null")
+            @ScriptParam(defaultValue = "null")
     })
     public void proxyPass(ExecutionContext context, Library.AsyncHandle handle, JsonNode param) {
         HttpExchange httpExchange = HttpDynamicFunc.httpExchange(context);

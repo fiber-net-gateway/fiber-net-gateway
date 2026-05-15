@@ -9,7 +9,6 @@ import io.fiber.net.script.ExecutionContext;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.lib.ScriptFunction;
 import io.fiber.net.script.lib.ScriptLib;
-import io.fiber.net.script.lib.ScriptParam;
 import io.fiber.net.server.HttpExchange;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -25,8 +24,8 @@ import java.nio.charset.StandardCharsets;
 public class RespFunc {
     @ScriptFunction(name = "setHeader", constExpr = false)
     public static JsonNode setHeader(ExecutionContext context,
-                                     @ScriptParam("name") JsonNode name,
-                                     @ScriptParam("value") JsonNode value)
+                                     JsonNode name,
+                                     JsonNode value)
             throws ScriptExecException {
         String nameText = name.textValue();
         String valueText = value.asText();
@@ -39,8 +38,8 @@ public class RespFunc {
 
     @ScriptFunction(name = "addHeader", constExpr = false)
     public static JsonNode addHeader(ExecutionContext context,
-                                     @ScriptParam("name") JsonNode name,
-                                     @ScriptParam("value") JsonNode value)
+                                     JsonNode name,
+                                     JsonNode value)
             throws ScriptExecException {
         String nameText = name.textValue();
         String valueText = value.asText();
@@ -53,8 +52,8 @@ public class RespFunc {
 
     @ScriptFunction(name = "sendJson", constExpr = false)
     public static JsonNode sendJson(ExecutionContext context,
-                                    @ScriptParam("status") JsonNode status,
-                                    @ScriptParam("body") JsonNode body)
+                                    JsonNode status,
+                                    JsonNode body)
             throws ScriptExecException {
         try {
             HttpDynamicFunc.httpExchange(context).writeJson(status.asInt(200), body);
@@ -65,7 +64,7 @@ public class RespFunc {
     }
 
     @ScriptFunction(name = "send", constExpr = false)
-    public static JsonNode send(ExecutionContext context, @ScriptParam("status") JsonNode status)
+    public static JsonNode send(ExecutionContext context, JsonNode status)
             throws ScriptExecException {
         HttpDynamicFunc.httpExchange(context).writeRawBytes(status.asInt(200), Unpooled.EMPTY_BUFFER);
         return NullNode.getInstance();
@@ -73,8 +72,8 @@ public class RespFunc {
 
     @ScriptFunction(name = "send", constExpr = false)
     public static JsonNode send(ExecutionContext context,
-                                @ScriptParam("status") JsonNode status,
-                                @ScriptParam("body") JsonNode body)
+                                JsonNode status,
+                                JsonNode body)
             throws ScriptExecException {
         HttpExchange exchange = HttpDynamicFunc.httpExchange(context);
         int statusCode = status.asInt(200);
@@ -105,7 +104,7 @@ public class RespFunc {
     }
 
     @ScriptFunction(name = "addCookie", constExpr = false)
-    public static JsonNode addCookie(ExecutionContext context, @ScriptParam("cookie") JsonNode node) {
+    public static JsonNode addCookie(ExecutionContext context, JsonNode node) {
         if (!node.isObject()) {
             return BooleanNode.FALSE;
         }

@@ -77,9 +77,8 @@ Instead of implementing `Library.Function` directly, `ReflectLib` can scan annot
 ```java
 @ScriptLib(functionPrefix = "util", namespace = "$env")
 public final class EnvExports {
-    @ScriptFunction(name = "join")
-    public static JsonNode join(@ScriptParam("a") JsonNode a,
-                                @ScriptParam(value = "items", variadic = true) JsonNode... items) {
+    @ScriptFunction
+    public static JsonNode join(JsonNode a, JsonNode... items) {
         StringBuilder sb = new StringBuilder(a.asText());
         for (JsonNode item : items) {
             sb.append(item.asText());
@@ -87,17 +86,16 @@ public final class EnvExports {
         return TextNode.valueOf(sb.toString());
     }
 
-    @ScriptFunction(name = "timeout", constExpr = false, params = {
-            @ScriptParam("route"),
-            @ScriptParam(value = "fallback", optional = true, defaultValue = "3000")
+    @ScriptFunction(constExpr = false, params = {
+            @ScriptParam,
+            @ScriptParam(defaultValue = "3000")
     })
     public static JsonNode timeout(Library.Arguments args) {
         return args.getArgVal(1);
     }
 
-    @ScriptFunction(name = "asyncEcho")
-    public static void asyncEcho(Library.AsyncHandle handle,
-                                 @ScriptParam("value") JsonNode value) {
+    @ScriptFunction
+    public static void asyncEcho(Library.AsyncHandle handle, JsonNode value) {
         handle.returnVal(value);
     }
 
@@ -116,9 +114,9 @@ Annotation ABI rules:
 - The declaring class and exported methods must be `public`; static registration only accepts static methods, while instance registration requires an owner object.
 - Sync functions return `JsonNode`; async functions return `void` and declare `Library.AsyncHandle`.
 - Parameter order must be `ExecutionContext`, `Library.AsyncHandle`, then script parameters. `ExecutionContext` and `AsyncHandle` are optional, but if present they must come before every script parameter.
-- Script parameters may be `JsonNode` with `@ScriptParam`, a final variadic `JsonNode[]`, or one final `Library.Arguments`.
+- Required `JsonNode` script parameters do not need `@ScriptParam`; default-value parameters use `@ScriptParam(defaultValue = "...")`.
 - `Library.Arguments` requires an explicit `@ScriptFunction(params = {...})` signature; otherwise the function is treated as `(...args)`.
-- `@ScriptParam(optional = true, defaultValue = "...")` declares a default value. `@ScriptParam(variadic = true)` is valid only for the last `JsonNode[]`.
+- `JsonNode...` or `JsonNode[]` is treated as a final variadic script parameter.
 - `@ScriptLib(functionPrefix = "util")` registers `join` as `util.join`; `@ScriptLib(namespace = "$env")` provides a default namespace for constants.
 
 ## Example Usage

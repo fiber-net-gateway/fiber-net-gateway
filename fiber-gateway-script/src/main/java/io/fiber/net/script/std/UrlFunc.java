@@ -10,7 +10,6 @@ import io.fiber.net.common.utils.UrlEncoded;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.lib.ScriptFunction;
 import io.fiber.net.script.lib.ScriptLib;
-import io.fiber.net.script.lib.ScriptParam;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
@@ -22,7 +21,7 @@ public final class UrlFunc {
     }
 
     @ScriptFunction(name = "encodeComponent")
-    public static JsonNode encodeComponent(@ScriptParam("value") JsonNode val) throws ScriptExecException {
+    public static JsonNode encodeComponent(JsonNode val) throws ScriptExecException {
         if (!val.isTextual()) {
             throw new ScriptExecException("encode component require text value");
         }
@@ -31,7 +30,7 @@ public final class UrlFunc {
     }
 
     @ScriptFunction(name = "decodeComponent")
-    public static JsonNode decodeComponent(@ScriptParam("value") JsonNode val) throws ScriptExecException {
+    public static JsonNode decodeComponent(JsonNode val) throws ScriptExecException {
         if (!val.isTextual()) {
             throw new ScriptExecException("decode component require text value");
         }
@@ -40,7 +39,7 @@ public final class UrlFunc {
     }
 
     @ScriptFunction(name = "parseQuery")
-    public static JsonNode parseQuery(@ScriptParam("value") JsonNode val) throws ScriptExecException {
+    public static JsonNode parseQuery(JsonNode val) throws ScriptExecException {
         if (!val.isTextual()) {
             throw new ScriptExecException("parse query require text value");
         }
@@ -72,7 +71,7 @@ public final class UrlFunc {
     }
 
     @ScriptFunction(name = "buildQuery")
-    public static JsonNode buildQuery(@ScriptParam("value") JsonNode val) throws ScriptExecException {
+    public static JsonNode buildQuery(JsonNode val) throws ScriptExecException {
         if (val.isNull() || val.isMissingNode()) {
             return val;
         }

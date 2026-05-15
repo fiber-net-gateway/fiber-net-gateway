@@ -153,19 +153,35 @@ abstract class ReflectInvoker implements DirectReflectInvoker {
         FunctionParam[] functionParams = new FunctionParam[params.length];
         for (int i = 0; i < params.length; i++) {
             ScriptParam param = params[i];
-            functionParams[i] = toParam(param);
+            functionParams[i] = toParam(param, i);
         }
         return new FunctionSignature(name, constExpr, functionParams);
     }
 
-    static FunctionParam toParam(ScriptParam param) {
+    static FunctionParam toParam(ScriptParam param, int index) {
         if (param.variadic()) {
-            return FunctionParam.variadic(param.value());
+            return FunctionParam.variadic(restParamName());
         }
-        if (param.optional()) {
-            return FunctionParam.optional(param.value(), defaultValue(param));
+        if (param.defaultValue().length() != 0) {
+            return FunctionParam.optional(paramName(index), defaultValue(param));
         }
-        return FunctionParam.required(param.value());
+        return FunctionParam.required(paramName(index));
+    }
+
+    static FunctionParam requiredParam(int index) {
+        return FunctionParam.required(paramName(index));
+    }
+
+    static FunctionParam variadicParam() {
+        return FunctionParam.variadic(restParamName());
+    }
+
+    private static String paramName(int index) {
+        return "arg" + index;
+    }
+
+    private static String restParamName() {
+        return "args";
     }
 
     static ValueNode defaultValue(ScriptParam param) {
@@ -173,13 +189,13 @@ abstract class ReflectInvoker implements DirectReflectInvoker {
         try {
             jsonNode = JsonUtil.readTree(param.defaultValue());
         } catch (IOException e) {
-            throw new IllegalArgumentException("bad default value: " + param.value(), e);
+            throw new IllegalArgumentException("bad default value: " + param.defaultValue(), e);
         }
 
         if (jsonNode instanceof ValueNode) {
             return (ValueNode) jsonNode;
         }
-        throw new IllegalArgumentException("default Value must be value type in " + param.value() + ": " + param.defaultValue());
+        throw new IllegalArgumentException("default Value must be value type: " + param.defaultValue());
 
     }
 

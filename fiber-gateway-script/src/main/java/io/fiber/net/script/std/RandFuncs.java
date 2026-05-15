@@ -18,10 +18,8 @@ public final class RandFuncs {
     private RandFuncs() {
     }
 
-    @ScriptFunction(name = "random", constExpr = false, params = {
-            @ScriptParam(value = "max", optional = true, defaultValue = "1000")
-    })
-    public static JsonNode random(JsonNode max) throws ScriptExecException {
+    @ScriptFunction(name = "random", constExpr = false)
+    public static JsonNode random(@ScriptParam(defaultValue = "1000") JsonNode max) throws ScriptExecException {
         if (!max.isNumber()) {
             throw new ScriptExecException("random argument must be number");
         }
@@ -29,8 +27,8 @@ public final class RandFuncs {
     }
 
     @ScriptFunction(name = "canary", constExpr = false)
-    public static JsonNode canary(@ScriptParam("ratio") JsonNode ratioNode,
-                                  @ScriptParam(value = "keys", variadic = true) JsonNode... keys) {
+    public static JsonNode canary(JsonNode ratioNode,
+                                  JsonNode... keys) {
         long ratio = ratioNode.asLong(0L);
         if (ratio <= 0) {
             return BooleanNode.FALSE;

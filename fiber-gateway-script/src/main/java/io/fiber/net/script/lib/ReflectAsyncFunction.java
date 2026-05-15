@@ -16,7 +16,7 @@ public class ReflectAsyncFunction extends ReflectInvoker implements Library.Asyn
     }
 
     ReflectAsyncFunction(Method method, Object owner, ScriptFunction function) {
-        this(method, owner, function, function == null ? null : function.name());
+        this(method, owner, function, function == null ? null : ReflectFunction.functionName(method, function));
     }
 
     ReflectAsyncFunction(Method method, Object owner, ScriptFunction function, String name) {

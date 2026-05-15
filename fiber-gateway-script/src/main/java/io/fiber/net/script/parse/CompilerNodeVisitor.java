@@ -630,6 +630,9 @@ public class CompilerNodeVisitor implements NodeVisitor<Void> {
     }
 
     private boolean mustHasIterate(ExpressionNode node) {
+        if (node instanceof InlineList) {
+            return ((InlineList) node).getChildren().length != 0;
+        }
         if (!(node instanceof Literal)) {
             return false;
         }

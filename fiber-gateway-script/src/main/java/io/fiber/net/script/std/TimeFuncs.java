@@ -18,10 +18,8 @@ public final class TimeFuncs {
     private TimeFuncs() {
     }
 
-    @ScriptFunction(name = "now", constExpr = false, params = {
-            @ScriptParam(value = "format", optional = true, defaultValue = "null")
-    })
-    public static JsonNode now(JsonNode pattern) throws ScriptExecException {
+    @ScriptFunction(name = "now", constExpr = false)
+    public static JsonNode now(@ScriptParam(defaultValue = "null") JsonNode pattern) throws ScriptExecException {
         if (JsonUtil.isNull(pattern)) {
             return LongNode.valueOf(System.currentTimeMillis());
         }
@@ -39,11 +37,9 @@ public final class TimeFuncs {
         return TextNode.valueOf(DateFormatter.format(new Date()));
     }
 
-    @ScriptFunction(name = "format", constExpr = false, params = {
-            @ScriptParam("format"),
-            @ScriptParam(value = "timestamp", optional = true, defaultValue = "null")
-    })
-    public static JsonNode format(JsonNode pattern, JsonNode timestamp) throws ScriptExecException {
+    @ScriptFunction(name = "format", constExpr = false)
+    public static JsonNode format(JsonNode pattern, @ScriptParam(defaultValue = "null") JsonNode timestamp)
+            throws ScriptExecException {
         SimpleDateFormat format;
         try {
             format = new SimpleDateFormat(pattern.asText());

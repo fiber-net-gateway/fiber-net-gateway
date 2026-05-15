@@ -7,7 +7,6 @@ import io.fiber.net.script.lib.ReflectLib;
 import io.fiber.net.script.lib.ScriptConstant;
 import io.fiber.net.script.lib.ScriptFunction;
 import io.fiber.net.script.lib.ScriptLib;
-import io.fiber.net.script.lib.ScriptParam;
 import io.fiber.net.script.parse.Compiled;
 import io.fiber.net.script.parse.CompilerNodeVisitor;
 import io.fiber.net.script.std.StdLibrary;
@@ -93,8 +92,8 @@ public class LivenessAnalysisTest {
     public static class Exports {
         @ScriptFunction(name = "asyncAdd")
         public void asyncAdd(Library.AsyncHandle handle,
-                             @ScriptParam("a") JsonNode a,
-                             @ScriptParam("b") JsonNode b) {
+                             JsonNode a,
+                             JsonNode b) {
             handle.returnVal(IntNode.valueOf(a.asInt() + b.asInt()));
         }
 

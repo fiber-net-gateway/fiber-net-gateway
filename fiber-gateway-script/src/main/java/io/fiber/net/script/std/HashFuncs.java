@@ -8,7 +8,6 @@ import io.fiber.net.common.utils.StringUtils;
 import io.fiber.net.script.ScriptExecException;
 import io.fiber.net.script.lib.ScriptFunction;
 import io.fiber.net.script.lib.ScriptLib;
-import io.fiber.net.script.lib.ScriptParam;
 
 import java.nio.charset.StandardCharsets;
 import java.util.zip.CRC32;
@@ -19,7 +18,7 @@ public final class HashFuncs {
     }
 
     @ScriptFunction(name = "crc32")
-    public static JsonNode crc32(@ScriptParam("value") JsonNode value) {
+    public static JsonNode crc32(JsonNode value) {
         String s = value.asText(null);
         if (StringUtils.isEmpty(s)) {
             return LongNode.valueOf(0);
@@ -31,7 +30,7 @@ public final class HashFuncs {
     }
 
     @ScriptFunction(name = "md5")
-    public static JsonNode md5(@ScriptParam("value") JsonNode arg) throws ScriptExecException {
+    public static JsonNode md5(JsonNode arg) throws ScriptExecException {
         if (arg.isTextual()) {
             return TextNode.valueOf(HashUtils.stringToMD5Str(arg.textValue()));
         }
@@ -46,7 +45,7 @@ public final class HashFuncs {
     }
 
     @ScriptFunction(name = "sha1")
-    public static JsonNode sha1(@ScriptParam("value") JsonNode arg) throws ScriptExecException {
+    public static JsonNode sha1(JsonNode arg) throws ScriptExecException {
         if (arg.isTextual()) {
             return TextNode.valueOf(HashUtils.hex(HashUtils.sha1(arg.textValue().getBytes())));
         }
@@ -61,7 +60,7 @@ public final class HashFuncs {
     }
 
     @ScriptFunction(name = "sha256")
-    public static JsonNode sha256(@ScriptParam("value") JsonNode arg) throws ScriptExecException {
+    public static JsonNode sha256(JsonNode arg) throws ScriptExecException {
         if (arg.isTextual()) {
             return TextNode.valueOf(HashUtils.hex(HashUtils.sha256(arg.textValue().getBytes())));
         }

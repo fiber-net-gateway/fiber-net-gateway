@@ -16,11 +16,9 @@ public final class ArrayFuncs {
     private ArrayFuncs() {
     }
 
-    @ScriptFunction(name = "join", params = {
-            @ScriptParam("arr"),
-            @ScriptParam(value = "delimiter", optional = true, defaultValue = "\"\"")
-    })
-    public static JsonNode join(JsonNode node, JsonNode delimiter) throws ScriptExecException {
+    @ScriptFunction(name = "join")
+    public static JsonNode join(JsonNode node, @ScriptParam(defaultValue = "\"\"") JsonNode delimiter)
+            throws ScriptExecException {
         ArrayNode arr = assertArray(node, "array join");
         StringJoiner js = new StringJoiner(delimiter.asText(""));
         for (JsonNode arg : arr) {
@@ -30,7 +28,7 @@ public final class ArrayFuncs {
     }
 
     @ScriptFunction(name = "pop")
-    public static JsonNode pop(@ScriptParam("arr") JsonNode node) throws ScriptExecException {
+    public static JsonNode pop(JsonNode node) throws ScriptExecException {
         ArrayNode arr = assertArray(node, "array pop");
         if (arr.isEmpty()) {
             return NullNode.getInstance();
@@ -39,8 +37,8 @@ public final class ArrayFuncs {
     }
 
     @ScriptFunction(name = "push")
-    public static JsonNode push(@ScriptParam("arr") JsonNode node,
-                                @ScriptParam(value = "items", variadic = true) JsonNode... items)
+    public static JsonNode push(JsonNode node,
+                                JsonNode... items)
             throws ScriptExecException {
         ArrayNode arr = assertArray(node, "array pop");
         for (JsonNode item : items) {

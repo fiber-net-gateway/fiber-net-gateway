@@ -16,8 +16,8 @@ public class MyLib extends StdLibrary {
 
     @ScriptFunction(name = "test1",
             params = {
-                    @ScriptParam("t"),
-                    @ScriptParam(value = "t2", variadic = true)
+                    @ScriptParam,
+                    @ScriptParam(variadic = true)
             })
     public static void test1(Library.AsyncHandle handle, Library.Arguments arguments) {
         int argCnt = arguments.getArgCnt();
@@ -27,23 +27,22 @@ public class MyLib extends StdLibrary {
 
     @ScriptFunction(name = "test2")
     public static void test2(Library.AsyncHandle handle,
-                             @ScriptParam("t") JsonNode a,
-                             @ScriptParam(value = "t2", variadic = true)
+                             JsonNode a,
                              JsonNode... b) {
         handle.returnVal(IntNode.valueOf(b.length + 1));
     }
 
     @ScriptFunction(name = "test3")
     public static void test3(Library.AsyncHandle handle,
-                             @ScriptParam("t") JsonNode a,
-                             @ScriptParam("b") JsonNode b) {
+                             JsonNode a,
+                             JsonNode b) {
         handle.returnVal(IntNode.valueOf(2));
     }
 
     @ScriptFunction(name = "test4")
     public static JsonNode test4(
-            @ScriptParam("t") JsonNode a,
-            @ScriptParam(value = "b", optional = true, defaultValue = "3") JsonNode b) {
+            JsonNode a,
+            @ScriptParam(defaultValue = "3") JsonNode b) {
         return MissingNode.getInstance();
     }
 

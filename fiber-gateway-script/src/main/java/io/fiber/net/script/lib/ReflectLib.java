@@ -49,7 +49,7 @@ public final class ReflectLib {
                 throw ReflectInvoker.invalid(method, "static registration requires static methods");
             }
             if (function != null) {
-                String name = functionName(functionPrefix, function.name(), method);
+                String name = functionName(functionPrefix, ReflectFunction.functionName(method, function), method);
                 if (ReflectFunction.isAsync(method)) {
                     library.putAsyncFunc(name, new ReflectAsyncFunction(method, owner, function, name));
                 } else {

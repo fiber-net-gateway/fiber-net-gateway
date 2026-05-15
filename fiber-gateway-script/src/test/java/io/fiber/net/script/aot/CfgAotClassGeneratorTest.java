@@ -9,7 +9,6 @@ import io.fiber.net.script.lib.ReflectLib;
 import io.fiber.net.script.lib.ScriptConstant;
 import io.fiber.net.script.lib.ScriptFunction;
 import io.fiber.net.script.lib.ScriptLib;
-import io.fiber.net.script.lib.ScriptParam;
 import io.fiber.net.script.parse.Compiled;
 import io.fiber.net.script.parse.CompilerNodeVisitor;
 import io.fiber.net.script.run.AbstractVm;
@@ -173,15 +172,15 @@ public class CfgAotClassGeneratorTest {
     @ScriptLib(namespace = "$test")
     public static class Exports {
         @ScriptFunction(name = "syncAdd")
-        public JsonNode syncAdd(@ScriptParam("a") JsonNode a,
-                                @ScriptParam("b") JsonNode b) {
+        public JsonNode syncAdd(JsonNode a,
+                                JsonNode b) {
             return IntNode.valueOf(a.asInt() + b.asInt());
         }
 
         @ScriptFunction(name = "asyncAdd")
         public void asyncAdd(Library.AsyncHandle handle,
-                             @ScriptParam("a") JsonNode a,
-                             @ScriptParam("b") JsonNode b) {
+                             JsonNode a,
+                             JsonNode b) {
             handle.returnVal(IntNode.valueOf(a.asInt() + b.asInt()));
         }
 

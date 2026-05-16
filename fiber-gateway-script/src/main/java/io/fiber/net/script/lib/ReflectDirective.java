@@ -58,7 +58,22 @@ public final class ReflectDirective implements Library.DirectiveDef {
             }
             matched = resolvedFunc(new ResolvedKey(resolvedName, i), functionMeta, signature);
         }
+        if (matched == null) {
+            throw new IllegalStateException("directive function argument mismatch: " + resolvedName
+                    + ", candidates: " + displaySignatures(resolvedName, candidates));
+        }
         return matched;
+    }
+
+    private static String displaySignatures(String name, List<ReflectFunctionMeta> metas) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < metas.size(); i++) {
+            if (i > 0) {
+                sb.append(" / ");
+            }
+            sb.append(metas.get(i).signature(name).display());
+        }
+        return sb.toString();
     }
 
     private ResolvedFunc resolvedFunc(ResolvedKey key, ReflectFunctionMeta meta, FunctionSignature signature) {
@@ -95,7 +110,7 @@ public final class ReflectDirective implements Library.DirectiveDef {
                 if (Modifier.isStatic(method.getModifiers())) {
                     throw ReflectInvoker.invalid(method, "directive function cannot be static");
                 }
-                String name = function.name();
+                String name = ReflectFunction.functionName(method, function);
                 if (!FUNCTION_NAME.matcher(name).matches()) {
                     throw ReflectInvoker.invalid(method, "invalid directive function name: " + name);
                 }

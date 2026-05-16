@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface ScriptFunction {
-    String name();
+    String name() default "";
 
     boolean constExpr() default false;
 

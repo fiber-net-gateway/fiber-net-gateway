@@ -8,11 +8,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.PARAMETER, ElementType.METHOD})
 public @interface ScriptParam {
-    String value();
-
-    boolean optional() default false;
-
-    String defaultValue() default "null";
+    String defaultValue() default "";
 
     boolean variadic() default false;
 }

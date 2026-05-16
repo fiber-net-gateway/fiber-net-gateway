@@ -172,38 +172,38 @@ public class ReflectLibTest {
             this.prefix = prefix;
         }
 
-        @ScriptFunction(name = "join")
-        public JsonNode join(@ScriptParam("a") JsonNode a,
-                             @ScriptParam("b") JsonNode b) {
+        @ScriptFunction
+        public JsonNode join(JsonNode a,
+                             JsonNode b) {
             return TextNode.valueOf(prefix + a.asText() + b.asText());
         }
 
         @ScriptFunction(name = "argc", params = {
-                @ScriptParam("a"),
-                @ScriptParam(value = "b", optional = true, defaultValue = "2")
+                @ScriptParam,
+                @ScriptParam(defaultValue = "2")
         })
         public JsonNode argc(Library.Arguments args) {
             return IntNode.valueOf(args.getArgCnt() + args.getArgVal(1).asInt());
         }
 
-        @ScriptFunction(name = "asyncAdd")
+        @ScriptFunction
         public void asyncAdd(Library.AsyncHandle handle,
-                             @ScriptParam("a") JsonNode a,
-                             @ScriptParam("b") JsonNode b) {
+                             JsonNode a,
+                             JsonNode b) {
             handle.returnVal(IntNode.valueOf(a.asInt() + b.asInt()));
         }
 
-        @ScriptFunction(name = "boom")
+        @ScriptFunction
         public JsonNode boom() {
             throw new IllegalStateException("sync boom");
         }
 
-        @ScriptFunction(name = "scriptBoom")
+        @ScriptFunction
         public JsonNode scriptBoom() throws ScriptExecException {
             throw new ScriptExecException("script boom");
         }
 
-        @ScriptFunction(name = "asyncBoom")
+        @ScriptFunction
         public void asyncBoom(Library.AsyncHandle handle) {
             throw new IllegalStateException("async boom");
         }
@@ -220,8 +220,8 @@ public class ReflectLibTest {
     }
 
     public static class StaticExports {
-        @ScriptFunction(name = "sum")
-        public static JsonNode sum(@ScriptParam("values") JsonNode... values) {
+        @ScriptFunction
+        public static JsonNode sum(JsonNode... values) {
             int sum = 0;
             for (JsonNode value : values) {
                 sum += value.asInt();
@@ -232,16 +232,16 @@ public class ReflectLibTest {
 
     @ScriptLib(functionPrefix = "util", namespace = "$util")
     public static class PrefixedExports {
-        @ScriptFunction(name = "plus")
-        public static JsonNode plus(@ScriptParam("a") JsonNode a,
-                                    @ScriptParam("b") JsonNode b) {
+        @ScriptFunction
+        public static JsonNode plus(JsonNode a,
+                                    JsonNode b) {
             return IntNode.valueOf(a.asInt() + b.asInt());
         }
 
-        @ScriptFunction(name = "asyncPlus")
+        @ScriptFunction
         public static void asyncPlus(Library.AsyncHandle handle,
-                                     @ScriptParam("a") JsonNode a,
-                                     @ScriptParam("b") JsonNode b) {
+                                     JsonNode a,
+                                     JsonNode b) {
             handle.returnVal(IntNode.valueOf(a.asInt() + b.asInt()));
         }
 
@@ -262,7 +262,7 @@ public class ReflectLibTest {
         }
 
         @ScriptFunction(name = "badOrder")
-        public static JsonNode badOrder(@ScriptParam("a") JsonNode node, ExecutionContext context) {
+        public static JsonNode badOrder(JsonNode node, ExecutionContext context) {
             return node;
         }
     }

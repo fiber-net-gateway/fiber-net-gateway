@@ -1,9 +1,6 @@
 package io.fiber.net.script;
 
-import io.fiber.net.common.json.IntNode;
-import io.fiber.net.common.json.JsonNode;
-import io.fiber.net.common.json.NullNode;
-import io.fiber.net.common.json.TextNode;
+import io.fiber.net.common.json.*;
 import io.fiber.net.common.utils.JsonUtil;
 import io.fiber.net.script.parse.ParseException;
 import io.fiber.net.script.std.StdLibrary;
@@ -36,9 +33,17 @@ public class FunctionSignatureTest {
     }
 
     @Test
+    public void shouldDistinguishMissingFunctionFromArgumentMismatch() {
+        StdLibrary library = testLibrary();
+
+        assertMessage("return missingFunc(1);", library, "could not be found");
+        assertMessage("return def();", library, "function argument mismatch: def, candidates: def(a,b=7,c=\"x\")");
+    }
+
+    @Test
     public void shouldRejectUnsupportedDefaultLiteral() {
         try {
-            FunctionParam.optional("bad", JsonUtil.createObjectNode());
+            FunctionParam.optional("bad", MissingNode.getInstance());
             Assert.fail("expected illegal default value");
         } catch (IllegalArgumentException expected) {
             // expected
@@ -59,8 +64,17 @@ public class FunctionSignatureTest {
         try {
             Script.compileWithoutOptimization(script, library, true);
             Assert.fail("expected function argument mismatch");
-        } catch (ParseException expected) {
+        } catch (RuntimeException expected) {
             // expected
+        }
+    }
+
+    private static void assertMessage(String script, Library library, String message) {
+        try {
+            Script.compileWithoutOptimization(script, library, true);
+            Assert.fail("expected compile error");
+        } catch (RuntimeException expected) {
+            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains(message));
         }
     }
 

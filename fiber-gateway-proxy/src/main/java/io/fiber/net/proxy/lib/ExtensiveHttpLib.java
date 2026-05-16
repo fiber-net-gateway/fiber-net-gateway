@@ -78,21 +78,38 @@ public class ExtensiveHttpLib extends StdLibrary {
             return func;
         }
         if (ArrayUtils.isNotEmpty(configures)) {
+            StringBuilder candidates = null;
             for (HttpLibConfigure configure : configures) {
                 Library.Function c = configure.findFunction(name);
                 ResolvedFunc resolved = resolveSync(name, args, c);
                 if (resolved != null) {
                     return resolved;
                 }
+                candidates = appendCandidate(candidates, c == null ? null : c.signature());
 
                 Library.AsyncFunction ac = configure.findAsyncFunction(name);
                 resolved = resolveAsync(name, args, ac);
                 if (resolved != null) {
                     return resolved;
                 }
+                candidates = appendCandidate(candidates, ac == null ? null : ac.signature());
+            }
+            if (candidates != null) {
+                throw new IllegalStateException("function argument mismatch: " + name
+                        + ", candidates: " + candidates);
             }
         }
         return null;
+    }
+
+    private static StringBuilder appendCandidate(StringBuilder candidates, FunctionSignature signature) {
+        if (signature == null) {
+            return candidates;
+        }
+        if (candidates == null) {
+            return new StringBuilder(signature.display());
+        }
+        return candidates.append(" / ").append(signature.display());
     }
 
     private static ResolvedFunc resolveSync(String name, FunctionCallArgs args, Library.Function function) {

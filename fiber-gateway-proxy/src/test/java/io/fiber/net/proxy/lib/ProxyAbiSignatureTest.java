@@ -6,7 +6,6 @@ import io.fiber.net.script.Library;
 import io.fiber.net.script.Script;
 import io.fiber.net.script.ast.Literal;
 import io.fiber.net.script.lib.ReflectDirective;
-import io.fiber.net.script.parse.ParseException;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -54,8 +53,8 @@ public class ProxyAbiSignatureTest {
         try {
             compile(script);
             Assert.fail("expected ABI argument mismatch: " + script);
-        } catch (ParseException expected) {
-            // expected
+        } catch (RuntimeException expected) {
+            Assert.assertTrue(expected.getMessage(), expected.getMessage().contains("argument mismatch"));
         }
     }
 
